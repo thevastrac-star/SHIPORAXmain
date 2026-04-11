@@ -3,202 +3,151 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ShipoRAX – Control Centre</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<title>SHIPORAX – Admin Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{
-  font-family:'Inter',sans-serif;min-height:100vh;
+  font-family:'DM Sans',sans-serif;min-height:100vh;
   display:flex;align-items:center;justify-content:center;
-  background:#06060F;overflow:hidden;
+  background:linear-gradient(135deg,#F0EFFE 0%,#F5F6FA 60%,#EEF5FF 100%);
+  position:relative;overflow:hidden;
 }
-.bg{position:fixed;inset:0;
-  background:
-    radial-gradient(ellipse at 20% 50%,#2a0a5e50 0%,transparent 60%),
-    radial-gradient(ellipse at 80% 30%,#0a1a6050 0%,transparent 55%),
-    radial-gradient(ellipse at 50% 90%,#1a0a4020 0%,transparent 50%),
-    #06060F;
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:radial-gradient(circle at 1px 1px,rgba(80,70,228,.07) 1px,transparent 0);
+  background-size:36px 36px;
 }
-.orb{position:absolute;border-radius:50%;filter:blur(100px);animation:fl 10s ease-in-out infinite}
-.o1{width:700px;height:700px;background:radial-gradient(#7C3AED25,transparent);top:-200px;left:-200px}
-.o2{width:500px;height:500px;background:radial-gradient(#2563EB20,transparent);bottom:-150px;right:-150px;animation-delay:-5s}
-.o3{width:300px;height:300px;background:radial-gradient(#00C9A715,transparent);top:30%;right:20%;animation-delay:-8s}
-@keyframes fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-40px)}}
+.deco{position:fixed;border-radius:50%}
+.d1{width:600px;height:600px;background:radial-gradient(#5046E415,transparent);top:-150px;left:-150px}
+.d2{width:400px;height:400px;background:radial-gradient(#0A9E8912,transparent);bottom:-100px;right:-100px}
 
-.grid{position:fixed;inset:0;
-  background-image:
-    linear-gradient(rgba(124,58,237,.04) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(124,58,237,.04) 1px,transparent 1px);
-  background-size:65px 65px;
-}
-
-/* scanning line */
-.scan{position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#7C3AED80,transparent);animation:scan 4s linear infinite;z-index:3}
-@keyframes scan{0%{top:0;opacity:1}90%{top:100%;opacity:.3}100%{top:100%;opacity:0}}
-
-.wrap{position:relative;z-index:10;width:100%;max-width:440px;padding:24px}
+.wrap{position:relative;z-index:10;width:100%;max-width:460px;padding:24px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.brand-icon{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#5046E4,#6C62F5);display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 6px 16px rgba(80,70,228,.35)}
+.brand-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.1rem;font-weight:800;color:#12172B}
+.brand-name em{color:#5046E4;font-style:normal}
+.client-link{font-size:.8rem;color:#7A82A0;text-decoration:none;border:1.5px solid #E4E7EF;padding:7px 16px;border-radius:999px;background:#fff;transition:.18s}
+.client-link:hover{border-color:#5046E4;color:#5046E4}
 
 .card{
-  background:rgba(255,255,255,.03);
-  backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);
-  border:1px solid rgba(124,58,237,.25);
-  border-radius:28px;padding:44px 40px;
-  box-shadow:0 32px 80px rgba(0,0,0,.6),
-    inset 0 1px 0 rgba(255,255,255,.08),
-    0 0 60px rgba(124,58,237,.06);
+  background:#fff;border:1.5px solid #E4E7EF;border-radius:22px;padding:38px;
+  box-shadow:0 4px 20px rgba(18,23,43,.07),0 16px 48px rgba(18,23,43,.05);
   position:relative;overflow:hidden;
 }
-.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#7C3AED,#2563EB,#00C9A7);border-radius:28px 28px 0 0}
-.card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(124,58,237,.3),transparent)}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#5046E4,#6C62F5,#0A9E89);border-radius:22px 22px 0 0}
 
-/* corner accents */
-.corner{position:absolute;width:20px;height:20px;border-color:#7C3AED50;border-style:solid}
-.tl{top:12px;left:12px;border-width:2px 0 0 2px}
-.tr{top:12px;right:12px;border-width:2px 2px 0 0}
-.bl{bottom:12px;left:12px;border-width:0 0 2px 2px}
-.br{bottom:12px;right:12px;border-width:0 2px 2px 0}
-
-.card-head{text-align:center;margin-bottom:32px}
-.shield{
-  width:80px;height:80px;margin:0 auto 16px;
-  border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:2.2rem;
-  background:linear-gradient(135deg,#7C3AED15,#2563EB15);
-  border:1.5px solid #7C3AED45;
-  box-shadow:0 0 0 10px #7C3AED08,0 16px 48px #7C3AED35;
-  position:relative;
-}
-.shield::before{
-  content:'';position:absolute;inset:-1px;border-radius:25px;
-  background:linear-gradient(135deg,#7C3AED30,transparent,#2563EB30);
-  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
-  -webkit-mask-composite:xor;mask-composite:exclude;padding:1px;
-}
-.status-dot{
-  position:absolute;bottom:-2px;right:-2px;width:16px;height:16px;border-radius:50%;
-  background:#00C9A7;border:2px solid #06060F;
-  box-shadow:0 0 8px #00C9A780;
-  animation:pulse 2s ease-in-out infinite;
-}
-@keyframes pulse{0%,100%{box-shadow:0 0 8px #00C9A780}50%{box-shadow:0 0 16px #00C9A7}}
-
-.sys-label{display:inline-block;padding:4px 14px;border-radius:999px;font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;background:rgba(124,58,237,.12);color:#A78BFA;border:1px solid rgba(124,58,237,.3);margin-bottom:10px}
-.card-head h2{font-size:1.7rem;font-weight:800;color:#fff;letter-spacing:-.025em}
-.card-head p{color:rgba(255,255,255,.35);font-size:.85rem;margin-top:5px}
+.header{text-align:center;margin-bottom:32px}
+.icon-wrap{width:84px;height:84px;border-radius:22px;margin:0 auto 18px;display:flex;align-items:center;justify-content:center;font-size:2.2rem;background:linear-gradient(135deg,#F0EFFE,#E8E5FF);border:1.5px solid #C9C5FC;box-shadow:0 8px 24px rgba(80,70,228,.15)}
+.header h1{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.8rem;font-weight:800;color:#12172B;letter-spacing:-.04em}
+.header p{color:#7A82A0;font-size:.9rem;margin-top:5px}
+.header .badge{display:inline-flex;align-items:center;gap:6px;background:#F0EFFE;color:#5046E4;border:1px solid #C9C5FC;padding:5px 16px;border-radius:999px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-top:12px}
 
 .form-group{margin-bottom:18px}
-label{display:block;font-size:.72rem;font-weight:600;color:rgba(255,255,255,.4);margin-bottom:7px;text-transform:uppercase;letter-spacing:.09em}
-input{
-  width:100%;padding:16px 18px;
-  border:1.5px solid rgba(124,58,237,.2);border-radius:13px;
-  font-size:.97rem;outline:none;
-  background:rgba(124,58,237,.06);color:#fff;
-  transition:.25s;font-family:'Inter',sans-serif;
-}
-input::placeholder{color:rgba(255,255,255,.2)}
-input:focus{background:rgba(124,58,237,.12);border-color:#7C3AED80;box-shadow:0 0 0 4px #7C3AED15}
+label{display:block;font-size:.75rem;font-weight:600;color:#3D4560;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
+input{width:100%;padding:14px 16px;border:1.5px solid #D1D5E4;border-radius:12px;font-size:.95rem;outline:none;background:#FAFBFF;color:#12172B;transition:.2s;font-family:'DM Sans',sans-serif}
+input::placeholder{color:#B0B8CC}
+input:focus{background:#fff;border-color:#5046E4;box-shadow:0 0 0 3px rgba(80,70,228,.1)}
 
-.btn{
-  width:100%;padding:18px;border:none;border-radius:14px;
-  font-size:1rem;font-weight:700;cursor:pointer;
-  transition:.25s;font-family:'Inter',sans-serif;
-  background:linear-gradient(135deg,#7C3AED,#2563EB);color:#fff;
-  box-shadow:0 8px 28px #7C3AED55;margin-top:8px;
-  position:relative;overflow:hidden;
-  display:flex;align-items:center;justify-content:center;gap:8px;
-}
-.btn::before{content:'';position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.15),transparent);opacity:0;transition:.25s}
-.btn:hover::before{opacity:1}
-.btn:hover{transform:translateY(-2px);box-shadow:0 14px 36px #7C3AED70}
+.btn{width:100%;padding:16px;border:none;border-radius:13px;font-size:1rem;font-weight:700;cursor:pointer;transition:.22s;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover{transform:translateY(-2px)}
 .btn:active{transform:translateY(0)}
-.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+.btn-main{background:linear-gradient(135deg,#5046E4,#6C62F5);color:#fff;box-shadow:0 6px 20px rgba(80,70,228,.35);margin-top:6px}
+.btn-main:hover{box-shadow:0 10px 28px rgba(80,70,228,.5)}
 
-.error{background:#FF000015;color:#FF9090;padding:12px 16px;border-radius:10px;font-size:.84rem;margin-bottom:16px;display:none;border-left:3px solid #FF4444;border:1px solid #FF444430}
-
-.footer-note{text-align:center;margin-top:20px;font-size:.75rem;color:rgba(255,255,255,.18);letter-spacing:.04em}
-
-@media(max-width:480px){
-  .card{padding:28px 20px}
-}
+.error{background:#FDEAEA;color:#C62828;padding:12px 16px;border-radius:10px;font-size:.85rem;margin-bottom:16px;display:none;border-left:3px solid #E03030}
+.security{margin-top:18px;padding:12px 16px;background:#F8F9FC;border:1px solid #E4E7EF;border-radius:10px;display:flex;align-items:center;gap:10px;font-size:.8rem;color:#7A82A0}
+.foot{margin-top:20px;text-align:center;font-size:.82rem;color:#7A82A0}
+.foot a{color:#5046E4;text-decoration:none;font-weight:600}
+.foot a:hover{text-decoration:underline}
+@media(max-width:480px){.card{padding:28px 20px}.btn{padding:17px}}
 </style>
 </head>
 <body>
-<div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
-<div class="grid"></div>
-<div class="scan"></div>
+<div class="orb o2"></div></div>
 
+
+<div class="deco d1"></div><div class="deco d2"></div>
 <div class="wrap">
-  <div class="card">
-    <div class="corner tl"></div>
-    <div class="corner tr"></div>
-    <div class="corner bl"></div>
-    <div class="corner br"></div>
+  <div class="top">
+    <a class="brand" href="/login">
+      <div class="brand-icon">🚀</div>
+      <div class="brand-name">Shipo<em>RAX</em></div>
+    </a>
+    <a class="client-link" href="/client/login">Client Login →</a>
+  </div>
 
-    <div class="card-head">
-      <div class="shield">
-        🛡️
-        <div class="status-dot"></div>
-      </div>
-      <div class="sys-label">Restricted Access</div>
-      <h2>Control Centre</h2>
-      <p>Authorised personnel only</p>
+  <div class="card">
+    <div class="header">
+      <div class="icon-wrap">🛠️</div>
+      <h1>Admin Login</h1>
+      <p>Access the full admin control panel</p>
+      <div class="badge"><span>🔐</span> Authorized Personnel Only</div>
     </div>
 
     <div class="error" id="err"></div>
 
     <div class="form-group">
-      <label>Administrator Email</label>
+      <label>Admin Email Address</label>
       <input type="email" id="email" placeholder="admin@shiporax.com" autocomplete="username"/>
     </div>
     <div class="form-group">
       <label>Password</label>
       <input type="password" id="password" placeholder="Enter your password"
-        onkeydown="if(event.key==='Enter')doLogin()"/>
+        autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
     </div>
-    <button class="btn" id="btn" onclick="doLogin()">
-      🔐 &nbsp;Authenticate &amp; Enter
+
+    <button class="btn btn-main" id="login-btn" onclick="doLogin()">
+      🔐 &nbsp;Login to Admin Panel
     </button>
 
-    <div class="footer-note">SHIPORAX INTERNAL SYSTEM &nbsp;·&nbsp; UNAUTHORISED ACCESS IS PROHIBITED</div>
+    <div class="security">
+      <span>🛡️</span>
+      All admin actions are logged and monitored for security.
+    </div>
+
+    <div class="foot">
+      <a href="/client/login">← Go to Client Login</a>
+    </div>
   </div>
 </div>
 
 <script>
-const API = 'https://kourierwale.onrender.com/api';
-
-window.onload = () => {
-  if (localStorage.getItem('admin_token')) window.location.href = 'index.html';
+const API=(window.__API_URL||'')+'/api';
+window.onload=()=>{
+  const t=localStorage.getItem('admin_token');
+  if(t) window.location.href='/admin';
 };
-
 function showErr(msg){
-  const e = document.getElementById('err');
-  e.textContent = msg; e.style.display = 'block';
-  setTimeout(() => e.style.display='none', 5500);
+  const e=document.getElementById('err');
+  e.textContent=msg;e.style.display='block';
+  setTimeout(()=>e.style.display='none',5000);
 }
-function setBtn(loading){
-  const b = document.getElementById('btn');
-  b.disabled = loading;
-  b.textContent = loading ? '⏳  Authenticating...' : '🔐  Authenticate & Enter';
-}
-
 async function doLogin(){
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
-  if(!email||!password){ showErr('⚠️ Please enter credentials'); return; }
-  setBtn(true);
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('password').value;
+  if(!email||!password){showErr('⚠️ Please enter your email and password');return;}
+  const btn=document.getElementById('login-btn');
+  btn.disabled=true;btn.textContent='⏳  Please wait...';
   try{
-    const r = await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-    const d = await r.json();
-    if(d.success && d.user.role === 'admin'){
-      localStorage.setItem('admin_token', d.token);
-      localStorage.setItem('admin_user', JSON.stringify(d.user));
-      window.location.href = 'index.html';
-    } else if(d.success){
-      showErr('❌ Access denied. Insufficient privileges.');
-    } else {
-      showErr('❌ ' + (d.message || 'Authentication failed'));
+    const r=await fetch(API+'/auth/login',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password})
+    });
+    const d=await r.json();
+    if(d.success&&d.user.role==='admin'){
+      localStorage.setItem('admin_token',d.token);
+      localStorage.setItem('admin_user',JSON.stringify(d.user));
+      window.location.href='/admin';
+    }else if(d.success&&d.user.role!=='admin'){
+      showErr('⚠️ This is a client account. Use the Client Login page instead.');
+    }else{
+      showErr('❌ '+(d.message||'Invalid email or password. Please try again.'));
     }
-  } catch(e){ showErr('🔌 Connection error. Please try again.'); }
-  setBtn(false);
+  }catch(e){showErr('🔌 Network error. Please check your connection and try again.');}
+  btn.disabled=false;btn.textContent='🔐  Login to Admin Panel';
 }
 </script>
 </body>
