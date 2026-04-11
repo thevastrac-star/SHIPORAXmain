@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SHIPORAX – Admin Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'DM Sans',sans-serif;min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#F0EFFE 0%,#F5F6FA 60%,#EEF5FF 100%);
+  position:relative;overflow:hidden;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:radial-gradient(circle at 1px 1px,rgba(80,70,228,.07) 1px,transparent 0);
+  background-size:36px 36px;
+}
+.deco{position:fixed;border-radius:50%}
+.d1{width:600px;height:600px;background:radial-gradient(#5046E415,transparent);top:-150px;left:-150px}
+.d2{width:400px;height:400px;background:radial-gradient(#0A9E8912,transparent);bottom:-100px;right:-100px}
+
+.wrap{position:relative;z-index:10;width:100%;max-width:460px;padding:24px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.brand-icon{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#5046E4,#6C62F5);display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 6px 16px rgba(80,70,228,.35)}
+.brand-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.1rem;font-weight:800;color:#12172B}
+.brand-name em{color:#5046E4;font-style:normal}
+.client-link{font-size:.8rem;color:#7A82A0;text-decoration:none;border:1.5px solid #E4E7EF;padding:7px 16px;border-radius:999px;background:#fff;transition:.18s}
+.client-link:hover{border-color:#5046E4;color:#5046E4}
+
+.card{
+  background:#fff;border:1.5px solid #E4E7EF;border-radius:22px;padding:38px;
+  box-shadow:0 4px 20px rgba(18,23,43,.07),0 16px 48px rgba(18,23,43,.05);
+  position:relative;overflow:hidden;
+}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#5046E4,#6C62F5,#0A9E89);border-radius:22px 22px 0 0}
+
+.header{text-align:center;margin-bottom:32px}
+.icon-wrap{width:84px;height:84px;border-radius:22px;margin:0 auto 18px;display:flex;align-items:center;justify-content:center;font-size:2.2rem;background:linear-gradient(135deg,#F0EFFE,#E8E5FF);border:1.5px solid #C9C5FC;box-shadow:0 8px 24px rgba(80,70,228,.15)}
+.header h1{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.8rem;font-weight:800;color:#12172B;letter-spacing:-.04em}
+.header p{color:#7A82A0;font-size:.9rem;margin-top:5px}
+.header .badge{display:inline-flex;align-items:center;gap:6px;background:#F0EFFE;color:#5046E4;border:1px solid #C9C5FC;padding:5px 16px;border-radius:999px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-top:12px}
+
+.form-group{margin-bottom:18px}
+label{display:block;font-size:.75rem;font-weight:600;color:#3D4560;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
+input{width:100%;padding:14px 16px;border:1.5px solid #D1D5E4;border-radius:12px;font-size:.95rem;outline:none;background:#FAFBFF;color:#12172B;transition:.2s;font-family:'DM Sans',sans-serif}
+input::placeholder{color:#B0B8CC}
+input:focus{background:#fff;border-color:#5046E4;box-shadow:0 0 0 3px rgba(80,70,228,.1)}
+
+.btn{width:100%;padding:16px;border:none;border-radius:13px;font-size:1rem;font-weight:700;cursor:pointer;transition:.22s;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover{transform:translateY(-2px)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+.btn-main{background:linear-gradient(135deg,#5046E4,#6C62F5);color:#fff;box-shadow:0 6px 20px rgba(80,70,228,.35);margin-top:6px}
+.btn-main:hover{box-shadow:0 10px 28px rgba(80,70,228,.5)}
+
+.error{background:#FDEAEA;color:#C62828;padding:12px 16px;border-radius:10px;font-size:.85rem;margin-bottom:16px;display:none;border-left:3px solid #E03030}
+.security{margin-top:18px;padding:12px 16px;background:#F8F9FC;border:1px solid #E4E7EF;border-radius:10px;display:flex;align-items:center;gap:10px;font-size:.8rem;color:#7A82A0}
+.foot{margin-top:20px;text-align:center;font-size:.82rem;color:#7A82A0}
+.foot a{color:#5046E4;text-decoration:none;font-weight:600}
+.foot a:hover{text-decoration:underline}
+@media(max-width:480px){.card{padding:28px 20px}.btn{padding:17px}}
+</style>
+</head>
+<body>
+<div class="orb o2"></div></div>
+
+
+<div class="deco d1"></div><div class="deco d2"></div>
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="/login">
+      <div class="brand-icon">🚀</div>
+      <div class="brand-name">Shipo<em>RAX</em></div>
+    </a>
+    <a class="client-link" href="/client/login">Client Login →</a>
+  </div>
+
+  <div class="card">
+    <div class="header">
+      <div class="icon-wrap">🛠️</div>
+      <h1>Admin Login</h1>
+      <p>Access the full admin control panel</p>
+      <div class="badge"><span>🔐</span> Authorized Personnel Only</div>
+    </div>
+
+    <div class="error" id="err"></div>
+
+    <div class="form-group">
+      <label>Admin Email Address</label>
+      <input type="email" id="email" placeholder="admin@shiporax.com" autocomplete="username"/>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="Enter your password"
+        autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+
+    <button class="btn btn-main" id="login-btn" onclick="doLogin()">
+      🔐 &nbsp;Login to Admin Panel
+    </button>
+
+    <div class="security">
+      <span>🛡️</span>
+      All admin actions are logged and monitored for security.
+    </div>
+
+    <div class="foot">
+      <a href="/client/login">← Go to Client Login</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const API=(window.__API_URL||'')+'/api';
+window.onload=()=>{
+  const t=localStorage.getItem('admin_token');
+  if(t) window.location.href='/admin';
+};
+function showErr(msg){
+  const e=document.getElementById('err');
+  e.textContent=msg;e.style.display='block';
+  setTimeout(()=>e.style.display='none',5000);
+}
+async function doLogin(){
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('password').value;
+  if(!email||!password){showErr('⚠️ Please enter your email and password');return;}
+  const btn=document.getElementById('login-btn');
+  btn.disabled=true;btn.textContent='⏳  Please wait...';
+  try{
+    const r=await fetch(API+'/auth/login',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password})
+    });
+    const d=await r.json();
+    if(d.success&&d.user.role==='admin'){
+      localStorage.setItem('admin_token',d.token);
+      localStorage.setItem('admin_user',JSON.stringify(d.user));
+      window.location.href='/admin';
+    }else if(d.success&&d.user.role!=='admin'){
+      showErr('⚠️ This is a client account. Use the Client Login page instead.');
+    }else{
+      showErr('❌ '+(d.message||'Invalid email or password. Please try again.'));
+    }
+  }catch(e){showErr('🔌 Network error. Please check your connection and try again.');}
+  btn.disabled=false;btn.textContent='🔐  Login to Admin Panel';
+}
+</script>
+</body>
+</html>
