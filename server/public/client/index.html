@@ -4,492 +4,279 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>SHIPORAX – Client Panel</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
 :root{
-  /* Brand */
-  --brand:#E8400C;--brand2:#FF6535;--brand-light:#FFF0EB;--brand-mid:#FFD4C2;
-  /* Teal accent */
-  --teal:#0A9E89;--teal-light:#E6F7F5;
-  /* Semantic */
-  --success:#1AAD71;--success-light:#E8F8F1;
-  --danger:#E03030;--danger-light:#FDEAEA;
-  --warning:#E07D00;--warning-light:#FEF3E2;
-  --info:#1967D2;--info-light:#E8F0FE;
-  --purple:#7A3EE8;--purple-light:#F0EAFD;
-  /* Layout */
-  --bg:#F5F6FA;
-  --sidebar:#FFFFFF;--sidebar-border:#ECEEF4;
-  --card:#FFFFFF;--card2:#FAFBFF;
-  --border:#E4E7EF;--border2:#D1D5E4;
-  --topbar:#FFFFFF;
-  /* Text */
-  --text:#12172B;--text2:#3D4560;--muted:#7A82A0;--dim:#B0B8CC;
-  /* Radius */
-  --r:12px;--r2:16px;--r3:20px;
-  /* Shadow */
-  --sh:0 1px 4px rgba(18,23,43,.06),0 4px 16px rgba(18,23,43,.05);
-  --sh2:0 2px 8px rgba(18,23,43,.08),0 8px 32px rgba(18,23,43,.07);
-  --sh3:0 8px 24px rgba(232,64,12,.18);
+  --orange:#FF6B35;--orange2:#FF8C42;
+  --teal:#00C9A7;--teal2:#00B396;
+  --blue:#3B82F6;--purple:#7C3AED;
+  --success:#10B981;--danger:#EF4444;--warning:#F59E0B;
+  --bg:#080B14;--sidebar:#0A0D1A;--sidebar-b:#141828;
+  --card:#0F1220;--card2:#121525;
+  --border:#1A1E30;--border2:#222640;
+  --text:#E2E8FF;--muted:#5B6380;--dim:#3A4060;
+  --radius:14px;
 }
-
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
-body{
-  font-family:'DM Sans',sans-serif;
-  background:var(--bg);color:var(--text);
-  display:flex;min-height:100vh;font-size:15px;
-  -webkit-font-smoothing:antialiased;
-}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;font-size:15px}
 
 /* ── SIDEBAR ── */
 #sidebar{
-  width:260px;background:var(--sidebar);
-  border-right:1.5px solid var(--sidebar-border);
-  display:flex;flex-direction:column;
-  position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;
+  width:256px;background:var(--sidebar);border-right:1px solid var(--sidebar-b);
+  display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;
 }
 .sidebar-logo{
-  padding:24px 20px 20px;
-  display:flex;align-items:center;gap:12px;
-  border-bottom:1.5px solid var(--sidebar-border);
+  padding:22px 20px;display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid var(--sidebar-b);
 }
 .logo-icon{
-  width:44px;height:44px;border-radius:13px;flex-shrink:0;
-  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  width:44px;height:44px;border-radius:14px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--orange),var(--orange2));
   display:flex;align-items:center;justify-content:center;font-size:1.4rem;
-  box-shadow:var(--sh3);
+  box-shadow:0 6px 16px #FF6B3545;
 }
-.logo-name{
-  font-family:'Plus Jakarta Sans',sans-serif;
-  font-size:1.2rem;font-weight:800;color:var(--text);letter-spacing:-.03em;
-}
-.logo-name em{color:var(--brand);font-style:normal}
-.logo-sub{font-size:.65rem;color:var(--muted);font-weight:500;margin-top:2px;letter-spacing:.02em}
+.logo-name{font-size:1.2rem;font-weight:900;color:#fff;letter-spacing:-.03em}
+.logo-name em{color:var(--orange);font-style:normal}
+.logo-sub{font-size:.65rem;color:var(--muted);font-weight:500;margin-top:1px}
 
-.nav-section{
-  padding:18px 18px 6px;font-size:.62rem;font-weight:700;
-  text-transform:uppercase;letter-spacing:.12em;color:var(--dim);
-}
+.nav-section{padding:16px 20px 6px;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--dim)}
 .nav-item{
-  display:flex;align-items:center;gap:10px;
-  padding:11px 14px;cursor:pointer;border-radius:10px;
-  margin:2px 8px;transition:.18s;
-  font-size:.88rem;font-weight:500;color:var(--muted);
+  display:flex;align-items:center;gap:11px;padding:12px 16px;
+  cursor:pointer;border-radius:12px;margin:2px 10px;
+  transition:.2s;font-size:.9rem;font-weight:500;color:var(--muted);
 }
-.nav-item:hover{background:#F5F6FA;color:var(--text2)}
+.nav-item:hover{background:var(--sidebar-b);color:var(--text)}
 .nav-item.active{
-  background:var(--brand-light);color:var(--brand);
-  font-weight:700;
+  background:linear-gradient(135deg,#FF6B3518,#FF8C4218);
+  color:var(--orange);border:1px solid #FF6B3530;
 }
-.nav-item .ni{font-size:1rem;width:20px;text-align:center;flex-shrink:0}
+.nav-item .ni{font-size:1.1rem;width:22px;text-align:center}
 .nav-item .badge-dot{
-  margin-left:auto;background:var(--danger);color:var(--text);
-  border-radius:999px;font-size:.62rem;font-weight:700;
-  padding:2px 7px;min-width:20px;text-align:center;
+  margin-left:auto;background:var(--danger);color:#fff;
+  border-radius:999px;font-size:.65rem;font-weight:700;padding:1px 6px;min-width:18px;text-align:center;
 }
-
-/* sidebar bottom */
-.sidebar-user{
-  margin-top:auto;padding:16px;
-  border-top:1.5px solid var(--sidebar-border);
-  display:flex;align-items:center;gap:10px;
-}
-.sidebar-user-av{
-  width:36px;height:36px;border-radius:10px;flex-shrink:0;
-  background:linear-gradient(135deg,var(--brand),var(--brand2));
-  color:var(--text);font-weight:700;font-size:.9rem;
-  display:flex;align-items:center;justify-content:center;
-}
-.sidebar-user-name{font-size:.82rem;font-weight:600;color:var(--text);line-height:1.3}
-.sidebar-user-role{font-size:.68rem;color:var(--muted)}
 
 /* ── MAIN ── */
-#main{margin-left:260px;flex:1;display:flex;flex-direction:column;min-width:0}
+#main{margin-left:256px;flex:1;display:flex;flex-direction:column;min-width:0}
 
 /* ── TOPBAR ── */
 #topbar{
-  background:var(--topbar);
-  border-bottom:1.5px solid var(--border);
-  padding:0 28px;height:62px;
-  display:flex;justify-content:space-between;align-items:center;
-  position:sticky;top:0;z-index:50;
-  box-shadow:0 1px 0 var(--border);
+  background:rgba(10,13,26,.85);border-bottom:1px solid var(--border);
+  padding:14px 28px;display:flex;justify-content:space-between;align-items:center;
+  position:sticky;top:0;z-index:50;backdrop-filter:blur(20px);
 }
-#topbar h2{
-  font-family:'Plus Jakarta Sans',sans-serif;
-  font-size:1.05rem;font-weight:700;color:var(--text);letter-spacing:-.02em;
-}
-.topbar-right{display:flex;align-items:center;gap:10px}
+#topbar h2{font-size:1.1rem;font-weight:700;color:#fff;letter-spacing:-.02em}
+.topbar-right{display:flex;align-items:center;gap:12px}
 .wallet-chip{
-  background:var(--brand-light);border:1.5px solid var(--brand-mid);
-  color:var(--brand);padding:9px 18px;border-radius:999px;
-  font-weight:700;font-size:.9rem;cursor:pointer;transition:.18s;
-  font-family:'Plus Jakarta Sans',sans-serif;
+  background:linear-gradient(135deg,#FF6B3518,#FF8C4218);
+  border:1px solid #FF6B3540;color:var(--orange);
+  padding:8px 16px;border-radius:999px;font-weight:700;font-size:.9rem;
+  cursor:pointer;transition:.2s;
 }
-.wallet-chip:hover{background:var(--brand-mid)}
-.topbar-notif{
-  width:38px;height:38px;border-radius:10px;border:1.5px solid var(--border);
-  background:#fff;cursor:pointer;font-size:1rem;
-  display:flex;align-items:center;justify-content:center;
-  position:relative;transition:.18s;
-}
-.topbar-notif:hover{background:var(--bg);border-color:var(--brand)}
+.wallet-chip:hover{background:linear-gradient(135deg,#FF6B3530,#FF8C4230)}
 .avatar{
-  width:38px;height:38px;border-radius:10px;
-  background:linear-gradient(135deg,var(--brand),var(--brand2));
-  color:var(--text);display:flex;align-items:center;justify-content:center;
-  font-weight:700;font-size:.9rem;cursor:pointer;
-  box-shadow:var(--sh3);
+  width:38px;height:38px;border-radius:12px;
+  background:linear-gradient(135deg,var(--orange),var(--orange2));
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:.95rem;cursor:pointer;box-shadow:0 4px 12px #FF6B3540;
 }
 
-#content{padding:24px 28px;flex:1}
+#content{padding:24px;flex:1}
 .page{display:none}.page.active{display:block}
 
 /* ── STAT CARDS ── */
-.stats-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(155px,1fr));
-  gap:14px;margin-bottom:24px;
-}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:14px;margin-bottom:22px}
 .stat-card{
-  background:var(--card);border:1.5px solid var(--border);
-  border-radius:var(--r2);padding:20px;
-  box-shadow:var(--sh);transition:.2s;position:relative;overflow:hidden;
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:18px;position:relative;overflow:hidden;transition:.25s;
 }
-.stat-card:hover{box-shadow:var(--sh2);border-color:var(--border2);transform:translateY(-1px)}
-.stat-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:3px;
-  border-radius:var(--r2) var(--r2) 0 0;
+.stat-card::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:2px;
 }
-.stat-card .lbl{
-  font-size:.72rem;color:var(--muted);text-transform:uppercase;
-  letter-spacing:.07em;font-weight:600;margin-bottom:10px;
-}
-.stat-card .val{
-  font-family:'Plus Jakarta Sans',sans-serif;
-  font-size:2rem;font-weight:800;color:var(--text);letter-spacing:-.04em;line-height:1;
-}
-.stat-card .sub{font-size:.72rem;color:var(--muted);margin-top:6px}
-.stat-card .ico{
-  position:absolute;top:16px;right:16px;
-  width:36px;height:36px;border-radius:9px;
-  display:flex;align-items:center;justify-content:center;font-size:1rem;
-}
+.stat-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.stat-card .lbl{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:600}
+.stat-card .val{font-size:1.9rem;font-weight:800;margin:8px 0 2px;color:#fff;letter-spacing:-.04em}
+.stat-card .sub{font-size:.72rem;color:var(--muted)}
 
 /* ── CARDS ── */
-.card{
-  background:var(--card);border:1.5px solid var(--border);
-  border-radius:var(--r2);padding:22px;margin-bottom:18px;
-  box-shadow:var(--sh);
-}
-.card-hdr{
-  display:flex;justify-content:space-between;align-items:center;
-  margin-bottom:18px;flex-wrap:wrap;gap:10px;
-}
-.card-ttl{
-  font-family:'Plus Jakarta Sans',sans-serif;
-  font-size:.98rem;font-weight:700;color:var(--text);
-}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:18px}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.card-ttl{font-size:1rem;font-weight:700;color:#fff}
 
 /* ── TABLE ── */
-.table-wrap{
-  overflow-x:auto;border-radius:var(--r);
-  border:1.5px solid var(--border);
-}
-table{width:100%;border-collapse:collapse;font-size:.855rem}
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:.875rem}
 th{
-  background:#F8F9FC;padding:12px 16px;text-align:left;
-  font-weight:600;font-size:.7rem;text-transform:uppercase;
-  letter-spacing:.07em;border-bottom:1.5px solid var(--border);
-  color:var(--muted);white-space:nowrap;
+  background:#0C0F1E;padding:12px 14px;text-align:left;
+  font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;
+  border-bottom:1px solid var(--border);color:var(--muted);white-space:nowrap;
 }
-td{
-  padding:13px 16px;border-bottom:1px solid #F0F2F8;
-  vertical-align:middle;color:var(--text2);
-}
-tr:hover td{background:#FAFBFF}
+td{padding:13px 14px;border-bottom:1px solid var(--border);vertical-align:middle;color:#B8C0DC}
+tr:hover td{background:#0D1020}
 tr:last-child td{border-bottom:none}
-td b{color:var(--text)}
 
-/* ── STATUS BADGES ── */
-.status{
-  display:inline-block;padding:4px 11px;border-radius:999px;
-  font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
-}
-.s-draft{background:#F0F2F8;color:#6B7490}
-.s-processing,.s-in_progress{background:var(--info-light);color:var(--info)}
-.s-shipped{background:var(--purple-light);color:var(--purple)}
-.s-delivered,.s-approved,.s-settled{background:var(--success-light);color:var(--success)}
-.s-rto,.s-rejected,.s-failed,.s-blocked,.s-cancelled{background:var(--danger-light);color:var(--danger)}
-.s-ndr,.s-pending{background:var(--warning-light);color:var(--warning)}
-.s-cod{background:#FEE9F0;color:#C2185B}
-.s-prepaid{background:var(--teal-light);color:var(--teal)}
-.s-credit{background:var(--success-light);color:var(--success)}
-.s-debit{background:var(--danger-light);color:var(--danger)}
+/* ── STATUS ── */
+.status{display:inline-block;padding:4px 11px;border-radius:999px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.s-draft{background:#3A406018;color:#8090B0;border:1px solid #3A406040}
+.s-processing,.s-in_progress{background:#3B82F618;color:#60A5FA;border:1px solid #3B82F640}
+.s-shipped{background:#8B5CF618;color:#A78BFA;border:1px solid #8B5CF640}
+.s-delivered,.s-approved,.s-settled{background:#10B98118;color:#34D399;border:1px solid #10B98140}
+.s-rto,.s-rejected,.s-failed,.s-blocked,.s-cancelled{background:#EF444418;color:#F87171;border:1px solid #EF444440}
+.s-ndr,.s-pending{background:#F59E0B18;color:#FCD34D;border:1px solid #F59E0B40}
+.s-cod{background:#EC489918;color:#F472B6;border:1px solid #EC489940}
+.s-prepaid{background:#3B82F618;color:#60A5FA;border:1px solid #3B82F640}
 
 /* ── BUTTONS ── */
 .btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:7px;
-  padding:11px 22px;border-radius:var(--r);border:none;cursor:pointer;
-  font-size:.88rem;font-weight:600;transition:.18s;
-  font-family:'DM Sans',sans-serif;white-space:nowrap;
-  letter-spacing:.01em;
+  display:inline-flex;align-items:center;gap:6px;padding:11px 20px;
+  border-radius:12px;border:none;cursor:pointer;
+  font-size:.9rem;font-weight:600;transition:.2s;font-family:'Inter',sans-serif;
+  position:relative;overflow:hidden;white-space:nowrap;
 }
+.btn::before{content:'';position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.1),transparent);opacity:0;transition:.2s}
+.btn:hover::before{opacity:1}
 .btn:hover{transform:translateY(-1px)}
 .btn:active{transform:translateY(0)}
-.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
 
-.btn-primary{
-  background:linear-gradient(135deg,var(--brand),var(--brand2));
-  color:var(--text);box-shadow:0 4px 14px rgba(232,64,12,.3);
-}
-.btn-primary:hover{box-shadow:0 6px 20px rgba(232,64,12,.45)}
-.btn-success{
-  background:linear-gradient(135deg,#1AAD71,#15976A);
-  color:var(--text);box-shadow:0 4px 14px rgba(26,173,113,.3);
-}
-.btn-danger{
-  background:linear-gradient(135deg,#E03030,#C62828);
-  color:var(--text);box-shadow:0 4px 14px rgba(224,48,48,.3);
-}
-.btn-info{
-  background:linear-gradient(135deg,#1967D2,#1557C0);
-  color:var(--text);box-shadow:0 4px 14px rgba(25,103,210,.25);
-}
-.btn-outline{
-  background:#fff;border:1.5px solid var(--border2);
-  color:var(--text2);box-shadow:0 1px 3px rgba(18,23,43,.06);
-}
-.btn-outline:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-light)}
-.btn-ghost{background:var(--bg);color:var(--text2);border:1.5px solid var(--border)}
-.btn-ghost:hover{background:var(--border);color:var(--text)}
-
-.btn-sm{padding:8px 15px;font-size:.8rem;border-radius:9px}
-.btn-xs{padding:6px 11px;font-size:.74rem;border-radius:8px}
-.btn-lg{padding:15px 28px;font-size:.98rem;border-radius:13px}
+.btn-primary{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#fff;box-shadow:0 6px 18px #FF6B3540}
+.btn-primary:hover{box-shadow:0 8px 24px #FF6B3560}
+.btn-success{background:linear-gradient(135deg,#10B981,#059669);color:#fff;box-shadow:0 6px 18px #10B98140}
+.btn-danger{background:linear-gradient(135deg,#EF4444,#DC2626);color:#fff;box-shadow:0 6px 18px #EF444440}
+.btn-info{background:linear-gradient(135deg,#3B82F6,#2563EB);color:#fff;box-shadow:0 6px 18px #3B82F640}
+.btn-outline{background:rgba(255,255,255,.05);border:1.5px solid var(--border2);color:#A0AABF}
+.btn-outline:hover{background:rgba(255,255,255,.1);border-color:#3A4060;color:#fff}
+.btn-sm{padding:8px 14px;font-size:.82rem;border-radius:10px}
+.btn-xs{padding:6px 11px;font-size:.76rem;border-radius:8px}
+.btn-lg{padding:16px 28px;font-size:1rem;border-radius:14px}
 
 /* ── FORMS ── */
 .form-group{margin-bottom:16px}
-.form-group label{
-  display:block;font-size:.76rem;font-weight:600;color:var(--text2);
-  margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em;
-}
+.form-group label{display:block;font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em}
 .form-group input,.form-group select,.form-group textarea{
-  width:100%;padding:12px 15px;
-  border:1.5px solid var(--border2);border-radius:var(--r);
-  font-size:.92rem;outline:none;background:#fff;color:var(--text);
-  transition:.18s;font-family:'DM Sans',sans-serif;
+  width:100%;padding:12px 15px;border:1.5px solid var(--border);border-radius:12px;
+  font-size:.95rem;outline:none;background:#0C0F1E;color:var(--text);
+  transition:.2s;font-family:'Inter',sans-serif;
 }
-.form-group input:focus,.form-group select:focus,.form-group textarea:focus{
-  border-color:var(--brand);
-  box-shadow:0 0 0 3px rgba(232,64,12,.1);background:#fff;
-}
-.form-group input::placeholder{color:var(--dim)}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#FF6B3560;box-shadow:0 0 0 3px #FF6B3510;background:#0F1225}
 .form-group textarea{resize:vertical;min-height:80px}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:600px){.form-row{grid-template-columns:1fr}}
+select option{background:#0C0F1E}
 
 /* ── PINCODE STATUS ── */
-.pincode-status{font-size:.76rem;margin-top:6px;padding:5px 10px;border-radius:8px;display:none}
-.pincode-status.loading{display:block;background:var(--warning-light);color:var(--warning)}
-.pincode-status.ok{display:block;background:var(--success-light);color:var(--success)}
+.pincode-status{font-size:.78rem;margin-top:5px;padding:5px 10px;border-radius:8px;display:none}
+.pincode-status.loading{display:block;background:#F59E0B18;color:#FCD34D;border:1px solid #F59E0B30}
+.pincode-status.ok{display:block;background:#10B98118;color:#34D399;border:1px solid #10B98130}
 
 /* ── COURIER CARDS ── */
 .courier-card{
-  border:2px solid var(--border);border-radius:var(--r2);padding:16px;
-  cursor:pointer;transition:.2s;position:relative;background:#fff;
-  box-shadow:var(--sh);
+  border:2px solid var(--border);border-radius:14px;padding:14px;
+  cursor:pointer;transition:.25s;position:relative;
+  background:var(--card2);
 }
-.courier-card:hover{border-color:var(--brand);box-shadow:var(--sh2)}
-.courier-card.selected{
-  border-color:var(--brand);
-  background:var(--brand-light);
-  box-shadow:0 0 0 3px rgba(232,64,12,.12);
-}
+.courier-card:hover{border-color:#FF6B3550;background:#0F1220}
+.courier-card.selected{border-color:var(--orange);background:#FF6B3510;box-shadow:0 0 0 3px #FF6B3515}
 .courier-card .check{
-  position:absolute;top:12px;right:12px;
-  width:22px;height:22px;border-radius:50%;
-  background:var(--brand);color:var(--text);
+  position:absolute;top:10px;right:10px;width:22px;height:22px;
+  border-radius:50%;background:var(--orange);color:#fff;
   display:none;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;
 }
 .courier-card.selected .check{display:flex}
-.courier-name{font-weight:700;font-size:.92rem;color:var(--text)}
+.courier-name{font-weight:700;font-size:.92rem;color:#fff}
 .courier-sub{font-size:.72rem;color:var(--muted);margin-top:3px}
 
 /* ── COST BOX ── */
 .cost-box{
-  background:linear-gradient(135deg,var(--brand-light),#FFF8F5);
-  border:1.5px solid var(--brand-mid);border-radius:var(--r2);padding:16px;margin-top:14px;
+  background:#FF6B3510;border:1px solid #FF6B3530;border-radius:12px;
+  padding:14px;margin-top:12px;
 }
-.cost-box .cost-ttl{font-weight:700;color:var(--brand);margin-bottom:10px;font-size:.9rem}
-.cost-row{display:flex;gap:24px;flex-wrap:wrap;font-size:.88rem;color:var(--text2)}
-.cost-row b{color:var(--text);font-weight:700}
-
-/* ── PAGE TABS ── */
-.pg-tabs{
-  display:flex;background:#EEF0F8;border-radius:11px;padding:4px;
-  margin-bottom:18px;gap:4px;flex-wrap:wrap;
-}
-.pg-tab{
-  flex:1;min-width:90px;padding:11px 16px;border:none;border-radius:9px;
-  font-size:.85rem;font-weight:600;cursor:pointer;transition:.18s;
-  color:var(--muted);font-family:'DM Sans',sans-serif;background:transparent;text-align:center;
-}
-.pg-tab.active{
-  background:#fff;color:var(--brand);
-  box-shadow:0 1px 4px rgba(18,23,43,.1),0 2px 8px rgba(18,23,43,.07);
-}
-.pg-tab:hover:not(.active){color:var(--text2);background:rgba(255,255,255,.6)}
+.cost-box .cost-ttl{font-weight:700;color:var(--orange);margin-bottom:8px;font-size:.9rem}
+.cost-row{display:flex;gap:20px;flex-wrap:wrap;font-size:.875rem;color:var(--muted)}
+.cost-row b{color:#fff}
 
 /* ── FILTER BAR ── */
-.filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
 .filter-bar input,.filter-bar select{
-  padding:10px 13px;border:1.5px solid var(--border2);border-radius:var(--r);
-  font-size:.855rem;outline:none;background:#fff;color:var(--text);
-  font-family:'DM Sans',sans-serif;min-width:120px;transition:.15s;
+  padding:10px 13px;border:1.5px solid var(--border);border-radius:10px;
+  font-size:.875rem;outline:none;background:#0C0F1E;color:var(--text);
+  font-family:'Inter',sans-serif;min-width:130px;
 }
-.filter-bar input:focus,.filter-bar select:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(232,64,12,.08)}
+.filter-bar input:focus,.filter-bar select:focus{border-color:#FF6B3560}
+select option{background:#0C0F1E}
+
+/* ── TABS (page tabs) ── */
+.pg-tabs{display:flex;background:#0C0F1E;border-radius:12px;padding:4px;margin-bottom:18px;gap:4px;flex-wrap:wrap}
+.pg-tab{
+  flex:1;min-width:100px;padding:12px 16px;border:none;border-radius:10px;
+  font-size:.875rem;font-weight:600;cursor:pointer;transition:.2s;
+  color:var(--muted);font-family:'Inter',sans-serif;background:transparent;text-align:center;
+}
+.pg-tab.active{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#fff;box-shadow:0 4px 14px #FF6B3540}
+.pg-tab:hover:not(.active){color:#fff;background:var(--sidebar-b)}
 
 /* ── PAGINATION ── */
-.pagination{display:flex;gap:5px;margin-top:16px;flex-wrap:wrap;align-items:center}
+.pagination{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;align-items:center}
 .page-btn{
-  padding:8px 14px;border:1.5px solid var(--border2);border-radius:9px;
-  cursor:pointer;font-size:.82rem;background:#fff;color:var(--muted);
-  transition:.15s;font-family:'DM Sans',sans-serif;font-weight:500;
+  padding:7px 13px;border:1.5px solid var(--border);border-radius:8px;
+  cursor:pointer;font-size:.82rem;background:#0C0F1E;color:var(--muted);
+  transition:.15s;font-family:'Inter',sans-serif;
 }
-.page-btn:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-light)}
-.page-btn.active{
-  background:var(--brand);color:var(--text);border-color:var(--brand);
-  font-weight:700;box-shadow:0 3px 10px rgba(232,64,12,.3);
-}
+.page-btn:hover{border-color:var(--orange);color:var(--orange)}
+.page-btn.active{background:linear-gradient(135deg,var(--orange),var(--orange2));color:#fff;border-color:transparent}
 
 /* ── MODAL ── */
-.modal{
-  display:none;position:fixed;inset:0;
-  background:rgba(18,23,43,.45);z-index:200;
-  align-items:center;justify-content:center;
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
 .modal.open{display:flex}
 .modal-box{
-  background:#fff;border:1.5px solid var(--border);
-  border-radius:var(--r3);padding:28px;
-  width:90%;max-width:540px;max-height:90vh;overflow-y:auto;
-  box-shadow:0 16px 64px rgba(18,23,43,.18);
-  animation:popIn .25s ease;
+  background:var(--card2);border:1px solid var(--border2);
+  border-radius:20px;padding:28px;width:90%;max-width:540px;max-height:90vh;overflow-y:auto;
+  box-shadow:0 32px 80px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
 }
-@keyframes popIn{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}
-.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
-.modal-ttl{
-  font-family:'Plus Jakarta Sans',sans-serif;
-  font-size:1.05rem;font-weight:700;color:var(--text);
-}
-.close-btn{
-  background:var(--bg);border:none;width:32px;height:32px;border-radius:8px;
-  cursor:pointer;color:var(--muted);font-size:1rem;
-  display:flex;align-items:center;justify-content:center;transition:.15s;
-}
-.close-btn:hover{background:var(--danger-light);color:var(--danger)}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.modal-ttl{font-size:1.1rem;font-weight:700;color:#fff}
+.close-btn{background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted);line-height:1}
+.close-btn:hover{color:#fff}
 
 /* ── TOAST ── */
-#toast{position:fixed;bottom:28px;right:28px;z-index:999;display:flex;flex-direction:column;gap:8px}
+#toast{position:fixed;bottom:24px;right:24px;z-index:999;display:flex;flex-direction:column;gap:8px}
 .toast-item{
-  padding:13px 20px;border-radius:var(--r2);
-  font-size:.875rem;font-weight:600;
-  box-shadow:0 8px 32px rgba(18,23,43,.18);
-  animation:slideUp .3s ease;max-width:360px;
-  border-left:4px solid transparent;
+  padding:13px 20px;border-radius:12px;color:#fff;font-size:.875rem;font-weight:600;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);animation:slideIn .3s ease;max-width:360px;
 }
-@keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
-.toast-success{background:#fff;color:var(--success);border-left-color:var(--success);border:1.5px solid #C6EFE0;border-left:4px solid var(--success)}
-.toast-error{background:#fff;color:var(--danger);border:1.5px solid #FAD0D0;border-left:4px solid var(--danger)}
-.toast-info{background:#fff;color:var(--info);border:1.5px solid #C8DCFA;border-left:4px solid var(--info)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast-success{background:linear-gradient(135deg,#10B981,#059669)}
+.toast-error{background:linear-gradient(135deg,#EF4444,#DC2626)}
+.toast-info{background:linear-gradient(135deg,#3B82F6,#2563EB)}
 
-/* ── WALLET HERO ── */
+/* ── WALLET CARDS ── */
 .wallet-hero{
-  background:linear-gradient(135deg,#FFF4F0 0%,#FFF9F7 60%,#F0FDFB 100%);
-  border:1.5px solid var(--brand-mid);border-radius:var(--r3);
-  padding:32px;margin-bottom:20px;
-  display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:24px;
-  box-shadow:var(--sh);
+  background:linear-gradient(135deg,#FF6B3520,#FF8C4210);
+  border:1px solid #FF6B3535;border-radius:20px;padding:28px;margin-bottom:18px;
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;
 }
-.wallet-bal-lbl{
-  font-size:.72rem;color:var(--muted);text-transform:uppercase;
-  letter-spacing:.08em;font-weight:600;margin-bottom:8px;
-}
-.wallet-bal-val{
-  font-family:'Plus Jakarta Sans',sans-serif;
-  font-size:3rem;font-weight:900;color:var(--brand);letter-spacing:-.06em;line-height:1;
-}
-.recharge-grid{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.wallet-bal-lbl{font-size:.8rem;color:rgba(255,107,53,.7);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:6px}
+.wallet-bal-val{font-size:2.8rem;font-weight:900;color:var(--orange);letter-spacing:-.05em}
+
+.recharge-grid{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .amt-btn{
-  padding:10px 18px;border:1.5px solid var(--brand-mid);border-radius:10px;
-  background:#fff;color:var(--brand);font-weight:700;font-size:.88rem;
-  cursor:pointer;transition:.18s;font-family:'DM Sans',sans-serif;
-  box-shadow:0 1px 3px rgba(232,64,12,.1);
+  padding:10px 18px;border:2px solid #FF6B3540;border-radius:10px;
+  background:#FF6B3510;color:var(--orange);font-weight:700;font-size:.9rem;
+  cursor:pointer;transition:.2s;font-family:'Inter',sans-serif;
 }
-.amt-btn:hover{background:var(--brand-light);border-color:var(--brand)}
+.amt-btn:hover{background:#FF6B3525;border-color:var(--orange)}
+
+/* Misc */
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty-state .eico{font-size:2.5rem;margin-bottom:12px}
+.empty-state p{font-size:.95rem}
 
 /* Source badges */
-.src-badge{
-  display:inline-block;padding:3px 9px;border-radius:6px;
-  font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
-}
-.src-manual{background:#EEF0F8;color:#4A5280}
-.src-bulk{background:var(--warning-light);color:var(--warning)}
-.src-shopify{background:var(--success-light);color:var(--success)}
-.src-woocommerce{background:var(--purple-light);color:var(--purple)}
-
-/* Info banners */
-.info-banner{
-  border-radius:var(--r2);padding:16px 20px;margin-bottom:16px;
-  display:flex;align-items:flex-start;gap:12px;font-size:.875rem;
-}
-.info-banner.orange{background:var(--brand-light);border:1px solid var(--brand-mid);color:var(--brand)}
-.info-banner.green{background:var(--success-light);border:1px solid #AEEECF;color:var(--success)}
-.info-banner.red{background:var(--danger-light);border:1px solid #F8C0C0;color:var(--danger)}
-.info-banner.blue{background:var(--info-light);border:1px solid #BCCFEE;color:var(--info)}
-
-/* Empty state */
-.empty-state{text-align:center;padding:52px 20px;color:var(--muted)}
-.empty-state .eico{font-size:2.8rem;margin-bottom:14px}
-.empty-state p{font-size:.95rem;line-height:1.6}
-.empty-state a{color:var(--brand);font-weight:600;cursor:pointer;text-decoration:none}
-
-/* Section divider label */
-.section-label{
-  font-size:.72rem;font-weight:700;text-transform:uppercase;
-  letter-spacing:.09em;color:var(--muted);margin-bottom:14px;
-  padding-bottom:8px;border-bottom:1.5px solid var(--border);
-}
-
-/* Dashboard quick action card */
-.quick-action{
-  display:flex;align-items:center;gap:14px;
-  padding:14px 18px;border-radius:var(--r2);
-  background:#fff;border:1.5px solid var(--border);
-  cursor:pointer;transition:.18s;margin-bottom:10px;
-  box-shadow:var(--sh);
-}
-.quick-action:hover{border-color:var(--brand);background:var(--brand-light);box-shadow:var(--sh2)}
-.quick-action .qa-icon{
-  width:42px;height:42px;border-radius:11px;
-  display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;
-}
-.quick-action .qa-title{font-weight:700;font-size:.92rem;color:var(--text)}
-.quick-action .qa-sub{font-size:.76rem;color:var(--muted);margin-top:2px}
-.quick-action .qa-arrow{margin-left:auto;color:var(--muted);font-size:1rem}
-
-/* Checkbox */
-input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--brand)}
-
-/* Bulk actions bar */
-#bulk-actions{
-  background:var(--brand-light);border:1.5px solid var(--brand-mid);
-  border-radius:var(--r);padding:10px 16px;margin-bottom:14px;
-  display:none;gap:12px;align-items:center;flex-wrap:wrap;
-}
+.src-badge{display:inline-block;padding:3px 9px;border-radius:6px;font-size:.68rem;font-weight:700;text-transform:uppercase}
+.src-manual{background:#3B82F618;color:#60A5FA}
+.src-bulk{background:#F59E0B18;color:#FCD34D}
+.src-shopify{background:#10B98118;color:#34D399}
+.src-woocommerce{background:#8B5CF618;color:#A78BFA}
 </style>
 </head>
 <body>
@@ -525,7 +312,7 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
   <div class="nav-item" onclick="navigate('settings')"><span class="ni">⚙️</span> Settings</div>
 
   <div style="margin-top:auto;padding:12px 10px;border-top:1px solid var(--sidebar-b)">
-    <div class="nav-item" onclick="logout()" style="color:var(--danger)">
+    <div class="nav-item" onclick="logout()" style="color:#F87171">
       <span class="ni">🚪</span> Logout
     </div>
   </div>
@@ -546,9 +333,9 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
     <!-- ═══ DASHBOARD ═══ -->
     <div class="page active" id="page-dashboard">
       <div class="stats-grid" id="dash-stats">
-        <div class="stat-card" style="border-top:2px solid var(--brand)"><div class="lbl">📦 Total Orders</div><div class="val" id="d-total">—</div></div>
+        <div class="stat-card" style="border-top:2px solid var(--orange)"><div class="lbl">📦 Total Orders</div><div class="val" id="d-total">—</div></div>
         <div class="stat-card" style="border-top:2px solid var(--success)"><div class="lbl">✅ Delivered</div><div class="val" id="d-delivered">—</div></div>
-        <div class="stat-card" style="border-top:2px solid var(--info)"><div class="lbl">🚀 In Transit</div><div class="val" id="d-transit">—</div></div>
+        <div class="stat-card" style="border-top:2px solid var(--blue)"><div class="lbl">🚀 In Transit</div><div class="val" id="d-transit">—</div></div>
         <div class="stat-card" style="border-top:2px solid var(--danger)"><div class="lbl">↩️ RTO</div><div class="val" id="d-rto">—</div></div>
         <div class="stat-card" style="border-top:2px solid var(--warning)"><div class="lbl">⚠️ NDR</div><div class="val" id="d-ndr">—</div></div>
         <div class="stat-card" style="border-top:2px solid var(--teal)"><div class="lbl">💰 Wallet</div><div class="val" id="d-wallet" style="font-size:1.4rem">₹0</div></div>
@@ -638,7 +425,7 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
             <div class="cost-row">
               <span>Shipping: <b id="cost-shipping">₹0</b></span>
               <span id="cost-cod-wrap" style="display:none">COD Charge: <b id="cost-cod">₹0</b></span>
-              <span>Total: <b id="cost-total" style="color:var(--brand)">₹0</b></span>
+              <span>Total: <b id="cost-total" style="color:var(--orange)">₹0</b></span>
             </div>
           </div>
         </div>
@@ -688,7 +475,7 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
 
         <div class="table-wrap"><table>
           <thead><tr>
-            <th><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--brand)"/></th>
+            <th><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--orange)"/></th>
             <th>Order ID</th><th>Source</th><th>Recipient</th><th>Pincode</th>
             <th>Payment</th><th>Weight</th><th>Status</th><th>Date</th><th style="min-width:140px">Action</th>
           </tr></thead>
@@ -743,8 +530,8 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
     <div class="page" id="page-bulk-upload">
       <div class="card" style="max-width:680px">
         <div class="card-hdr"><span class="card-ttl">📁 Bulk Order Upload</span></div>
-        <div style="background:var(--brand-light);border:1px solid var(--brand-mid);border-radius:12px;padding:16px;margin-bottom:18px;font-size:.875rem">
-          <b style="color:var(--brand)">📋 Required CSV Columns:</b><br/>
+        <div style="background:#FF6B3510;border:1px solid #FF6B3530;border-radius:12px;padding:16px;margin-bottom:18px;font-size:.875rem">
+          <b style="color:var(--orange)">📋 Required CSV Columns:</b><br/>
           <code style="font-size:.78rem;display:block;margin-top:8px;color:var(--muted);line-height:1.6">recipient_name, recipient_phone, pincode, address, city, state, weight, payment_mode (prepaid/cod), cod_amount, value, description, landmark</code>
           <button class="btn btn-outline btn-sm" style="margin-top:12px" onclick="downloadSampleCSV()">⬇ Download Sample CSV</button>
         </div>
@@ -871,8 +658,8 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
         <div class="card">
           <div class="card-hdr">
             <div style="display:flex;align-items:center;gap:12px">
-              <div style="width:44px;height:44px;background:#96bf48;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--text);font-weight:800;font-size:1.2rem">S</div>
-              <div><div style="font-weight:700;color:var(--text)">Shopify</div><div id="shopify-status" class="status s-draft" style="font-size:.7rem;margin-top:3px">Not Connected</div></div>
+              <div style="width:44px;height:44px;background:#96bf48;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.2rem">S</div>
+              <div><div style="font-weight:700;color:#fff">Shopify</div><div id="shopify-status" class="status s-draft" style="font-size:.7rem;margin-top:3px">Not Connected</div></div>
             </div>
           </div>
           <div id="shopify-form">
@@ -889,8 +676,8 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
         <div class="card">
           <div class="card-hdr">
             <div style="display:flex;align-items:center;gap:12px">
-              <div style="width:44px;height:44px;background:#7f54b3;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--text);font-weight:800;font-size:1.2rem">W</div>
-              <div><div style="font-weight:700;color:var(--text)">WooCommerce</div><div id="woo-status" class="status s-draft" style="font-size:.7rem;margin-top:3px">Not Connected</div></div>
+              <div style="width:44px;height:44px;background:#7f54b3;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.2rem">W</div>
+              <div><div style="font-weight:700;color:#fff">WooCommerce</div><div id="woo-status" class="status s-draft" style="font-size:.7rem;margin-top:3px">Not Connected</div></div>
             </div>
           </div>
           <div id="woo-form">
@@ -952,7 +739,7 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
       <div class="form-group"><label>City</label><input id="wh-city"/></div>
       <div class="form-group"><label>State</label><input id="wh-state"/></div>
     </div>
-    <div class="form-group"><label><input type="checkbox" id="wh-default" style="width:auto;margin-right:8px;accent-color:var(--brand)"/>Set as Default Pickup</label></div>
+    <div class="form-group"><label><input type="checkbox" id="wh-default" style="width:auto;margin-right:8px;accent-color:var(--orange)"/>Set as Default Pickup</label></div>
     <button class="btn btn-primary" style="width:100%;padding:14px" onclick="saveWarehouse()">💾 Save Warehouse</button>
   </div>
 </div>
@@ -989,9 +776,9 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
       <button class="close-btn" onclick="closeModal('ship-order-modal')">✕</button>
     </div>
     <input type="hidden" id="som-order-id"/>
-    <div id="som-order-info" style="background:var(--brand-light);border:1px solid var(--brand-mid);border-radius:12px;padding:14px;margin-bottom:16px;font-size:.875rem;color:#B8C0DC"></div>
+    <div id="som-order-info" style="background:#FF6B3510;border:1px solid #FF6B3530;border-radius:12px;padding:14px;margin-bottom:16px;font-size:.875rem;color:#B8C0DC"></div>
     <div style="margin-bottom:16px">
-      <div style="font-weight:700;font-size:.875rem;margin-bottom:10px;color:var(--text2)">Select Courier</div>
+      <div style="font-weight:700;font-size:.875rem;margin-bottom:10px;color:rgba(255,255,255,.7)">Select Courier</div>
       <div id="som-couriers" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
     </div>
     <div id="som-cost-box" style="display:none" class="cost-box">
@@ -999,7 +786,7 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
       <div class="cost-row">
         <span>Shipping: <b id="som-cost-shipping">₹0</b></span>
         <span>COD Charge: <b id="som-cost-cod">₹0</b></span>
-        <span>Total: <b id="som-cost-total" style="color:var(--brand)">₹0</b></span>
+        <span>Total: <b id="som-cost-total" style="color:var(--orange)">₹0</b></span>
       </div>
       <div style="margin-top:8px;font-size:.78rem;color:var(--muted)">Your Wallet: ₹<span id="som-wallet-bal">0</span></div>
     </div>
@@ -1018,7 +805,7 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
       <button class="close-btn" onclick="closeModal('cancel-modal')">✕</button>
     </div>
     <input type="hidden" id="cancel-order-id"/>
-    <div id="cancel-order-info" style="background:var(--danger-light);border:1px solid #F8C0C0;border-radius:12px;padding:14px;margin-bottom:16px;font-size:.875rem;color:var(--danger)"></div>
+    <div id="cancel-order-info" style="background:#EF444410;border:1px solid #EF444430;border-radius:12px;padding:14px;margin-bottom:16px;font-size:.875rem;color:#F87171"></div>
     <div class="form-group">
       <label>Reason for Cancellation</label>
       <select id="cancel-reason">
@@ -1029,7 +816,7 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
         <option value="Other">Other</option>
       </select>
     </div>
-    <div style="background:var(--success-light);border:1px solid #AEEECF;border-radius:10px;padding:12px;font-size:.85rem;color:var(--success);margin-bottom:16px">
+    <div style="background:#10B98110;border:1px solid #10B98130;border-radius:10px;padding:12px;font-size:.85rem;color:#34D399;margin-bottom:16px">
       ✅ Shipping charge will be <b>refunded to your wallet</b> after cancellation.
     </div>
     <div style="display:flex;gap:10px">
@@ -1040,7 +827,7 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
 </div>
 
 <script>
-const API = (window.__API_URL || window.location.origin) + '/api';
+const API = 'https://kourierwale.onrender.com/api';
 let token = localStorage.getItem('client_token');
 let currentUser = JSON.parse(localStorage.getItem('client_user') || '{}');
 let ordersPage = 1;
@@ -1056,18 +843,15 @@ let somCurrentOrder = null;
 
 // ─── INIT ──────────────────────────────────────────────────────────────────────
 window.onload = async () => {
-  if (!token) { window.location.href = '/client/login'; return; }
+  if (!token) { window.location.href = 'login.html'; return; }
   // Verify token
   try {
-    const r = await fetch(API + '/auth/me', { headers: { Authorization: 'Bearer '+token } });
-    if (r.ok) {
-      const d = await r.json();
-      if (d.success && d.user) {
-        currentUser = d.user;
-        localStorage.setItem('client_user', JSON.stringify(d.user));
-      }
-    }
-  } catch(e) { console.warn('Auth check failed:', e.message); }
+    const r = await fetch(`${API}/auth/me`, { headers: { Authorization: 'Bearer '+token } });
+    const d = await r.json();
+    if (!d.success) { logout(); return; }
+    currentUser = d.user;
+    localStorage.setItem('client_user', JSON.stringify(d.user));
+  } catch(e) {}
   const av = document.getElementById('user-avatar');
   if (av && currentUser.name) av.textContent = currentUser.name[0].toUpperCase();
   loadWalletBalance();
@@ -1108,16 +892,8 @@ async function api(method, path, body) {
     if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
     const res = await fetch(API + path, opts);
     if (res.status === 401) { logout(); return null; }
-    const text = await res.text();
-    try { return JSON.parse(text); } catch(e) {
-      console.error('API non-JSON for', path, ':', text.slice(0,200));
-      return null;
-    }
-  } catch(e) {
-    console.error('API error:', method, path, e.message);
-    toast('Network error. Please check your connection.', 'error');
-    return null;
-  }
+    return await res.json();
+  } catch(e) { toast('Network error. Please check your connection.', 'error'); return null; }
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────────
@@ -1135,7 +911,7 @@ async function loadDashboard() {
   if (od?.success) {
     document.getElementById('recent-orders-tbody').innerHTML = od.orders.map(o =>
       `<tr>
-        <td><b style="color:var(--text)">${o.orderId}</b></td>
+        <td><b style="color:#fff">${o.orderId}</b></td>
         <td>${o.recipient?.name||'—'}<br/><small style="color:var(--muted)">${o.recipient?.phone||''}</small></td>
         <td>${o.assignedCourier?.name||'—'}</td>
         <td>${o.awbNumber||'—'}</td>
@@ -1181,7 +957,7 @@ async function loadCourierRates() {
       <div class="check">✓</div>
       <div class="courier-name">${c.logoUrl?`<img src="${c.logoUrl}" height="20" style="border-radius:4px;margin-right:6px;vertical-align:middle"/>`:'🚚 '}${c.name}</div>
       <div class="courier-sub">${c.code||''}</div>
-      ${r?.success ? `<div style="margin-top:8px;font-size:.8rem"><b style="color:var(--brand)">₹${r.total||0}</b> <span style="color:var(--muted)">total</span></div>` : `<div style="margin-top:8px;font-size:.75rem;color:var(--muted)">Rate not configured</div>`}
+      ${r?.success ? `<div style="margin-top:8px;font-size:.8rem"><b style="color:var(--orange)">₹${r.total||0}</b> <span style="color:var(--muted)">total</span></div>` : `<div style="margin-top:8px;font-size:.75rem;color:var(--muted)">Rate not configured</div>`}
     </div>`;
   }).join('');
 }
@@ -1326,8 +1102,8 @@ function renderOrderRows(orders, total, pages, page) {
     const srcMap = {manual:'Manual',bulk_upload:'Bulk',shopify:'Shopify',woocommerce:'WooCommerce'};
     const srcCls = {manual:'src-manual',bulk_upload:'src-bulk',shopify:'src-shopify',woocommerce:'src-woocommerce'};
     return `<tr>
-      <td><input type="checkbox" class="row-check" value="${o._id}" onchange="toggleOrderSelect('${o._id}',this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--brand)"/></td>
-      <td><b style="color:var(--text)">${o.orderId}</b></td>
+      <td><input type="checkbox" class="row-check" value="${o._id}" onchange="toggleOrderSelect('${o._id}',this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--orange)"/></td>
+      <td><b style="color:#fff">${o.orderId}</b></td>
       <td><span class="src-badge ${srcCls[src]||'src-manual'}">${srcMap[src]||src}</span></td>
       <td>${o.recipient?.name||'—'}<br/><small style="color:var(--muted)">${o.recipient?.phone||''}</small></td>
       <td><b>${o.recipient?.pincode||'—'}</b><br/><small style="color:var(--muted)">${o.recipient?.city||''}</small></td>
@@ -1341,7 +1117,7 @@ function renderOrderRows(orders, total, pages, page) {
     </tr>`;
   }).join('') || `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">
     <div style="font-size:2rem;margin-bottom:8px">📋</div>
-    No pending orders. <a href="javascript:navigate('create-order')" style="color:var(--brand);font-weight:600">Create one →</a>
+    No pending orders. <a href="javascript:navigate('create-order')" style="color:var(--orange);font-weight:600">Create one →</a>
   </td></tr>`;
   renderPagination('orders-pagination', page, pages, p => { ordersPage = p; loadOrders(); });
   const summEl = document.getElementById('orders-summary');
@@ -1391,7 +1167,7 @@ async function loadTracking() {
   tbody.innerHTML = d.orders.map(o => {
     const isCancellable = o.status === 'shipped' || o.status === 'processing';
     return `<tr>
-      <td><b style="color:var(--text)">${o.orderId}</b></td>
+      <td><b style="color:#fff">${o.orderId}</b></td>
       <td><b style="color:var(--teal)">${o.awbNumber||'—'}</b></td>
       <td>${o.recipient?.name||'—'}<br/><small style="color:var(--muted)">${o.recipient?.city||''} ${o.recipient?.pincode||''}</small></td>
       <td>${o.assignedCourier?.name||'—'}</td>
@@ -1434,7 +1210,7 @@ function openCancelModal(orderId, displayId, awb, charge) {
   document.getElementById('cancel-order-id').value = orderId;
   document.getElementById('cancel-order-info').innerHTML =
     `<b>Order: ${displayId}</b> &nbsp;|&nbsp; AWB: <b>${awb||'—'}</b><br/>
-     Shipping charge to be refunded: <b style="color:var(--success)">₹${charge||0}</b>`;
+     Shipping charge to be refunded: <b style="color:#34D399">₹${charge||0}</b>`;
   openModal('cancel-modal');
 }
 
@@ -1465,7 +1241,7 @@ async function shipOrder(id) {
   somSelectedCourierId = null;
   document.getElementById('som-order-id').value = id;
   document.getElementById('som-order-info').innerHTML =
-    `<b style="color:var(--text)">${o.orderId}</b> &nbsp;|&nbsp; ${o.recipient?.name} &nbsp;|&nbsp; ${o.recipient?.city||''} ${o.recipient?.pincode||''}
+    `<b style="color:#fff">${o.orderId}</b> &nbsp;|&nbsp; ${o.recipient?.name} &nbsp;|&nbsp; ${o.recipient?.city||''} ${o.recipient?.pincode||''}
      &nbsp;|&nbsp; <span class="status s-${o.paymentMode}">${o.paymentMode==='cod'?'COD ₹'+o.codAmount:'Prepaid'}</span>
      &nbsp;|&nbsp; Weight: ${o.package?.weight||0.5} kg`;
   const cd = await api('GET', '/couriers');
@@ -1559,10 +1335,10 @@ async function bulkUpload() {
   const result = document.getElementById('bulk-result');
   result.style.display = 'block';
   if (d?.success) {
-    result.innerHTML = `<div style="background:#10B98118;border:1px solid #10B98130;padding:16px;border-radius:12px;color:var(--success)"><b>✅ Upload Complete</b><br/>Total: ${d.totalRows} | Success: ${d.successRows} | Failed: ${d.failedRows}${d.errors?.length?'<br/><b>Errors:</b><ul style="margin-top:6px">'+d.errors.slice(0,10).map(e=>`<li style="font-size:.82rem">Row ${e.row}: ${e.error}</li>`).join('')+'</ul>':''}</div>`;
+    result.innerHTML = `<div style="background:#10B98118;border:1px solid #10B98130;padding:16px;border-radius:12px;color:#34D399"><b>✅ Upload Complete</b><br/>Total: ${d.totalRows} | Success: ${d.successRows} | Failed: ${d.failedRows}${d.errors?.length?'<br/><b>Errors:</b><ul style="margin-top:6px">'+d.errors.slice(0,10).map(e=>`<li style="font-size:.82rem">Row ${e.row}: ${e.error}</li>`).join('')+'</ul>':''}</div>`;
     toast('Bulk upload complete! Go to My Orders to ship.', 'success');
     setTimeout(() => navigate('orders'), 1800);
-  } else result.innerHTML = `<div style="background:#EF444418;border:1px solid #EF444430;padding:16px;border-radius:12px;color:var(--danger)">❌ ${d?.message||'Upload failed'}</div>`;
+  } else result.innerHTML = `<div style="background:#EF444418;border:1px solid #EF444430;padding:16px;border-radius:12px;color:#F87171">❌ ${d?.message||'Upload failed'}</div>`;
 }
 function downloadSampleCSV() {
   const csv = 'recipient_name,recipient_phone,pincode,address,city,state,weight,payment_mode,cod_amount,value,description\nAnil Sharma,9876543210,110001,"House 1, MG Road",Delhi,Delhi,0.5,prepaid,0,500,Books\nPriya Patel,8765432109,400001,"Flat 2B, Linking Road",Mumbai,Maharashtra,1.0,cod,800,800,Clothes';
@@ -1574,7 +1350,7 @@ async function loadNDR() {
   const d = await api('GET', '/ndr');
   if (!d?.success) return;
   document.getElementById('ndr-tbody').innerHTML = d.ndrs.map(n =>
-    `<tr><td><b style="color:var(--text)">${n.order?.orderId||'—'}</b></td><td>${n.awbNumber||'—'}</td><td>${n.reason||'—'}</td>
+    `<tr><td><b style="color:#fff">${n.order?.orderId||'—'}</b></td><td>${n.awbNumber||'—'}</td><td>${n.reason||'—'}</td>
     <td>${n.attempts||1}</td><td><span class="status s-${n.status}">${n.status}</span></td>
     <td>${n.status==='pending'?`<button class="btn btn-primary btn-sm" onclick="reattempt('${n._id}')">🔄 Reattempt</button>`:''}</td></tr>`
   ).join('') || '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:2rem;margin-bottom:8px">⚠️</div>No NDR orders</td></tr>';
@@ -1594,7 +1370,7 @@ async function loadWalletPage() {
       `<tr>
         <td>${fmtDate(tx.createdAt)}</td>
         <td><span class="status ${tx.type==='credit'?'s-delivered':'s-rto'}">${tx.type}</span></td>
-        <td style="font-weight:700;color:${tx.type==='credit'?'var(--success)':'var(--danger)'}">${tx.type==='credit'?'+':'−'}₹${tx.amount}</td>
+        <td style="font-weight:700;color:${tx.type==='credit'?'#34D399':'#F87171'}">${tx.type==='credit'?'+':'−'}₹${tx.amount}</td>
         <td>₹${tx.balance||tx.balanceAfter||0}</td>
         <td style="color:var(--muted)">${tx.description||'—'}</td>
       </tr>`
@@ -1623,7 +1399,7 @@ async function loadBilling() {
   const d = await api('GET', '/orders?status=shipped,delivered&limit=100');
   if (d?.success) {
     document.getElementById('billing-shipping-tbody').innerHTML = d.orders.filter(o => o.shippingCharge>0).map(o =>
-      `<tr><td><b style="color:var(--text)">${o.orderId}</b></td><td>${o.assignedCourier?.name||'—'}</td><td style="color:var(--teal)">${o.awbNumber||'—'}</td><td style="color:var(--brand);font-weight:700">₹${o.shippingCharge}</td><td>${fmtDate(o.createdAt)}</td></tr>`
+      `<tr><td><b style="color:#fff">${o.orderId}</b></td><td>${o.assignedCourier?.name||'—'}</td><td style="color:var(--teal)">${o.awbNumber||'—'}</td><td style="color:var(--orange);font-weight:700">₹${o.shippingCharge}</td><td>${fmtDate(o.createdAt)}</td></tr>`
     ).join('') || '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--muted)">No data</td></tr>';
   }
   const t = await api('GET', '/wallet/transactions');
@@ -1648,9 +1424,9 @@ async function loadWarehouses(forOrder) {
     return;
   }
   document.getElementById('warehouses-list').innerHTML = d.warehouses.map(w =>
-    `<div class="card" style="border:2px solid ${w.isDefault?'var(--brand)':'var(--border)'}">
+    `<div class="card" style="border:2px solid ${w.isDefault?'var(--orange)':'var(--border)'}">
       ${w.isDefault?'<span class="status s-delivered" style="font-size:.7rem;margin-bottom:8px;display:inline-block">⭐ Default</span>':''}
-      <div style="font-weight:700;color:var(--text);margin-bottom:4px;font-size:1rem">${w.name}</div>
+      <div style="font-weight:700;color:#fff;margin-bottom:4px;font-size:1rem">${w.name}</div>
       <div style="font-size:.85rem;color:var(--muted);margin-bottom:4px">${w.address||''}, ${w.city||''}, ${w.state||''} - ${w.pincode||''}</div>
       <div style="font-size:.82rem;color:var(--muted)">${w.contactName||''} ${w.phone?'| '+w.phone:''}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
@@ -1685,7 +1461,7 @@ async function loadKYCStatus() {
   const k = d.kyc;
   const statusMap = { not_submitted:'📋 Not Submitted', pending:'⏳ Under Review', approved:'✅ Approved', rejected:'❌ Rejected' };
   const colorMap = { not_submitted:'var(--muted)', pending:'var(--warning)', approved:'var(--success)', rejected:'var(--danger)' };
-  document.getElementById('kyc-status-block').innerHTML = `<div style="background:var(--bg);border-left:4px solid ${colorMap[k.status||'not_submitted']};border-radius:12px;padding:14px 18px;font-size:.95rem;color:${colorMap[k.status||'not_submitted']}"><b>${statusMap[k.status||'not_submitted']}</b>${k.rejectionReason?`<br/><span style="font-size:.82rem;margin-top:4px;display:block">Reason: ${k.rejectionReason}</span>`:''}</div>`;
+  document.getElementById('kyc-status-block').innerHTML = `<div style="background:${colorMap[k.status||'not_submitted']}18;border:1px solid ${colorMap[k.status||'not_submitted']}40;border-radius:12px;padding:14px 18px;font-size:.95rem;color:${colorMap[k.status||'not_submitted']}"><b>${statusMap[k.status||'not_submitted']}</b>${k.rejectionReason?`<br/><span style="font-size:.82rem;margin-top:4px;display:block">Reason: ${k.rejectionReason}</span>`:''}</div>`;
   if (k.status==='approved') document.getElementById('kyc-form').style.display='none';
 }
 async function submitKYC() {
@@ -1705,7 +1481,7 @@ async function loadTickets() {
   const d = await api('GET','/tickets');
   if (!d?.success) return;
   document.getElementById('tickets-tbody').innerHTML = d.tickets.map(t =>
-    `<tr><td><b style="color:var(--text)">${t.ticketId}</b></td><td>${t.subject}</td><td>${t.category}</td>
+    `<tr><td><b style="color:#fff">${t.ticketId}</b></td><td>${t.subject}</td><td>${t.category}</td>
     <td><span class="status s-${t.status}">${t.status}</span></td>
     <td>${fmtDate(t.updatedAt)}</td>
     <td><button class="btn btn-outline btn-sm" onclick="viewTicket('${t._id}','${t.ticketId}')">View →</button></td></tr>`
@@ -1724,9 +1500,9 @@ async function viewTicket(id,ticketId) {
   const d=await api('GET',`/tickets/${id}`);
   if (d?.success) {
     document.getElementById('tv-replies').innerHTML = d.ticket.replies.map(r =>
-      `<div style="margin-bottom:10px;padding:12px;border-radius:10px;background:${r.authorRole==='admin'?'var(--info-light)':'var(--bg)'};border:1px solid ${r.authorRole==='admin'?'#C8DCFA':'var(--border)'}">
+      `<div style="margin-bottom:10px;padding:12px;border-radius:10px;background:${r.authorRole==='admin'?'#1E2D5A':'#1A1E30'};border:1px solid ${r.authorRole==='admin'?'#3B82F630':'#2A2E40'}">
         <div style="font-size:.72rem;color:var(--muted);margin-bottom:5px"><b style="color:${r.authorRole==='admin'?'#60A5FA':'var(--orange)'}">${r.authorRole==='admin'?'Support Team':'You'}</b> · ${fmtDate(r.createdAt)}</div>
-        <div style="font-size:.9rem;color:var(--text2)">${r.message}</div>
+        <div style="font-size:.9rem;color:#C8D0E8">${r.message}</div>
       </div>`
     ).join('') || '<div style="color:var(--muted);text-align:center;padding:24px">No replies yet</div>';
   }
@@ -1771,7 +1547,7 @@ async function loadIntegrationOrders() {
   const d2=await api('GET','/orders?source=woocommerce&limit=50&status=draft,processing');
   const orders=[...(d?.orders||[]),...(d2?.orders||[])];
   document.getElementById('sync-orders-tbody').innerHTML = orders.map(o =>
-    `<tr><td><b style="color:var(--text)">${o.orderId}</b></td><td>${o.source}</td><td>${o.recipient?.name||'—'}<br/><small style="color:var(--muted)">${o.recipient?.phone||''}</small></td>
+    `<tr><td><b style="color:#fff">${o.orderId}</b></td><td>${o.source}</td><td>${o.recipient?.name||'—'}<br/><small style="color:var(--muted)">${o.recipient?.phone||''}</small></td>
     <td><span class="status s-${o.paymentMode}">${o.paymentMode}</span></td>
     <td><span class="status s-${o.status}">${o.status}</span></td>
     <td><button class="btn btn-primary btn-sm" onclick="shipOrder('${o._id}')">🚀 Ship</button></td></tr>`
@@ -1826,7 +1602,7 @@ function renderPagination(containerId, current, total, onClick) {
     btn.textContent=i;btn.onclick=()=>onClick(i);el.appendChild(btn);
   }
 }
-function logout() { localStorage.removeItem('client_token'); localStorage.removeItem('client_user'); window.location.href='/client/login'; }
+function logout() { localStorage.removeItem('client_token'); localStorage.removeItem('client_user'); window.location.href='login.html'; }
 
 // Close modals on overlay click
 document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); }));
