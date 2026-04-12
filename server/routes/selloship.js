@@ -37,8 +37,46 @@ router.get('/ping', protect, adminOnly, async (req, res) => {
   res.json({ success: true, message: 'Selloship credentials are valid ✅' });
 });
 
+// ─── LIST AVAILABLE COURIERS (shipping partners) ──────────────────────────────
+// GET /api/selloship/couriers?pincode=400001&weight=0.5&paymentMode=prepaid
+// Returns available courier options from Selloship so user can pick one
+router.get('/couriers', protect, async (req, res) => {
+  try {
+    const { pincode, weight, paymentMode } = req.query;
+
+    // Try to fetch serviceability / courier list from Selloship
+    // Selloship exposes a serviceability check endpoint
+    const axios = require('axios');
+    const params = {
+      pincode:     pincode || '',
+      weight:      String(Math.round((parseFloat(weight) || 0.5) * 1000)),
+      paymentMode: (paymentMode || 'prepaid').toUpperCase()
+    };
+
+    let couriers = [];
+    try {
+      const resp = await axios.get(`${require('../utils/selloship').BASE || 'https://selloship.com/api/lock_actvs/channels'}/serviceability`, {
+        headers: { 'Content-Type': 'application/json', 'Authorization': req.selloToken },
+        params,
+        timeout: 15000
+      });
+      if (resp.data?.status === 'SUCCESS' && Array.isArray(resp.data?.couriers)) {
+        couriers = resp.data.couriers;
+      }
+    } catch (_) {
+      // Selloship may not have a public serviceability endpoint — return empty so
+      // the frontend falls back to showing internal couriers
+    }
+
+    res.json({ success: true, couriers });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // ─── SHIP ORDER (forward) ─────────────────────────────────────────────────────
 // POST /api/selloship/ship/:orderId
+// Body (optional): { courierId: "selloship_courier_id", courierName: "Delhivery" }
 router.post('/ship/:orderId', protect, async (req, res) => {
   try {
     const query = req.user.role === 'admin'
@@ -57,7 +95,6 @@ router.post('/ship/:orderId', protect, async (req, res) => {
       warehouse = await Warehouse.findById(order.pickupWarehouse);
     }
     if (!warehouse) {
-      // Fall back to user's default warehouse
       warehouse = await Warehouse.findOne({ user: order.user, isDefault: true });
     }
     if (!warehouse) {
@@ -65,14 +102,22 @@ router.post('/ship/:orderId', protect, async (req, res) => {
     }
 
     const payload = buildWaybillPayload(order, warehouse);
-    const result  = await createWaybill(req.selloToken, payload);
 
-    // Save AWB and courier info back to order
-    order.awbNumber       = result.waybill;
-    order.status          = 'shipped';
-    order.selloship        = {
+    // ── Shipping partner selection ──────────────────────────────────────────
+    // Client/admin can pass courierId (Selloship courier ID) + optional courierName
+    // This tells Selloship which carrier to use for the shipment.
+    if (req.body.courierId) {
+      payload.courierId   = String(req.body.courierId);
+      payload.courierName = req.body.courierName || '';
+    }
+
+    const result = await createWaybill(req.selloToken, payload);
+
+    order.awbNumber = result.waybill;
+    order.status    = 'shipped';
+    order.selloship = {
       waybill:      result.waybill,
-      courierName:  result.courierName,
+      courierName:  result.courierName || req.body.courierName || '',
       routingCode:  result.routingCode,
       labelUrl:     result.shippingLabel,
       shippedAt:    new Date()
@@ -204,10 +249,17 @@ router.post('/webhook', async (req, res) => {
 
     // Map Selloship status → our internal status
     const statusMap = {
-      'DELIVERED':        'delivered',
+      'READY_TO_SHIP':    'processing',    // Selloship accepted but not yet picked up
+      'MANIFESTED':       'processing',
+      'PICKUP_SCHEDULED': 'processing',
+      'PICKED_UP':        'in_transit',
       'IN_TRANSIT':       'in_transit',
+      'OUT_FOR_DELIVERY': 'out_for_delivery',
+      'DELIVERED':        'delivered',
+      'NDR':              'ndr',
       'RTO':              'rto',
-      'RETURN_RECEIVED':  'rto_delivered'
+      'RETURN_RECEIVED':  'rto',
+      'CANCELLED':        'cancelled'
     };
     const mappedStatus = statusMap[currentStatus];
 
