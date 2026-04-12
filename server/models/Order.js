@@ -78,15 +78,63 @@ const OrderSchema = new mongoose.Schema({
     lastWebhookStatus:  { type: String },
     lastWebhookAt:      { type: Date }
   },
+  // Cancellation
+  cancelledAt:         { type: Date },
+  cancellationReason:  { type: String },
+
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
 
-// Auto generate orderId
+// ─── AUTO-GENERATE ORDER ID WITH PER-CLIENT PREFIX ───────────────────────────
+// Each client gets a unique prefix derived from their company/name.
+// Format: <PREFIX><6-digit-sequence>  e.g.  ABC000042
+// The sequence is per-user so no cross-client clashes are possible.
 OrderSchema.pre('save', async function (next) {
   if (!this.orderId) {
-    const count = await mongoose.model('Order').countDocuments();
-    this.orderId = 'ORD' + String(count + 1).padStart(6, '0');
+    try {
+      // Load the user to get (or generate) their prefix
+      const User = mongoose.model('User');
+      let user = await User.findById(this.user);
+
+      if (user && !user.orderPrefix) {
+        // Generate a unique prefix from companyName or name
+        const source = (user.companyName || user.name || 'ORD').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        let base = source.substring(0, 3).padEnd(3, 'X');   // always 3 chars
+
+        // Ensure uniqueness — append digit suffix if collision
+        let candidate = base;
+        let suffix = 0;
+        while (true) {
+          const clash = await User.findOne({ orderPrefix: candidate, _id: { $ne: user._id } });
+          if (!clash) break;
+          suffix++;
+          candidate = base.substring(0, 2) + String(suffix % 10); // e.g. AB1, AB2 …
+          if (suffix > 9) {
+            // Last resort: random 3-char alphanumeric
+            candidate = Math.random().toString(36).substring(2, 5).toUpperCase();
+          }
+        }
+        user.orderPrefix = candidate;
+        await User.updateOne({ _id: user._id }, { orderPrefix: candidate });
+      }
+
+      const prefix = (user && user.orderPrefix) ? user.orderPrefix : 'ORD';
+
+      // Per-user sequence count
+      const count = await mongoose.model('Order').countDocuments({ user: this.user });
+      this.orderId = prefix + String(count + 1).padStart(6, '0');
+
+      // Extremely rare collision guard (concurrent inserts)
+      const exists = await mongoose.model('Order').findOne({ orderId: this.orderId });
+      if (exists) {
+        const total = await mongoose.model('Order').countDocuments();
+        this.orderId = prefix + String(total + 1).padStart(6, '0') + Math.floor(Math.random() * 10);
+      }
+    } catch (e) {
+      // Fallback: timestamp-based
+      this.orderId = 'ORD' + Date.now();
+    }
   }
   this.updatedAt = new Date();
   next();
