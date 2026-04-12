@@ -64,9 +64,6 @@ const UserSchema = new mongoose.Schema({
 
   lockedCouriers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Courier' }],
 
-  // Auto-generated unique order ID prefix (e.g. "ABC" → orders like ABC000001)
-  orderPrefix: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
-
   tempLoginToken:  { type: String },
   tempLoginExpiry: { type: Date },
 

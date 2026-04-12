@@ -5,14 +5,6 @@ const axios = require('axios');
 
 const BASE = 'https://selloship.com/api/lock_actvs/channels';
 
-// ─── AXIOS DEFAULTS ───────────────────────────────────────────────────────────
-// Selloship API can be slow — use 30s timeouts throughout
-const TIMEOUT_AUTH    = 15000;
-const TIMEOUT_SHIP    = 30000;
-const TIMEOUT_TRACK   = 15000;
-const TIMEOUT_CANCEL  = 15000;
-const TIMEOUT_MANIFEST= 30000;
-
 let _cache = { token: null, expiry: null };
 
 // ─── GET TOKEN (cached 55 min) ────────────────────────────────────────────────
@@ -23,7 +15,7 @@ async function getToken(username, password) {
   if (!username || !password) throw new Error('Selloship credentials not configured. Set them in Admin → Settings → Courier APIs.');
   const res = await axios.post(`${BASE}/authToken`, { username, password }, {
     headers: { 'Content-Type': 'application/json' },
-    timeout: TIMEOUT_AUTH
+    timeout: 10000
   });
   if (res.data.status !== 'SUCCESS') throw new Error(`Selloship auth failed: ${JSON.stringify(res.data)}`);
   _cache.token = res.data.token;
@@ -72,7 +64,7 @@ async function safeCall(fn) {
 // ─── FORWARD WAYBILL ─────────────────────────────────────────────────────────
 async function createWaybill(token, payload) {
   return safeCall(async () => {
-    const res = await axios.post(`${BASE}/waybill`, payload, { headers: headers(token), timeout: TIMEOUT_SHIP });
+    const res = await axios.post(`${BASE}/waybill`, payload, { headers: headers(token), timeout: 15000 });
     if (res.data.status !== 'SUCCESS') throw new Error(`Waybill failed: ${res.data.message || res.data.reason}`);
     return res.data;
   });
@@ -81,7 +73,7 @@ async function createWaybill(token, payload) {
 // ─── REVERSE WAYBILL ─────────────────────────────────────────────────────────
 async function createReverseWaybill(token, payload) {
   return safeCall(async () => {
-    const res = await axios.post(`${BASE}/waybillRVP`, payload, { headers: headers(token), timeout: TIMEOUT_SHIP });
+    const res = await axios.post(`${BASE}/waybillRVP`, payload, { headers: headers(token), timeout: 15000 });
     if (res.data.status !== 'SUCCESS') throw new Error(`RVP failed: ${res.data.message || res.data.reason}`);
     return res.data;
   });
@@ -94,7 +86,7 @@ async function getWaybillStatus(token, awbNumbers) {
   return safeCall(async () => {
     const query = awbNumbers.map(a => encodeURIComponent(a)).join(',');
     const res = await axios.post(`${BASE}/waybillDetails?waybills=${query}`, {}, {
-      headers: headers(token), timeout: TIMEOUT_TRACK
+      headers: headers(token), timeout: 10000
     });
     if (res.data.Status !== 'SUCCESS') throw new Error(`Track failed: ${JSON.stringify(res.data)}`);
     return res.data.waybillDetails;
@@ -104,7 +96,7 @@ async function getWaybillStatus(token, awbNumbers) {
 // ─── CANCEL WAYBILL ──────────────────────────────────────────────────────────
 async function cancelWaybill(token, awb) {
   return safeCall(async () => {
-    const res = await axios.post(`${BASE}/cancel`, { waybill: awb }, { headers: headers(token), timeout: TIMEOUT_CANCEL });
+    const res = await axios.post(`${BASE}/cancel`, { waybill: awb }, { headers: headers(token), timeout: 10000 });
     if (res.data.status !== 'SUCCESS') throw new Error(`Cancel failed: ${res.data.message}`);
     return res.data;
   });
@@ -113,7 +105,7 @@ async function cancelWaybill(token, awb) {
 // ─── MANIFEST ────────────────────────────────────────────────────────────────
 async function generateManifest(token, awbNumbers) {
   return safeCall(async () => {
-    const res = await axios.post(`${BASE}/manifest`, { awbNumbers }, { headers: headers(token), timeout: TIMEOUT_MANIFEST });
+    const res = await axios.post(`${BASE}/manifest`, { awbNumbers }, { headers: headers(token), timeout: 15000 });
     if (res.data.status !== 'SUCCESS') throw new Error(`Manifest failed: ${res.data.message}`);
     return res.data;
   });
