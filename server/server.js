@@ -86,6 +86,7 @@ app.use('/api/users',         require('./routes/users'));
 app.use('/api/settings',      require('./routes/settings'));
 app.use('/api/analytics',     require('./routes/analytics'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/selloship',      require('./routes/selloship'));
 
 // ─── HEALTH ──────────────────────────────────────────────────────────────────
 app.get('/health', (q,r) => r.json({ ok:true, mode:MODE, api:API_URL, time:new Date() }));

@@ -65,6 +65,19 @@ const OrderSchema = new mongoose.Schema({
   // Duplicate prevention
   duplicateCheckKey: { type: String },  // phone+pincode
 
+  // Selloship integration data
+  selloship: {
+    waybill:            { type: String },
+    courierName:        { type: String },
+    routingCode:        { type: String },
+    labelUrl:           { type: String },
+    shippedAt:          { type: Date },
+    reverseWaybill:     { type: String },
+    reverseLabelUrl:    { type: String },
+    reversedAt:         { type: Date },
+    lastWebhookStatus:  { type: String },
+    lastWebhookAt:      { type: Date }
+  },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

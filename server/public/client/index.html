@@ -834,24 +834,85 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
 
     <!-- ═══ KYC ═══ -->
     <div class="page" id="page-kyc">
-      <div class="card" style="max-width:600px">
+      <div class="card" style="max-width:680px">
         <div class="card-hdr"><span class="card-ttl">📋 KYC Verification</span></div>
+
+        <!-- Status Banner -->
         <div id="kyc-status-block" style="margin-bottom:18px"></div>
+
+        <!-- KYC Form -->
         <div id="kyc-form">
+
+          <!-- ── Identity ── -->
+          <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">📇 Identity Details</div>
           <div class="form-row">
-            <div class="form-group"><label>PAN Number</label><input id="kyc-pan" placeholder="ABCDE1234F" maxlength="10"/></div>
-            <div class="form-group"><label>Aadhaar Number</label><input id="kyc-aadhaar" placeholder="1234 5678 9012" maxlength="12"/></div>
+            <div class="form-group">
+              <label>PAN Number *</label>
+              <input id="kyc-pan" placeholder="ABCDE1234F" maxlength="10" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"/>
+            </div>
+            <div class="form-group">
+              <label>Aadhaar Number *</label>
+              <input id="kyc-aadhaar" placeholder="123456789012" maxlength="12" inputmode="numeric"/>
+            </div>
+          </div>
+          <div class="form-row" style="margin-bottom:6px">
+            <div class="form-group">
+              <label>PAN Card Document *</label>
+              <input type="file" id="kyc-pan-doc" accept="image/*,.pdf" onchange="previewKYCFile(this,'kyc-pan-preview')"/>
+              <div id="kyc-pan-preview" style="margin-top:8px;display:none"></div>
+            </div>
+            <div class="form-group">
+              <label>Aadhaar Document *</label>
+              <input type="file" id="kyc-aadhaar-doc" accept="image/*,.pdf" onchange="previewKYCFile(this,'kyc-aadhaar-preview')"/>
+              <div id="kyc-aadhaar-preview" style="margin-top:8px;display:none"></div>
+            </div>
+          </div>
+
+          <!-- ── Bank Details ── -->
+          <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">🏦 Bank Details</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Account Holder Name *</label>
+              <input id="kyc-bank-name" placeholder="As printed on cheque"/>
+            </div>
+            <div class="form-group">
+              <label>Account Number *</label>
+              <input id="kyc-bank-accno" placeholder="Enter account number" inputmode="numeric"/>
+            </div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>PAN Card Document</label><input type="file" id="kyc-pan-doc" accept="image/*,.pdf"/></div>
-            <div class="form-group"><label>Aadhaar Document</label><input type="file" id="kyc-aadhaar-doc" accept="image/*,.pdf"/></div>
+            <div class="form-group">
+              <label>IFSC Code *</label>
+              <input id="kyc-bank-ifsc" placeholder="SBIN0001234" maxlength="11" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"/>
+            </div>
+            <div class="form-group">
+              <label>Bank Name</label>
+              <input id="kyc-bank-bankname" placeholder="e.g. State Bank of India"/>
+            </div>
           </div>
-          <button class="btn btn-primary btn-lg" onclick="submitKYC()">📤 Submit KYC Documents</button>
+          <div class="form-group">
+            <label>Cancelled Cheque / Passbook Photo *</label>
+            <input type="file" id="kyc-bank-doc" accept="image/*,.pdf" onchange="previewKYCFile(this,'kyc-bank-preview')"/>
+            <div id="kyc-bank-preview" style="margin-top:8px;display:none"></div>
+          </div>
+
+          <!-- ── GST (Optional) ── -->
+          <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">🧾 GST Details <span style="font-weight:400;text-transform:none;font-size:.75rem">(Optional)</span></div>
+          <div class="form-group" style="max-width:320px">
+            <label>GST Number</label>
+            <input id="kyc-gst" placeholder="22AAAAA0000A1Z5" maxlength="15" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"/>
+            <div style="font-size:.72rem;color:var(--muted);margin-top:4px">Leave blank if not GST registered</div>
+          </div>
+
+          <button class="btn btn-primary btn-lg" style="width:100%;margin-top:8px" onclick="submitKYC()">📤 Submit KYC Documents</button>
         </div>
+
+        <!-- Submitted view (shown after pending/approved) -->
+        <div id="kyc-submitted-view" style="display:none"></div>
       </div>
     </div>
 
-    <!-- ═══ TICKETS ═══ -->
+<!-- ═══ TICKETS ═══ -->
     <div class="page" id="page-tickets">
       <div class="card">
         <div class="card-hdr">
@@ -1321,10 +1382,32 @@ async function loadOrders() {
 function renderOrderRows(orders, total, pages, page) {
   const tbody = document.getElementById('orders-tbody');
   if (!tbody) return;
+  const srcMap = {manual:'Manual',bulk_upload:'Bulk',shopify:'Shopify',woocommerce:'WooCommerce'};
+  const srcCls = {manual:'src-manual',bulk_upload:'src-bulk',shopify:'src-shopify',woocommerce:'src-woocommerce'};
+
   tbody.innerHTML = orders.map(o => {
-    const src = o.source || 'manual';
-    const srcMap = {manual:'Manual',bulk_upload:'Bulk',shopify:'Shopify',woocommerce:'WooCommerce'};
-    const srcCls = {manual:'src-manual',bulk_upload:'src-bulk',shopify:'src-shopify',woocommerce:'src-woocommerce'};
+    const src      = o.source || 'manual';
+    const canShip  = ['draft','processing'].includes(o.status);
+    const isShipped= ['shipped','in_transit','delivered','rto'].includes(o.status);
+    const sello    = o.selloship;
+
+    // Action cell
+    let actionCell = '';
+    if (canShip) {
+      actionCell = `<button class="btn btn-primary btn-xs" onclick="shipViaSelloship('${o._id}')">🚀 Ship</button>`;
+    } else if (isShipped && sello?.labelUrl) {
+      actionCell = `<a href="${sello.labelUrl}" target="_blank" class="btn btn-outline btn-xs">🏷 Label</a>`;
+    } else if (isShipped) {
+      actionCell = `<span style="font-size:.72rem;color:var(--muted)">${o.status}</span>`;
+    } else {
+      actionCell = `<span style="font-size:.72rem;color:var(--muted)">${o.status}</span>`;
+    }
+
+    // AWB / courier
+    const awbCell = o.awbNumber
+      ? `<b>${o.awbNumber}</b>${sello?.courierName ? `<br/><small style="color:var(--muted)">${sello.courierName}</small>` : ''}`
+      : '—';
+
     return `<tr>
       <td><input type="checkbox" class="row-check" value="${o._id}" onchange="toggleOrderSelect('${o._id}',this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--brand)"/></td>
       <td><b style="color:var(--text)">${o.orderId}</b></td>
@@ -1333,19 +1416,47 @@ function renderOrderRows(orders, total, pages, page) {
       <td><b>${o.recipient?.pincode||'—'}</b><br/><small style="color:var(--muted)">${o.recipient?.city||''}</small></td>
       <td><span class="status s-${o.paymentMode}">${o.paymentMode==='cod'?'COD ₹'+o.codAmount:'Prepaid'}</span></td>
       <td>${o.package?.weight||0} kg</td>
+      <td>${awbCell}</td>
       <td><span class="status s-${o.status}">${o.status}</span></td>
       <td>${fmtDate(o.createdAt)}</td>
-      <td>
-        <button class="btn btn-primary btn-sm" onclick="shipOrder('${o._id}')">🚀 Ship Now</button>
-      </td>
+      <td style="white-space:nowrap">${actionCell}</td>
     </tr>`;
-  }).join('') || `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">
+  }).join('') || `<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--muted)">
     <div style="font-size:2rem;margin-bottom:8px">📋</div>
-    No pending orders. <a href="javascript:navigate('create-order')" style="color:var(--brand);font-weight:600">Create one →</a>
+    No orders found. <a href="javascript:navigate('create-order')" style="color:var(--brand);font-weight:600">Create one →</a>
   </td></tr>`;
+
   renderPagination('orders-pagination', page, pages, p => { ordersPage = p; loadOrders(); });
   const summEl = document.getElementById('orders-summary');
-  if (summEl) summEl.textContent = `Showing ${orders.length} of ${total} pending orders`;
+  if (summEl) summEl.textContent = `Showing ${orders.length} of ${total} orders`;
+}
+
+// Ship via Selloship API
+async function shipViaSelloship(orderId) {
+  const btn = document.querySelector(`button[onclick="shipViaSelloship('${orderId}')"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
+  const d = await api('POST', `/selloship/ship/${orderId}`);
+  if (d?.success) {
+    toast(`✅ Shipped! AWB: ${d.waybill} via ${d.courierName||'courier'}`, 'success');
+    loadOrders();
+    loadWalletBalance();
+  } else {
+    toast(d?.message || 'Ship failed', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Ship'; }
+  }
+}
+
+// Bulk ship via Selloship
+async function bulkShipSelected() {
+  if (!selectedOrders.size) return;
+  const ids = [...selectedOrders];
+  let ok = 0, fail = 0;
+  for (const id of ids) {
+    const d = await api('POST', `/selloship/ship/${id}`);
+    if (d?.success) ok++; else fail++;
+  }
+  toast(`Shipped: ${ok} ✅  Failed: ${fail} ❌`, ok > 0 ? 'success' : 'error');
+  loadOrders(); loadWalletBalance();
 }
 
 function clearOrderFilters() {
@@ -1682,25 +1793,145 @@ async function deleteWarehouse(id) {
 async function loadKYCStatus() {
   const d = await api('GET','/kyc/status');
   if (!d?.success) return;
-  const k = d.kyc;
-  const statusMap = { not_submitted:'📋 Not Submitted', pending:'⏳ Under Review', approved:'✅ Approved', rejected:'❌ Rejected' };
-  const colorMap = { not_submitted:'var(--muted)', pending:'var(--warning)', approved:'var(--success)', rejected:'var(--danger)' };
-  document.getElementById('kyc-status-block').innerHTML = `<div style="background:var(--bg);border-left:4px solid ${colorMap[k.status||'not_submitted']};border-radius:12px;padding:14px 18px;font-size:.95rem;color:${colorMap[k.status||'not_submitted']}"><b>${statusMap[k.status||'not_submitted']}</b>${k.rejectionReason?`<br/><span style="font-size:.82rem;margin-top:4px;display:block">Reason: ${k.rejectionReason}</span>`:''}</div>`;
-  if (k.status==='approved') document.getElementById('kyc-form').style.display='none';
-}
-async function submitKYC() {
-  const pan=document.getElementById('kyc-pan').value.trim(); const aadhaar=document.getElementById('kyc-aadhaar').value.trim();
-  if (!pan||!aadhaar) { toast('PAN and Aadhaar are required','error'); return; }
-  const fd=new FormData(); fd.append('panNumber',pan); fd.append('aadhaarNumber',aadhaar);
-  const pd=document.getElementById('kyc-pan-doc').files[0]; if(pd) fd.append('panDocument',pd);
-  const ad=document.getElementById('kyc-aadhaar-doc').files[0]; if(ad) fd.append('aadhaarDocument',ad);
-  const res=await fetch(`${API}/kyc/submit`,{method:'POST',headers:{Authorization:'Bearer '+token},body:fd});
-  const d=await res.json();
-  if (d?.success) { toast('KYC submitted for review','success'); loadKYCStatus(); }
-  else toast(d?.message||'Error','error');
+  const k = d.kyc || {};
+  const statusMap  = { not_submitted:'📋 Not Submitted', pending:'⏳ Under Review', approved:'✅ KYC Approved', rejected:'❌ Rejected' };
+  const colorMap   = { not_submitted:'var(--muted)', pending:'var(--warning)', approved:'var(--success)', rejected:'var(--danger)' };
+  const bgMap      = { not_submitted:'var(--bg)', pending:'#fff7ed', approved:'#f0fdf4', rejected:'#fef2f2' };
+  const st         = k.status || 'not_submitted';
+
+  document.getElementById('kyc-status-block').innerHTML = `
+    <div style="background:${bgMap[st]};border-left:4px solid ${colorMap[st]};border-radius:10px;padding:14px 16px">
+      <div style="font-size:1rem;font-weight:700;color:${colorMap[st]}">${statusMap[st]}</div>
+      ${k.rejectionReason ? `<div style="font-size:.82rem;margin-top:4px;color:var(--danger)">Reason: ${k.rejectionReason}</div>` : ''}
+      ${k.submittedAt ? `<div style="font-size:.78rem;color:var(--muted);margin-top:4px">Submitted: ${new Date(k.submittedAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</div>` : ''}
+    </div>`;
+
+  const form   = document.getElementById('kyc-form');
+  const viewed = document.getElementById('kyc-submitted-view');
+
+  if (st === 'approved') {
+    // Hide form, show summary
+    if (form)   form.style.display   = 'none';
+    if (viewed) {
+      viewed.style.display = 'block';
+      viewed.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px;font-size:.875rem">
+          <div style="background:var(--bg);border-radius:8px;padding:12px">
+            <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Identity</div>
+            <div>PAN: <b>${k.panNumber||'—'}</b></div>
+            <div>Aadhaar: <b>${k.aadhaarNumber ? '••••'+k.aadhaarNumber.slice(-4) : '—'}</b></div>
+          </div>
+          <div style="background:var(--bg);border-radius:8px;padding:12px">
+            <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Bank</div>
+            <div>${k.bankAccountName||'—'}</div>
+            <div style="font-size:.8rem;color:var(--muted)">••••${(k.bankAccountNumber||'').slice(-4)} | ${k.bankIFSC||'—'}</div>
+          </div>
+          ${k.gstNumber ? `<div style="background:#fef9c3;border-radius:8px;padding:12px;grid-column:1/-1"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;margin-bottom:4px">GST</div><b>${k.gstNumber}</b></div>` : ''}
+        </div>`;
+    }
+  } else if (st === 'pending') {
+    // Disable form fields, show pending message
+    if (form) {
+      const inputs = form.querySelectorAll('input,select,textarea,button');
+      inputs.forEach(el => { el.disabled = true; });
+    }
+  } else if (st === 'rejected') {
+    // Re-enable form for resubmission
+    if (form) {
+      form.style.display = 'block';
+      const inputs = form.querySelectorAll('input,select,textarea,button');
+      inputs.forEach(el => { el.disabled = false; });
+      // Pre-fill existing data
+      if (k.panNumber)         document.getElementById('kyc-pan').value           = k.panNumber;
+      if (k.aadhaarNumber)     document.getElementById('kyc-aadhaar').value       = k.aadhaarNumber;
+      if (k.bankAccountName)   document.getElementById('kyc-bank-name').value     = k.bankAccountName;
+      if (k.bankAccountNumber) document.getElementById('kyc-bank-accno').value    = k.bankAccountNumber;
+      if (k.bankIFSC)          document.getElementById('kyc-bank-ifsc').value     = k.bankIFSC;
+      if (k.bankName)          document.getElementById('kyc-bank-bankname').value = k.bankName;
+      if (k.gstNumber)         document.getElementById('kyc-gst').value           = k.gstNumber;
+    }
+  }
 }
 
-// ─── TICKETS ───────────────────────────────────────────────────────────────────
+// Show a thumbnail/link preview when user selects a file
+function previewKYCFile(input, previewId) {
+  const preview = document.getElementById(previewId);
+  if (!preview) return;
+  const file = input.files[0];
+  if (!file) { preview.style.display = 'none'; return; }
+  if (file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      preview.style.display = 'block';
+      preview.innerHTML = `<img src="${e.target.result}" style="max-width:100%;max-height:120px;object-fit:contain;border-radius:6px;border:1px solid var(--border)"/>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:3px">✅ ${file.name}</div>`;
+    };
+    reader.readAsDataURL(file);
+  } else {
+    preview.style.display = 'block';
+    preview.innerHTML = `<div style="font-size:.82rem;color:var(--success)">📄 ${file.name}</div>`;
+  }
+}
+
+async function submitKYC() {
+  const pan    = document.getElementById('kyc-pan').value.trim().toUpperCase();
+  const aadhaar= document.getElementById('kyc-aadhaar').value.trim().replace(/\s/g,'');
+  const bankAccountName   = document.getElementById('kyc-bank-name').value.trim();
+  const bankAccountNumber = document.getElementById('kyc-bank-accno').value.trim();
+  const bankIFSC          = document.getElementById('kyc-bank-ifsc').value.trim().toUpperCase();
+  const bankName          = document.getElementById('kyc-bank-bankname').value.trim();
+  const gst               = document.getElementById('kyc-gst').value.trim().toUpperCase();
+
+  // Validation
+  if (!pan)                        { toast('PAN number is required','error'); return; }
+  if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) { toast('Invalid PAN format (e.g. ABCDE1234F)','error'); return; }
+  if (!aadhaar)                    { toast('Aadhaar number is required','error'); return; }
+  if (!/^\d{12}$/.test(aadhaar))  { toast('Aadhaar must be 12 digits','error'); return; }
+  if (!bankAccountName)            { toast('Bank account name is required','error'); return; }
+  if (!bankAccountNumber)          { toast('Bank account number is required','error'); return; }
+  if (!bankIFSC)                   { toast('IFSC code is required','error'); return; }
+  if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankIFSC)) { toast('Invalid IFSC format (e.g. SBIN0001234)','error'); return; }
+  if (gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{3}$/.test(gst)) { toast('Invalid GST number format','error'); return; }
+
+  const fd = new FormData();
+  fd.append('panNumber',          pan);
+  fd.append('aadhaarNumber',      aadhaar);
+  fd.append('bankAccountName',    bankAccountName);
+  fd.append('bankAccountNumber',  bankAccountNumber);
+  fd.append('bankIFSC',           bankIFSC);
+  fd.append('bankName',           bankName);
+  if (gst) fd.append('gstNumber', gst);
+
+  const panDoc     = document.getElementById('kyc-pan-doc').files[0];
+  const aadhaarDoc = document.getElementById('kyc-aadhaar-doc').files[0];
+  const bankDoc    = document.getElementById('kyc-bank-doc').files[0];
+  if (panDoc)     fd.append('panDocument',     panDoc);
+  if (aadhaarDoc) fd.append('aadhaarDocument', aadhaarDoc);
+  if (bankDoc)    fd.append('bankDocument',    bankDoc);
+
+  const btn = document.querySelector('#page-kyc .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Submitting...'; }
+
+  try {
+    const res = await fetch(`${API}/kyc/submit`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: fd
+    });
+    const d = await res.json();
+    if (d?.success) {
+      toast('KYC submitted successfully! Under review.','success');
+      loadKYCStatus();
+    } else {
+      toast(d?.message || 'Submission failed','error');
+    }
+  } catch(e) {
+    toast('Network error. Please try again.','error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 Submit KYC Documents'; }
+  }
+}
+
 async function loadTickets() {
   const d = await api('GET','/tickets');
   if (!d?.success) return;

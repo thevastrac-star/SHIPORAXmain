@@ -15,51 +15,56 @@ const UserSchema = new mongoose.Schema({
   // Wallet
   walletBalance: { type: Number, default: 0 },
 
-  // KYC
+  // KYC — submit-once enforced at route level (re-submit only allowed if rejected)
   kyc: {
     status: { type: String, enum: ['not_submitted', 'pending', 'approved', 'rejected'], default: 'not_submitted' },
-    panNumber: { type: String },
-    aadhaarNumber: { type: String },
-    panDocument: { type: String },       // file path/URL
-    aadhaarDocument: { type: String },
+    // Identity
+    panNumber:      { type: String },
+    aadhaarNumber:  { type: String },
+    panDocument:    { type: String },   // file path
+    aadhaarDocument:{ type: String },   // file path
+    // Bank details
+    bankAccountName:   { type: String },
+    bankAccountNumber: { type: String },
+    bankIFSC:          { type: String },
+    bankName:          { type: String },
+    bankDocument:      { type: String }, // cancelled cheque / passbook photo
+    // GST (optional)
+    gstNumber:     { type: String },
+    // Review
     rejectionReason: { type: String },
-    submittedAt: { type: Date },
-    reviewedAt: { type: Date },
-    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    submittedAt:     { type: Date },
+    reviewedAt:      { type: Date },
+    reviewedBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
 
-  // Fraud / Control limits
   limits: {
     maxOrdersPerDay: { type: Number, default: 100 },
-    codLimit: { type: Number, default: 50000 }
+    codLimit:        { type: Number, default: 50000 }
   },
 
-  // WhatsApp notifications
   whatsappNotifications: { type: Boolean, default: false },
-  whatsappNumber: { type: String },
+  whatsappNumber:        { type: String },
 
-  // Integrations
   integrations: {
     shopify: {
-      connected: { type: Boolean, default: false },
-      storeUrl: { type: String },
-      apiKey: { type: String },
-      apiSecret: { type: String },
+      connected:   { type: Boolean, default: false },
+      storeUrl:    { type: String },
+      apiKey:      { type: String },
+      apiSecret:   { type: String },
       accessToken: { type: String }
     },
     woocommerce: {
-      connected: { type: Boolean, default: false },
-      storeUrl: { type: String },
-      consumerKey: { type: String },
+      connected:      { type: Boolean, default: false },
+      storeUrl:       { type: String },
+      consumerKey:    { type: String },
       consumerSecret: { type: String }
     }
   },
 
-  // Per-customer courier lock/unlock (array of courier ObjectIds that are LOCKED for this user)
   lockedCouriers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Courier' }],
 
-  // Impersonation
-  tempLoginToken: { type: String },
+  tempLoginToken:  { type: String },
   tempLoginExpiry: { type: Date },
 
   createdAt: { type: Date, default: Date.now },
