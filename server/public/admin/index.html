@@ -9,25 +9,25 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet"/>
 <style>
 :root{
-  --brand:#5046E4;--brand2:#6C62F5;--brand-light:#F0EFFE;--brand-mid:#C9C5FC;
+  --brand:#F05A22;--brand2:#FF8C42;--brand-light:#FFF0EB;--brand-mid:#FFD4C2;
+  --primary:#F05A22;--primary-dark:#D94E1A;
+  --navy:#0D1B3E;--navy2:#112044;--navy3:#1A2F5E;
   --teal:#0A9E89;--teal-light:#E6F7F5;
   --success:#1AAD71;--success-light:#E8F8F1;
   --danger:#E03030;--danger-light:#FDEAEA;
   --warning:#E07D00;--warning-light:#FEF3E2;
   --info:#1967D2;--info-light:#E8F0FE;
-  --bg:#F4F5FA;
-  --sidebar:#FFFFFF;--sidebar-border:#ECEEF4;
+  --bg:#F1F3F8;
+  --sidebar:#0D1B3E;--sidebar-border:rgba(255,255,255,.08);
   --card:#FFFFFF;--card2:#FAFBFF;
-  --border:#E4E7EF;--border2:#D1D5E4;
+  --border:#E5E7EB;--border2:#D1D5DB;
   --topbar:#FFFFFF;
-  --text:#12172B;--text2:#3D4560;--muted:#7A82A0;--dim:#B0B8CC;
+  --text:#1A1A2E;--text2:#374151;--muted:#6B7280;--dim:#9CA3AF;
   --r:12px;--r2:16px;--r3:20px;
-  --sh:0 1px 4px rgba(18,23,43,.06),0 4px 16px rgba(18,23,43,.05);
-  --sh2:0 2px 8px rgba(18,23,43,.08),0 8px 32px rgba(18,23,43,.07);
-  --sh3:0 4px 14px rgba(80,70,228,.3);
+  --sh:0 1px 4px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.05);
+  --sh2:0 2px 8px rgba(0,0,0,.08),0 8px 32px rgba(0,0,0,.07);
+  --sh3:0 4px 14px rgba(240,90,34,.3);
 }
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;-webkit-font-smoothing:antialiased}
 
 /* ── SIDEBAR ── */
 #sidebar{
@@ -35,30 +35,30 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);dis
   display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;
 }
 #sidebar .logo{
-  padding:22px 20px 18px;display:flex;align-items:center;gap:11px;
+  padding:18px 16px;display:flex;align-items:center;gap:11px;
   border-bottom:1.5px solid var(--sidebar-border);
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:1.18rem;font-weight:800;color:var(--text);letter-spacing:-.03em;
+  font-family:'Inter',sans-serif;font-size:1.1rem;font-weight:800;color:#fff;letter-spacing:-.03em;
 }
 #sidebar .logo::before{
-  content:'🛠️';
+  content:'📦';
   width:40px;height:40px;border-radius:12px;flex-shrink:0;
-  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  background:#F05A22;
   display:flex;align-items:center;justify-content:center;font-size:.95rem;
-  box-shadow:var(--sh3);
+  box-shadow:0 4px 12px rgba(240,90,34,.4);
 }
-#sidebar .logo span{color:var(--brand)}
+#sidebar .logo span{color:#F05A22}
 
 .nav-section{
   padding:16px 18px 5px;font-size:.61rem;font-weight:700;
-  text-transform:uppercase;letter-spacing:.12em;color:var(--dim);
+  text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.4);
 }
 .nav-item{
   display:flex;align-items:center;gap:10px;padding:11px 14px;
   cursor:pointer;border-radius:10px;margin:2px 8px;
-  transition:.18s;font-size:.87rem;font-weight:500;color:var(--muted);
+  transition:.18s;font-size:.87rem;font-weight:500;color:rgba(255,255,255,.7);
 }
-.nav-item:hover{background:var(--bg);color:var(--text2)}
-.nav-item.active{background:var(--brand-light);color:var(--brand);font-weight:700}
+.nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav-item.active{background:#F05A22;color:#fff;font-weight:700}
 .nav-item .icon{width:18px;text-align:center;font-size:.95rem}
 
 /* ── MAIN ── */
@@ -72,7 +72,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);dis
   position:sticky;top:0;z-index:50;box-shadow:0 1px 0 var(--border);
 }
 #topbar h2{
-  font-family:'Plus Jakarta Sans',sans-serif;
+  font-family:'Inter',sans-serif;
   font-size:1.05rem;font-weight:700;color:var(--text);
 }
 .topbar-right{display:flex;align-items:center;gap:12px}
@@ -82,7 +82,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);dis
 }
 .avatar{
   width:38px;height:38px;border-radius:10px;
-  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  background:#F05A22;
   color:#fff;display:flex;align-items:center;justify-content:center;
   font-weight:700;font-size:.9rem;cursor:pointer;box-shadow:var(--sh3);
 }
@@ -933,6 +933,18 @@ textarea{resize:vertical;min-height:80px}
   </div>
 </div>
 
+<!-- Set Password Modal -->
+<div class="modal-overlay" id="set-password-modal">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">🔑 Set Client Password</span><button class="modal-close" onclick="closeModal('set-password-modal')">×</button></div>
+    <input type="hidden" id="sp-uid"/>
+    <p id="sp-name" style="color:var(--text-muted);font-size:.875rem;margin-bottom:16px"></p>
+    <div class="form-group"><label>New Password</label><input type="password" id="sp-pass" placeholder="Min 6 characters"/></div>
+    <div class="form-group"><label>Confirm Password</label><input type="password" id="sp-pass2" placeholder="Repeat password"/></div>
+    <button class="btn btn-primary" onclick="saveClientPassword()">🔑 Set Password</button>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -1044,6 +1056,7 @@ async function loadUsers() {
       <td>
         <button class="btn btn-outline btn-sm" onclick="openWalletForUser('${u._id}')">💰</button>
         <button class="btn btn-outline btn-sm" onclick="openLimitsModal('${u._id}','${u.limits?.maxOrdersPerDay||100}','${u.limits?.codLimit||50000}')">🔒</button>
+        <button class="btn btn-outline btn-sm" onclick="openSetPasswordModal('${u._id}','${u.name}')">🔑 Set Pass</button>
         <button class="btn btn-sm ${u.isBlocked?'btn-success':'btn-danger'}" onclick="toggleBlock('${u._id}','${u.isBlocked}')">${u.isBlocked?'Unblock':'Block'}</button>
         <button class="btn btn-sm ${u.isFlagged?'btn-success':'btn-warning'}" onclick="toggleFlag('${u._id}','${u.isFlagged}')">${u.isFlagged?'Unflag':'Flag'}</button>
       </td>
@@ -1074,6 +1087,24 @@ async function saveUserLimits() {
     codLimit: +document.getElementById('lm-cod').value
   });
   if (d?.success) { toast('Limits saved'); closeModal('limits-modal'); loadUsers(); }
+  else toast(d?.message || 'Error', 'error');
+}
+
+function openSetPasswordModal(uid, name) {
+  document.getElementById('sp-uid').value = uid;
+  document.getElementById('sp-name').textContent = `Setting password for: ${name}`;
+  document.getElementById('sp-pass').value = '';
+  document.getElementById('sp-pass2').value = '';
+  openModal('set-password-modal');
+}
+async function saveClientPassword() {
+  const uid = document.getElementById('sp-uid').value;
+  const pass = document.getElementById('sp-pass').value;
+  const pass2 = document.getElementById('sp-pass2').value;
+  if (pass.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
+  if (pass !== pass2) { toast('Passwords do not match', 'error'); return; }
+  const d = await api('PATCH', `/users/${uid}/set-password`, { password: pass });
+  if (d?.success) { toast('✅ Password updated successfully', 'success'); closeModal('set-password-modal'); }
   else toast(d?.message || 'Error', 'error');
 }
 

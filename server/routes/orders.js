@@ -399,6 +399,12 @@ router.patch('/:id', protect, async (req, res) => {
         message: `Cannot edit order with status: ${order.status}. Only draft or processing orders can be edited.`
       });
     }
+    if (order.awbNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot edit order after AWB has been assigned. Cancel and recreate if changes needed.'
+      });
+    }
 
     const { recipient, package: pkg, paymentMode, codAmount, pickupWarehouse, courierId } = req.body;
 
