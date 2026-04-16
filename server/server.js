@@ -56,8 +56,9 @@ app.get('/admin',        (q,r) => serveHTML(r, `${PUB}/admin/index.html`));
 app.get('/admin/login',  (q,r) => serveHTML(r, `${PUB}/admin/login.html`));
 
 // Client routes — always available  
-app.get('/client',       (q,r) => serveHTML(r, `${PUB}/client/index.html`));
-app.get('/client/login', (q,r) => serveHTML(r, `${PUB}/client/login.html`));
+app.get('/client',          (q,r) => serveHTML(r, `${PUB}/client/index.html`));
+app.get('/client/login',    (q,r) => serveHTML(r, `${PUB}/client/login.html`));
+app.get('/client/register', (q,r) => serveHTML(r, `${PUB}/client/register.html`));
 
 // Root / login based on MODE
 if (MODE === 'admin') {
