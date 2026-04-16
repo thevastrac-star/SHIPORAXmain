@@ -148,13 +148,13 @@ tr:last-child td{border-bottom:none}
 .btn:hover{transform:translateY(-1px)}
 .btn:active{transform:translateY(0)}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
-.btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;box-shadow:var(--sh3)}
-.btn-primary:hover{box-shadow:0 6px 20px rgba(80,70,228,.45)}
+.btn-primary{background:#F05A22;color:#fff;box-shadow:var(--sh3)}
+.btn-primary:hover{background:#D94E1A;box-shadow:0 6px 20px rgba(240,90,34,.45)}
 .btn-success{background:linear-gradient(135deg,#1AAD71,#15976A);color:#fff;box-shadow:0 4px 14px rgba(26,173,113,.3)}
 .btn-danger{background:linear-gradient(135deg,#E03030,#C62828);color:#fff;box-shadow:0 4px 14px rgba(224,48,48,.28)}
 .btn-warning{background:linear-gradient(135deg,#E07D00,#C96B00);color:#fff;box-shadow:0 4px 14px rgba(224,125,0,.3)}
-.btn-outline{background:#fff;border:1.5px solid var(--border2);color:var(--text2);box-shadow:0 1px 3px rgba(18,23,43,.06)}
-.btn-outline:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-light)}
+.btn-outline{background:#fff;border:1.5px solid var(--border2);color:var(--text2);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.btn-outline:hover{border-color:#F05A22;color:#F05A22;background:#FFF0EB}
 .btn-sm{padding:8px 14px;font-size:.79rem;border-radius:9px}
 
 /* ── FORMS ── */
@@ -165,7 +165,7 @@ input,select,textarea{
   font-size:.9rem;outline:none;background:#fff;color:var(--text);
   transition:.18s;font-family:'DM Sans',sans-serif;
 }
-input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(80,70,228,.1)}
+input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(240,90,34,.1)}
 textarea{resize:vertical;min-height:80px}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
@@ -282,7 +282,7 @@ textarea{resize:vertical;min-height:80px}
         <div class="stat-card" style="border-top:2px solid #10B981;box-shadow:0 0 0 1px #10B98118,0 8px 24px rgba(16,185,129,.12)"><div class="label">✅ Delivered</div><div class="value" id="s-delivered">—</div></div>
         <div class="stat-card" style="border-top:2px solid #EF4444;box-shadow:0 0 0 1px #EF444418,0 8px 24px rgba(239,68,68,.12)"><div class="label">↩️ RTO Count</div><div class="value" id="s-rto">—</div></div>
         <div class="stat-card" style="border-top:2px solid #F59E0B;box-shadow:0 0 0 1px #F59E0B18,0 8px 24px rgba(245,158,11,.12)"><div class="label">⚠️ NDR Cases</div><div class="value" id="s-ndr">—</div></div>
-        <div class="stat-card" style="border-top:2px solid #7C3AED;box-shadow:0 0 0 1px #7C3AED18,0 8px 24px rgba(124,58,237,.12)"><div class="label">👥 Total Users</div><div class="value" id="s-users">—</div></div>
+        <div class="stat-card" style="border-top:2px solid #F05A22;box-shadow:0 0 0 1px #F05A2218,0 8px 24px rgba(240,90,34,.12)"><div class="label">👥 Total Users</div><div class="value" id="s-users">—</div></div>
         <div class="stat-card" style="border-top:2px solid #EC4899;box-shadow:0 0 0 1px #EC489918,0 8px 24px rgba(236,72,153,.12)"><div class="label">💵 COD Pending</div><div class="value" id="s-cod">—</div></div>
         <div class="stat-card" style="border-top:2px solid #00C9A7;box-shadow:0 0 0 1px #00C9A718,0 8px 24px rgba(0,201,167,.12)"><div class="label">💰 Total Recharge</div><div class="value" id="s-recharge">—</div></div>
         <div class="stat-card" style="border-top:2px solid #F59E0B;box-shadow:0 0 0 1px #F59E0B18,0 8px 24px rgba(245,158,11,.12)"><div class="label">🎫 Open Tickets</div><div class="value" id="s-tickets">—</div></div>

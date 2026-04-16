@@ -8,7 +8,9 @@
 <style>
 :root{
   /* Brand */
-  --brand:#E8400C;--brand2:#FF6535;--brand-light:#FFF0EB;--brand-mid:#FFD4C2;
+  --brand:#F05A22;--brand2:#FF8C42;--brand-light:#FFF0EB;--brand-mid:#FFD4C2;
+  /* Navy */
+  --navy:#0D1B3E;--navy2:#112044;--navy3:#1A2F5E;
   /* Teal accent */
   --teal:#0A9E89;--teal-light:#E6F7F5;
   /* Semantic */
@@ -18,18 +20,18 @@
   --info:#1967D2;--info-light:#E8F0FE;
   --purple:#7A3EE8;--purple-light:#F0EAFD;
   /* Layout */
-  --bg:#F5F6FA;
-  --sidebar:#FFFFFF;--sidebar-border:#ECEEF4;
+  --bg:#F1F3F8;
+  --sidebar:#0D1B3E;--sidebar-border:rgba(255,255,255,.08);
   --card:#FFFFFF;--card2:#FAFBFF;
-  --border:#E4E7EF;--border2:#D1D5E4;
+  --border:#E5E7EB;--border2:#D1D5DB;
   --topbar:#FFFFFF;
   /* Text */
-  --text:#12172B;--text2:#3D4560;--muted:#7A82A0;--dim:#B0B8CC;
+  --text:#1A1A2E;--text2:#374151;--muted:#6B7280;--dim:#9CA3AF;
   /* Radius */
   --r:12px;--r2:16px;--r3:20px;
   /* Shadow */
-  --sh:0 1px 4px rgba(18,23,43,.06),0 4px 16px rgba(18,23,43,.05);
-  --sh2:0 2px 8px rgba(18,23,43,.08),0 8px 32px rgba(18,23,43,.07);
+  --sh:0 1px 4px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.05);
+  --sh2:0 2px 8px rgba(0,0,0,.08),0 8px 32px rgba(0,0,0,.07);
   --sh3:0 8px 24px rgba(232,64,12,.18);
 }
 
@@ -50,41 +52,41 @@ body{
   position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;
 }
 .sidebar-logo{
-  padding:24px 20px 20px;
+  padding:20px 16px;
   display:flex;align-items:center;gap:12px;
   border-bottom:1.5px solid var(--sidebar-border);
 }
 .logo-icon{
   width:44px;height:44px;border-radius:13px;flex-shrink:0;
-  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  background:#F05A22;
   display:flex;align-items:center;justify-content:center;font-size:1.4rem;
-  box-shadow:var(--sh3);
+  box-shadow:0 4px 12px rgba(240,90,34,.4);
 }
 .logo-name{
-  font-family:'Plus Jakarta Sans',sans-serif;
-  font-size:1.2rem;font-weight:800;color:var(--text);letter-spacing:-.03em;
+  font-family:'Inter',sans-serif;
+  font-size:1.1rem;font-weight:800;color:#fff;letter-spacing:-.03em;
 }
-.logo-name em{color:var(--brand);font-style:normal}
-.logo-sub{font-size:.65rem;color:var(--muted);font-weight:500;margin-top:2px;letter-spacing:.02em}
+.logo-name em{color:#F05A22;font-style:normal}
+.logo-sub{font-size:.65rem;color:rgba(255,255,255,.5);font-weight:500;margin-top:2px;letter-spacing:.02em}
 
 .nav-section{
   padding:18px 18px 6px;font-size:.62rem;font-weight:700;
-  text-transform:uppercase;letter-spacing:.12em;color:var(--dim);
+  text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.35);
 }
 .nav-item{
   display:flex;align-items:center;gap:10px;
   padding:11px 14px;cursor:pointer;border-radius:10px;
   margin:2px 8px;transition:.18s;
-  font-size:.88rem;font-weight:500;color:var(--muted);
+  font-size:.88rem;font-weight:500;color:rgba(255,255,255,.65);
 }
-.nav-item:hover{background:#F5F6FA;color:var(--text2)}
+.nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
 .nav-item.active{
-  background:var(--brand-light);color:var(--brand);
+  background:#F05A22;color:#fff;
   font-weight:700;
 }
 .nav-item .ni{font-size:1rem;width:20px;text-align:center;flex-shrink:0}
 .nav-item .badge-dot{
-  margin-left:auto;background:var(--danger);color:var(--text);
+  margin-left:auto;background:var(--danger);color:#fff;
   border-radius:999px;font-size:.62rem;font-weight:700;
   padding:2px 7px;min-width:20px;text-align:center;
 }
@@ -97,11 +99,11 @@ body{
 }
 .sidebar-user-av{
   width:36px;height:36px;border-radius:10px;flex-shrink:0;
-  background:linear-gradient(135deg,var(--brand),var(--brand2));
-  color:var(--text);font-weight:700;font-size:.9rem;
+  background:#F05A22;
+  color:#fff;font-weight:700;font-size:.9rem;
   display:flex;align-items:center;justify-content:center;
 }
-.sidebar-user-name{font-size:.82rem;font-weight:600;color:var(--text);line-height:1.3}
+.sidebar-user-name{font-size:.82rem;font-weight:600;color:#fff;line-height:1.3}
 .sidebar-user-role{font-size:.68rem;color:var(--muted)}
 
 /* ── MAIN ── */
@@ -289,6 +291,65 @@ td b{color:var(--text)}
 .form-group textarea{resize:vertical;min-height:80px}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media(max-width:600px){.form-row{grid-template-columns:1fr}}
+
+/* ── MOBILE NAV ── */
+#mob-topbar{display:none}
+#mob-nav{display:none}
+
+@media(max-width:768px){
+  #sidebar{display:none!important}
+  #main{margin-left:0!important}
+  #topbar{display:none!important}
+
+  #mob-topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    background:#0D1B3E;padding:12px 16px;
+    position:sticky;top:0;z-index:200;
+    box-shadow:0 2px 8px rgba(0,0,0,.2);
+  }
+  #mob-topbar .mob-brand{display:flex;align-items:center;gap:8px}
+  #mob-topbar .mob-brand-icon{width:32px;height:32px;border-radius:8px;background:#F05A22;display:flex;align-items:center;justify-content:center;font-size:.95rem}
+  #mob-topbar .mob-brand-name{font-size:1rem;font-weight:800;color:#fff}
+  #mob-topbar .mob-brand-name em{color:#F05A22;font-style:normal}
+  #mob-topbar .mob-wallet{background:rgba(240,90,34,.15);border:1px solid rgba(240,90,34,.3);color:#FF8C42;padding:5px 12px;border-radius:999px;font-size:.75rem;font-weight:700}
+
+  #mob-nav{
+    display:flex;position:fixed;bottom:0;left:0;right:0;z-index:200;
+    background:#0D1B3E;border-top:1.5px solid rgba(255,255,255,.1);
+    padding:6px 0 max(6px, env(safe-area-inset-bottom));
+    box-shadow:0 -4px 16px rgba(0,0,0,.3);
+  }
+  .mob-nav-item{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+    padding:6px 4px;cursor:pointer;transition:.15s;
+    font-size:.58rem;font-weight:600;color:rgba(255,255,255,.5);
+    text-transform:uppercase;letter-spacing:.04em;position:relative;
+  }
+  .mob-nav-item .mni{font-size:1.2rem;line-height:1}
+  .mob-nav-item.active{color:#F05A22}
+  .mob-nav-item .mob-dot{
+    position:absolute;top:4px;right:calc(50% - 14px);
+    background:var(--danger);color:#fff;border-radius:999px;
+    font-size:.5rem;font-weight:700;padding:1px 5px;min-width:14px;text-align:center;
+  }
+
+  #content{padding:12px 12px 80px!important}
+  .page-header{flex-direction:column;align-items:flex-start!important;gap:10px}
+  .page-header .btn{width:100%;justify-content:center}
+
+  .card{border-radius:12px!important}
+  .stat-grid{grid-template-columns:repeat(2,1fr)!important;gap:10px!important}
+  .stat-card{padding:14px!important}
+
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:600px}
+
+  .modal{width:calc(100vw - 24px)!important;max-width:100%!important;max-height:90vh;overflow-y:auto;margin:0!important;border-radius:16px 16px 0 0!important}
+  .modal-overlay{align-items:flex-end!important;padding:0!important}
+
+  .search-bar{flex-direction:column;gap:8px}
+  .search-bar input,.search-bar select{width:100%!important}
+}
 
 /* ── PINCODE STATUS ── */
 .pincode-status{font-size:.76rem;margin-top:6px;padding:5px 10px;border-radius:8px;display:none}
@@ -493,6 +554,24 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
 </style>
 </head>
 <body>
+
+<!-- MOBILE TOPBAR -->
+<div id="mob-topbar">
+  <div class="mob-brand">
+    <div class="mob-brand-icon">📦</div>
+    <div class="mob-brand-name">SHIP<em>ORAX</em></div>
+  </div>
+  <div class="mob-wallet" id="mob-wallet-chip">₹0</div>
+</div>
+
+<!-- MOBILE BOTTOM NAV -->
+<div id="mob-nav">
+  <div class="mob-nav-item active" data-page="dashboard" onclick="navigate('dashboard')"><span class="mni">🏠</span>Home</div>
+  <div class="mob-nav-item" data-page="orders" onclick="navigate('orders')"><span class="mni">📦</span>Orders</div>
+  <div class="mob-nav-item" data-page="create-order" onclick="navigate('create-order')"><span class="mni" style="font-size:1.5rem;color:#F05A22">＋</span>New</div>
+  <div class="mob-nav-item" data-page="tracking" onclick="navigate('tracking')"><span class="mni">🚚</span>Shipments</div>
+  <div class="mob-nav-item" data-page="wallet" onclick="navigate('wallet')"><span class="mni">💰</span>Wallet</div>
+</div>
 
 <div id="sidebar">
   <div class="sidebar-logo">
@@ -1114,6 +1193,7 @@ let pincodeTimer = null;
 let orderSourceFilter = '';
 let somSelectedCourierId = null;
 let somCurrentOrder = null;
+let somIsSelloship = false; // flag: is selected courier a selloship courier
 
 // ─── INIT ──────────────────────────────────────────────────────────────────────
 window.onload = async () => {
@@ -1158,8 +1238,14 @@ function navigate(page) {
     n.classList.remove('active');
     if (n.getAttribute('onclick') === `navigate('${page}')`) n.classList.add('active');
   });
+  // sync mobile bottom nav
+  document.querySelectorAll('.mob-nav-item').forEach(n => {
+    n.classList.remove('active');
+    if (n.getAttribute('data-page') === page) n.classList.add('active');
+  });
   document.getElementById('page-title').textContent = page.replace(/-/g,' ').replace(/\b\w/g, c => c.toUpperCase());
   if (pageLoaders[page]) pageLoaders[page]();
+  window.scrollTo(0,0);
 }
 
 // ─── API HELPER ────────────────────────────────────────────────────────────────
@@ -1214,6 +1300,9 @@ async function loadWalletBalance() {
     document.getElementById('wallet-bal').textContent = bal;
     const bigEl = document.getElementById('wallet-balance-big');
     if (bigEl) bigEl.textContent = bal;
+    // update mobile topbar chip
+    const mobChip = document.getElementById('mob-wallet-chip');
+    if (mobChip) mobChip.textContent = '₹' + bal;
   }
 }
 
@@ -1344,6 +1433,74 @@ function setOrderSource(src) {
   loadOrders();
 }
 
+// ─── EDIT ORDER (pre-AWB only) ─────────────────────────────────────────────────
+async function openEditOrderModal(orderId) {
+  const d = await api('GET', `/orders/${orderId}`);
+  if (!d?.success) { toast('Could not load order', 'error'); return; }
+  const o = d.order;
+  if (o.awbNumber) { toast('Cannot edit order after AWB is assigned', 'error'); return; }
+  // Populate create-order form with existing data for editing
+  document.getElementById('rec-name').value = o.recipient?.name || '';
+  document.getElementById('rec-phone').value = o.recipient?.phone || '';
+  document.getElementById('rec-pincode').value = o.recipient?.pincode || '';
+  document.getElementById('rec-address').value = o.recipient?.address || '';
+  document.getElementById('rec-city').value = o.recipient?.city || '';
+  document.getElementById('rec-state').value = o.recipient?.state || '';
+  document.getElementById('pkg-weight').value = o.package?.weight || 0.5;
+  document.getElementById('pkg-length').value = o.package?.length || 10;
+  document.getElementById('pkg-breadth').value = o.package?.breadth || 10;
+  document.getElementById('pkg-height').value = o.package?.height || 10;
+  document.getElementById('pkg-value').value = o.package?.value || 0;
+  document.getElementById('pkg-desc').value = o.package?.description || '';
+  if (document.getElementById('pay-mode')) document.getElementById('pay-mode').value = o.paymentMode || 'prepaid';
+  if (document.getElementById('cod-amount')) document.getElementById('cod-amount').value = o.codAmount || 0;
+
+  // Store edit mode
+  window._editOrderId = orderId;
+  const placeBtn = document.getElementById('place-order-btn');
+  if (placeBtn) {
+    placeBtn.textContent = '💾 Save Changes';
+    placeBtn.setAttribute('onclick', 'saveEditOrder()');
+  }
+  navigate('create-order');
+  toast('Editing order — make changes and click Save', 'info');
+}
+
+async function saveEditOrder() {
+  const id = window._editOrderId;
+  if (!id) return;
+  const payload = {
+    recipient: {
+      name: document.getElementById('rec-name').value,
+      phone: document.getElementById('rec-phone').value,
+      pincode: document.getElementById('rec-pincode').value,
+      address: document.getElementById('rec-address').value,
+      city: document.getElementById('rec-city').value,
+      state: document.getElementById('rec-state').value,
+    },
+    package: {
+      weight: parseFloat(document.getElementById('pkg-weight').value)||0.5,
+      length: parseFloat(document.getElementById('pkg-length').value)||10,
+      breadth: parseFloat(document.getElementById('pkg-breadth').value)||10,
+      height: parseFloat(document.getElementById('pkg-height').value)||10,
+      value: parseFloat(document.getElementById('pkg-value').value)||0,
+      description: document.getElementById('pkg-desc').value,
+    },
+    paymentMode: document.getElementById('pay-mode')?.value || 'prepaid',
+    codAmount: parseFloat(document.getElementById('cod-amount')?.value)||0,
+  };
+  const d = await api('PATCH', `/orders/${id}`, payload);
+  if (d?.success) {
+    toast('✅ Order updated successfully', 'success');
+    window._editOrderId = null;
+    const placeBtn = document.getElementById('place-order-btn');
+    if (placeBtn) { placeBtn.textContent = '🚀  Place Order & Deduct from Wallet'; placeBtn.setAttribute('onclick','createOrder()'); }
+    navigate('orders');
+  } else {
+    toast(d?.message || 'Error updating order', 'error');
+  }
+}
+
 async function loadOrders() {
   selectedOrders.clear();
   const saEl = document.getElementById('select-all');
@@ -1394,7 +1551,11 @@ function renderOrderRows(orders, total, pages, page) {
     // Action cell
     let actionCell = '';
     if (canShip) {
-      actionCell = `<button class="btn btn-primary btn-xs" onclick="shipViaSelloship('${o._id}')">🚀 Ship</button>`;
+      // Show edit only if no AWB assigned yet
+      const editBtn = !o.awbNumber
+        ? `<button class="btn btn-outline btn-xs" onclick="openEditOrderModal('${o._id}')" title="Edit Order">✏️</button> `
+        : '';
+      actionCell = editBtn + `<button class="btn btn-primary btn-xs" onclick="shipOrder('${o._id}')">🚀 Ship</button>`;
     } else if (isShipped && sello?.labelUrl) {
       actionCell = `<a href="${sello.labelUrl}" target="_blank" class="btn btn-outline btn-xs">🏷 Label</a>`;
     } else if (isShipped) {
@@ -1580,15 +1741,40 @@ async function shipOrder(id) {
      &nbsp;|&nbsp; <span class="status s-${o.paymentMode}">${o.paymentMode==='cod'?'COD ₹'+o.codAmount:'Prepaid'}</span>
      &nbsp;|&nbsp; Weight: ${o.package?.weight||0.5} kg`;
   const cd = await api('GET', '/couriers');
+  // also load selloship couriers
+  const pincode = o.recipient?.pincode || '';
+  const weight = o.package?.weight || 0.5;
+  const paymentMode = o.paymentMode === 'cod' ? 'COD' : 'Prepaid';
+  let selloshipCouriers = [];
+  try {
+    const sd = await api('GET', `/selloship/couriers?pincode=${pincode}&weight=${weight}&paymentMode=${paymentMode}`);
+    if (sd?.success && sd.couriers?.length) selloshipCouriers = sd.couriers;
+  } catch(e) {}
+
   const somBox = document.getElementById('som-couriers');
-  somBox.innerHTML = (!cd?.success || !cd.couriers.length)
-    ? '<p style="color:var(--danger);font-size:.875rem">No couriers available. Contact admin.</p>'
-    : cd.couriers.map(c => `
-      <div class="courier-card" id="som-cc-${c._id}" onclick="somSelectCourier('${c._id}','${c.name}',${o.package?.weight||0.5},'${o.paymentMode}',${o.codAmount||0})">
+  let html = '';
+  // Local couriers section
+  if (cd?.success && cd.couriers?.length) {
+    html += `<div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;padding:4px 0 2px;border-bottom:1px solid var(--border)">🏠 Platform Couriers</div>`;
+    html += cd.couriers.map(c => `
+      <div class="courier-card" id="som-cc-${c._id}" onclick="somSelectCourier('${c._id}','${c.name}',${weight},'${o.paymentMode}',${o.codAmount||0},'local')">
         <div class="check">✓</div>
         <div class="courier-name">${c.logoUrl?`<img src="${c.logoUrl}" height="20" style="border-radius:4px;margin-right:6px;vertical-align:middle"/>`:'🚚 '}${c.name}</div>
         <div class="courier-sub">${c.code||''}</div>
       </div>`).join('');
+  }
+  // Selloship couriers section
+  if (selloshipCouriers.length) {
+    html += `<div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:12px 0 8px;padding:4px 0 2px;border-bottom:1px solid var(--border)">⚡ Selloship Couriers</div>`;
+    html += selloshipCouriers.map(c => `
+      <div class="courier-card" id="som-cc-ss-${c.courier_id||c.id}" onclick="somSelectSelloshipCourier('${c.courier_id||c.id}','${(c.courier_name||c.name).replace(/'/g,"\\'")}',${weight},'${o.paymentMode}',${o.codAmount||0})">
+        <div class="check">✓</div>
+        <div class="courier-name">⚡ ${c.courier_name||c.name}</div>
+        <div class="courier-sub">${c.rate ? '₹'+c.rate : ''} ${c.etd ? '· '+c.etd : ''}</div>
+      </div>`).join('');
+  }
+  if (!html) html = '<p style="color:var(--danger);font-size:.875rem">No couriers available. Contact admin.</p>';
+  somBox.innerHTML = html;
   document.getElementById('som-cost-box').style.display = 'none';
   document.getElementById('som-confirm-btn').disabled = true;
   document.getElementById('som-confirm-btn').textContent = '🚀 Confirm & Deduct Wallet';
@@ -1597,10 +1783,11 @@ async function shipOrder(id) {
   openModal('ship-order-modal');
 }
 
-async function somSelectCourier(courierId, courierName, weight, paymentMode, codAmount) {
+async function somSelectCourier(courierId, courierName, weight, paymentMode, codAmount, type='local') {
   document.querySelectorAll('#som-couriers .courier-card').forEach(el => el.classList.remove('selected'));
   document.getElementById(`som-cc-${courierId}`)?.classList.add('selected');
   somSelectedCourierId = courierId;
+  somIsSelloship = false;
   const d = await api('GET', `/orders/calc-cost?courierId=${courierId}&weight=${weight}&paymentMode=${paymentMode}&codAmount=${codAmount}`);
   if (d?.success) {
     document.getElementById('som-cost-shipping').textContent = '₹' + (d.cost||0);
@@ -1612,7 +1799,7 @@ async function somSelectCourier(courierId, courierName, weight, paymentMode, cod
     if (d.total > bal) {
       btn.disabled = true; btn.textContent = '⚠️ Insufficient Wallet Balance — Recharge First';
     } else {
-      btn.disabled = false; btn.textContent = '🚀 Confirm & Deduct Wallet';
+      btn.disabled = false; btn.textContent = '🚀 Confirm & Ship';
     }
   } else if (d?.noRate) {
     toast('No rate configured for this courier. Contact admin.', 'error');
@@ -1620,20 +1807,45 @@ async function somSelectCourier(courierId, courierName, weight, paymentMode, cod
   }
 }
 
+async function somSelectSelloshipCourier(courierId, courierName, weight, paymentMode, codAmount) {
+  document.querySelectorAll('#som-couriers .courier-card').forEach(el => el.classList.remove('selected'));
+  document.getElementById(`som-cc-ss-${courierId}`)?.classList.add('selected');
+  somSelectedCourierId = courierId;
+  somIsSelloship = true;
+  // Show estimated cost from selloship card (rate already displayed)
+  document.getElementById('som-cost-shipping').textContent = '— (Selloship)';
+  document.getElementById('som-cost-cod').textContent = paymentMode==='cod' ? '— (Selloship)' : '₹0';
+  document.getElementById('som-cost-total').textContent = '— (deducted by Selloship)';
+  document.getElementById('som-cost-box').style.display = 'block';
+  const btn = document.getElementById('som-confirm-btn');
+  btn.disabled = false;
+  btn.textContent = `⚡ Ship via ${courierName}`;
+}
+
 async function confirmShipOrder() {
   const id = document.getElementById('som-order-id').value;
   if (!somSelectedCourierId) { toast('Please select a courier', 'error'); return; }
   const btn = document.getElementById('som-confirm-btn');
   btn.disabled = true; btn.textContent = '⏳ Processing...';
-  const d = await api('PATCH', `/orders/${id}/ship`, { courierId: somSelectedCourierId });
+
+  let d;
+  if (somIsSelloship) {
+    // Ship through Selloship API
+    d = await api('POST', `/selloship/ship/${id}`, { courierId: somSelectedCourierId });
+  } else {
+    d = await api('PATCH', `/orders/${id}/ship`, { courierId: somSelectedCourierId });
+  }
+
   if (d?.success) {
-    toast(`✅ Shipped! AWB: ${d.order.awbNumber}. ₹${d.shippingCharge||0} deducted.`, 'success');
+    toast(`✅ Shipped! AWB: ${d.order?.awbNumber || d.awb || 'Assigned'}. Order moved to Shipments.`, 'success');
     closeModal('ship-order-modal');
-    loadOrders();
     loadWalletBalance();
+    // ✅ Go to Shipments tab, not Orders
+    navigate('tracking');
+    loadTracking();
   } else {
     toast(d?.message || 'Error shipping order', 'error');
-    btn.disabled = false; btn.textContent = '🚀 Confirm & Deduct Wallet';
+    btn.disabled = false; btn.textContent = '🚀 Confirm & Ship';
   }
 }
 
@@ -1641,7 +1853,7 @@ async function confirmShipOrder() {
 async function bulkShipSelected() {
   if (!selectedOrders.size) return;
   const d = await api('POST', '/orders/bulk-ship', { orderIds: [...selectedOrders] });
-  if (d?.success) { toast(`Shipped ${d.results.filter(r=>r.success).length} orders`, 'success'); loadOrders(); loadTracking(); }
+  if (d?.success) { toast(`Shipped ${d.results.filter(r=>r.success).length} orders`, 'success'); loadTracking(); navigate('tracking'); }
   else toast(d?.message || 'Error', 'error');
 }
 async function bulkDeleteSelected() {

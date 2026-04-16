@@ -164,3 +164,19 @@ router.delete('/me/integrations/:platform', protect, async (req, res) => {
 });
 
 module.exports = router;
+
+// PATCH /api/users/:id/set-password  — admin sets custom password for client
+router.patch('/:id/set-password', protect, adminOnly, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 6) return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    user.password = password; // pre-save hook will hash
+    await user.save();
+    await logActivity(req.user._id, 'admin', 'USER_PASSWORD_SET', 'User', user._id, { targetEmail: user.email }, req.ip);
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
