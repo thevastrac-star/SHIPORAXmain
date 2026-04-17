@@ -250,6 +250,25 @@ router.post('/bulk-cancel', protect, async (req, res) => {
 router.post('/', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
+
+    // ── KYC GATE ──────────────────────────────────────────────────────────────
+    if (user.role === 'client') {
+      if (!user.kyc || user.kyc.status === 'not_submitted')
+        return res.status(403).json({ success: false, message: 'KYC not submitted. Please complete your KYC before placing orders.', kycRequired: true });
+      if (user.kyc.status === 'pending')
+        return res.status(403).json({ success: false, message: 'KYC is under review. Orders will be unlocked once your KYC is approved.', kycRequired: true });
+      if (user.kyc.status === 'rejected')
+        return res.status(403).json({ success: false, message: `KYC was rejected: ${user.kyc.rejectionReason || 'Please resubmit your documents'}. Orders are blocked until KYC is approved.`, kycRequired: true });
+    }
+
+    // ── WAREHOUSE GATE ────────────────────────────────────────────────────────
+    if (user.role === 'client') {
+      const Warehouse = require('../models/Warehouse');
+      const warehouseCount = await Warehouse.countDocuments({ user: req.user._id, isActive: { $ne: false } });
+      if (warehouseCount === 0)
+        return res.status(403).json({ success: false, message: 'No pickup warehouse found. Please add at least one warehouse/pickup address before placing orders.', warehouseRequired: true });
+    }
+
     const { recipient, package: pkg, paymentMode, codAmount, pickupWarehouse, source, courierId } = req.body;
 
     if (!recipient?.phone || !/^[6-9]\d{9}$/.test(recipient.phone))
@@ -451,6 +470,20 @@ router.patch('/:id/ship', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: `Cannot ship order in status: ${order.status}` });
 
     const user = await User.findById(req.user._id);
+
+    // ── KYC GATE ──────────────────────────────────────────────────────────────
+    if (user.role === 'client') {
+      if (!user.kyc || user.kyc.status !== 'approved')
+        return res.status(403).json({ success: false, message: 'KYC must be approved before shipping orders.', kycRequired: true });
+    }
+
+    // ── WAREHOUSE GATE ────────────────────────────────────────────────────────
+    if (user.role === 'client') {
+      const Warehouse = require('../models/Warehouse');
+      const warehouseCount = await Warehouse.countDocuments({ user: req.user._id, isActive: { $ne: false } });
+      if (warehouseCount === 0)
+        return res.status(403).json({ success: false, message: 'No pickup warehouse found. Please add a warehouse before shipping.', warehouseRequired: true });
+    }
     const courierId = req.body.courierId || order.assignedCourier;
     let shippingCharge = order.shippingCharge || 0;
 

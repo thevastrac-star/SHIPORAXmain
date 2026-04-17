@@ -1214,6 +1214,7 @@ window.onload = async () => {
   loadWalletBalance();
   loadDashboard();
   loadCouriers();
+  checkKYCAndWarehouseStatus(); // ← gate check
 };
 
 // ─── NAV ───────────────────────────────────────────────────────────────────────
@@ -1264,6 +1265,75 @@ async function api(method, path, body) {
     console.error('API error:', method, path, e.message);
     toast('Network error. Please check your connection.', 'error');
     return null;
+  }
+}
+
+// ─── KYC + WAREHOUSE GATE ──────────────────────────────────────────────────────
+async function checkKYCAndWarehouseStatus() {
+  const [kycData, whData] = await Promise.all([
+    api('GET', '/kyc/status'),
+    api('GET', '/warehouses')
+  ]);
+
+  const kycStatus = kycData?.kyc?.status || 'not_submitted';
+  const hasWarehouse = whData?.warehouses?.length > 0;
+  const issues = [];
+
+  if (kycStatus === 'not_submitted') {
+    issues.push({
+      icon: '📋', color: '#E07D00', bg: '#FEF3E2', border: '#FDE4A0',
+      msg: '<strong>KYC not submitted.</strong> Complete your KYC to unlock order creation and shipping.',
+      action: "navigate('kyc')", actionLabel: 'Submit KYC Now'
+    });
+  } else if (kycStatus === 'pending') {
+    issues.push({
+      icon: '⏳', color: '#1967D2', bg: '#E8F0FE', border: '#B3CFF7',
+      msg: '<strong>KYC under review.</strong> Your documents are being verified. Orders will unlock once approved.',
+      action: "navigate('kyc')", actionLabel: 'View KYC Status'
+    });
+  } else if (kycStatus === 'rejected') {
+    issues.push({
+      icon: '❌', color: '#E03030', bg: '#FDEAEA', border: '#FBBFBF',
+      msg: `<strong>KYC rejected.</strong> ${kycData?.kyc?.rejectionReason || 'Please resubmit your documents to enable shipping.'}`,
+      action: "navigate('kyc')", actionLabel: 'Resubmit KYC'
+    });
+  }
+
+  if (!hasWarehouse) {
+    issues.push({
+      icon: '🏭', color: '#7A3EE8', bg: '#F3EFFE', border: '#D4B8F8',
+      msg: '<strong>No pickup warehouse.</strong> Add a warehouse address to start creating and shipping orders.',
+      action: "navigate('warehouses')", actionLabel: 'Add Warehouse'
+    });
+  }
+
+  // inject banner
+  let bannerEl = document.getElementById('gate-banners');
+  if (!bannerEl) {
+    bannerEl = document.createElement('div');
+    bannerEl.id = 'gate-banners';
+    bannerEl.style.cssText = 'position:sticky;top:0;z-index:90;';
+    const content = document.getElementById('content');
+    if (content) content.prepend(bannerEl);
+  }
+
+  if (!issues.length) { bannerEl.innerHTML = ''; return; }
+
+  bannerEl.innerHTML = issues.map(i => `
+    <div style="background:${i.bg};border-bottom:2px solid ${i.border};padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span style="font-size:1.2rem">${i.icon}</span>
+      <span style="flex:1;font-size:.875rem;color:${i.color};min-width:200px">${i.msg}</span>
+      <button onclick="${i.action}" style="background:${i.color};color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit">${i.actionLabel} →</button>
+    </div>`).join('');
+
+  // also lock create-order + ship buttons if KYC not approved
+  if (kycStatus !== 'approved' || !hasWarehouse) {
+    window._shippingLocked = true;
+    window._shippingLockReason = kycStatus !== 'approved'
+      ? (kycStatus === 'not_submitted' ? 'Please complete KYC before creating orders.' : kycStatus === 'pending' ? 'Your KYC is under review. Please wait for approval.' : 'Your KYC was rejected. Resubmit to unlock shipping.')
+      : 'Please add a pickup warehouse before creating orders.';
+  } else {
+    window._shippingLocked = false;
   }
 }
 
@@ -1382,6 +1452,10 @@ function toggleCOD() {
 
 // ─── CREATE ORDER ──────────────────────────────────────────────────────────────
 async function createOrder() {
+  if (window._shippingLocked) {
+    toast('⚠️ ' + (window._shippingLockReason || 'Complete KYC and add a warehouse first.'), 'error');
+    return;
+  }
   const phone = document.getElementById('co-phone').value.trim();
   if (!/^[6-9]\d{9}$/.test(phone)) { toast('Invalid phone number (10 digits, starts 6-9)', 'error'); return; }
   const pincode = document.getElementById('co-pincode').value.trim();
@@ -1730,6 +1804,10 @@ async function confirmCancelShipment() {
 
 // ─── SHIP ORDER MODAL ──────────────────────────────────────────────────────────
 async function shipOrder(id) {
+  if (window._shippingLocked) {
+    toast('⚠️ ' + (window._shippingLockReason || 'Complete KYC and add a warehouse before shipping.'), 'error');
+    return;
+  }
   const d = await api('GET', `/orders/${id}`);
   if (!d?.success) { toast('Could not load order', 'error'); return; }
   const o = d.order;
