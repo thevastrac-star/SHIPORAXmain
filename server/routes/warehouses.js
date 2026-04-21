@@ -1,46 +1,48 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
 const { Warehouse } = require('../models/index');
-const { protect } = require('../middleware/auth');
+const { protect }   = require('../middleware/auth');
 
-// Generate unique warehouse code: WH-{3LETTERS}-{3DIGITS}
-function genWarehouseCode(userId) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  let code = 'WH-';
-  // Use last 3 chars of userId for uniqueness
-  const uid = userId.toString().slice(-3).toUpperCase().replace(/[^A-Z]/g, '');
-  const prefix = uid.length >= 3 ? uid : (uid + chars[Math.floor(Math.random()*chars.length)].repeat(3-uid.length));
-  code += prefix.slice(0,3) + '-';
-  code += String(Math.floor(100 + Math.random() * 900));
-  return code;
+// Deterministic warehouse code from userId + sequential number
+function makeWarehouseCode(userId, count) {
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const uid = userId.toString();
+  const p1  = letters[(parseInt(uid.slice(-1),  16)) % letters.length];
+  const p2  = letters[(parseInt(uid.slice(-2,-1), 16)) % letters.length];
+  const p3  = letters[(parseInt(uid.slice(-3,-2), 16)) % letters.length];
+  return `WH-${p1}${p2}${p3}-${String(count + 1).padStart(3, '0')}`;
 }
 
 // GET /api/warehouses
 router.get('/', protect, async (req, res) => {
-  const warehouses = await Warehouse.find({ user: req.user._id }).sort({ isDefault: -1, createdAt: -1 });
-  res.json({ success: true, warehouses });
+  try {
+    const warehouses = await Warehouse.find({ user: req.user._id })
+      .sort({ isDefault: -1, createdAt: -1 });
+    res.json({ success: true, warehouses });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // POST /api/warehouses
+// FIX #13 + #14: warehouseCode, gstNumber, landmark now in schema → Mongoose saves them
 router.post('/', protect, async (req, res) => {
   try {
-    const { name, contactName, phone, address, city, state, pincode, landmark, isDefault, gstNumber } = req.body;
+    const { name, contactName, phone, email, address, city, state, pincode,
+            landmark, isDefault, gstNumber } = req.body;
+
     if (isDefault) await Warehouse.updateMany({ user: req.user._id }, { isDefault: false });
 
-    // Count existing warehouses to create numbered code
-    const count = await Warehouse.countDocuments({ user: req.user._id });
-    const uid = req.user._id.toString();
-    const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    // Create deterministic prefix from user ID
-    const p1 = letters[(parseInt(uid.slice(-1), 16)) % letters.length];
-    const p2 = letters[(parseInt(uid.slice(-2,-1), 16)) % letters.length];
-    const p3 = letters[(parseInt(uid.slice(-3,-2), 16)) % letters.length];
-    const warehouseCode = `WH-${p1}${p2}${p3}-${String(count + 1).padStart(3, '0')}`;
+    const count         = await Warehouse.countDocuments({ user: req.user._id });
+    const warehouseCode = makeWarehouseCode(req.user._id, count);
 
-    const wh = await Warehouse.create({ 
-      user: req.user._id, name, contactName, phone, address, city, state, pincode, 
-      landmark, isDefault: isDefault || false, gstNumber: gstNumber || '',
-      warehouseCode
+    const wh = await Warehouse.create({
+      user: req.user._id,
+      name, contactName, phone, email, address, city, state, pincode,
+      landmark:      landmark    || '',
+      gstNumber:     gstNumber   || '',
+      warehouseCode,
+      isDefault:     isDefault   || false
     });
     res.status(201).json({ success: true, warehouse: wh });
   } catch (err) {
