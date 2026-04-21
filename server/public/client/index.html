@@ -1947,8 +1947,6 @@ async function shipViaSelloship(orderId) {
   }
 }
 
-/
-
 function clearOrderFilters() {
   ['order-search','order-pay-filter','order-from','order-to'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   ordersPage = 1; loadOrders();
@@ -2638,7 +2636,7 @@ async function bulkShipSelected() {
   document.getElementById('bsm-ok').textContent='0';
   document.getElementById('bsm-fail').textContent='0';
   document.getElementById('bsm-bar').style.width='0%';
-  document.getElementById('bsm-status').textC orders in parallel...`;
+  document.getElementById('bsm-status').textContent=`Shipping ${total} orders in parallel...`;
   document.getElementById('bsm-log').textContent='';
   document.getElementById('bsm-done-msg').style.display='none';
   document.getElementById('bsm-close-btn').style.display='none';
