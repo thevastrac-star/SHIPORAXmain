@@ -91,7 +91,7 @@ const OrderCounterSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
   seq:    { type: Number, default: 0 }
 });
-const OrderCounter = mongoose.model('OrderCounter', OrderCounterSchema);
+const OrderCounter = mongoose.models.OrderCounter || mongoose.model('OrderCounter', OrderCounterSchema);
 
 /**
  * getNextSeq — atomically increments the per-user counter and returns the new value.
@@ -150,4 +150,4 @@ OrderSchema.pre('save', async function (next) {
   next();
 });
 
-module.exports = mongoose.model('Order', OrderSchema);
+module.exports = mongoose.models.Order || mongoose.model('Order', OrderSchema);
