@@ -671,7 +671,10 @@ textarea{resize:vertical;min-height:80px}
   <div class="card" id="cm-tab-sello_couriers">
     <div class="card-header">
       <span class="card-title">⚡ Live Selloship Couriers</span>
-      <button class="btn btn-primary btn-sm" onclick="loadSelloCouriers()">🔄 Refresh</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="loadSelloCouriers()">🔄 Refresh</button>
+        <button class="btn btn-outline btn-sm" onclick="debugSelloCouriers()" title="See raw API response">🔬 Debug API</button>
+      </div>
     </div>
     <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
       <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px">
@@ -2228,10 +2231,24 @@ async function loadSelloCouriers() {
   const paymentMode = document.getElementById('sc-pay')?.value || 'PREPAID';
   const list        = document.getElementById('sc-list');
   if (!list) return;
-  list.innerHTML = '<div style="padding:16px;color:var(--text-muted)">⏳ Loading couriers from Selloship...</div>';
+  list.innerHTML = '<div style="padding:16px;color:var(--text-muted)">⏳ Loading couriers from Selloship API...</div>';
   const d = await api('GET', `/selloship/couriers?pincode=${encodeURIComponent(pincode)}&weight=${weight}&paymentMode=${paymentMode}`);
-  if (!d?.success || !d.couriers?.length) {
-    list.innerHTML = '<div style="padding:16px;color:var(--danger)">⚠️ No couriers available. Check Selloship credentials in Settings → Courier APIs.</div>';
+  if (!d?.success) {
+    // Show actual error from API, not generic message
+    const errMsg = d?.message || d?.detail || 'Unknown error';
+    list.innerHTML = `<div style="padding:16px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;color:#dc2626">
+      <b>⚠️ Selloship API Error</b><br/>
+      <code style="font-size:.82rem;word-break:break-all">${errMsg}</code><br/><br/>
+      <span style="font-size:.8rem;color:#7f1d1d">Check: Admin → Settings → Courier APIs → Test Selloship connection.</span>
+    </div>`;
+    return;
+  }
+  if (!d.couriers?.length) {
+    list.innerHTML = `<div style="padding:16px;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;color:#92400e">
+      <b>📭 No couriers returned</b><br/>
+      <span style="font-size:.82rem">Selloship API responded but returned 0 couriers for pincode <b>${pincode||'(blank)'}</b>, weight <b>${weight}kg</b>, mode <b>${paymentMode}</b>.</span><br/><br/>
+      <span style="font-size:.8rem">Try: check pincode is 6 digits, weight > 0, credentials are correct.</span>
+    </div>`;
     return;
   }
   list.innerHTML = d.couriers.map(c => {
@@ -2254,6 +2271,27 @@ async function loadSelloCouriers() {
       </div>
     </div>`;
   }).join('');
+}
+
+async function debugSelloCouriers() {
+  const pincode     = document.getElementById('sc-pincode')?.value?.trim() || '110001';
+  const weight      = document.getElementById('sc-weight')?.value || '0.5';
+  const paymentMode = document.getElementById('sc-pay')?.value || 'PREPAID';
+  const list        = document.getElementById('sc-list');
+  if (list) list.innerHTML = '<div style="padding:16px;color:var(--text-muted)">🔬 Running debug call...</div>';
+  const d = await api('GET', `/selloship/debug-couriers?pincode=${encodeURIComponent(pincode)}&weight=${weight}&paymentMode=${paymentMode}`);
+  if (!list) return;
+  list.innerHTML = `<div style="background:#0f172a;color:#e2e8f0;border-radius:10px;padding:16px;font-family:monospace;font-size:.78rem;white-space:pre-wrap;overflow-x:auto;grid-column:1/-1">
+<b style="color:#f472b6">🔬 DEBUG RESPONSE</b>
+<b style="color:#86efac">Token preview:</b> ${d?.token_preview || 'MISSING'}
+<b style="color:#86efac">Params sent:</b> ${JSON.stringify(d?.params_sent, null, 2)}
+
+<b style="color:#fbbf24">GET /serviceability response:</b>
+${JSON.stringify(d?.get_response, null, 2)}
+
+<b style="color:#60a5fa">POST /serviceability response:</b>
+${JSON.stringify(d?.post_response, null, 2)}
+</div>`;
 }
 
 function copyCourierId(id, name) {

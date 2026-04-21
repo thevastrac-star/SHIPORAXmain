@@ -2071,10 +2071,12 @@ async function shipOrder(id) {
   const weight = o.package?.weight || 0.5;
   const paymentMode = o.paymentMode === 'cod' ? 'COD' : 'Prepaid';
   let selloshipCouriers = [];
+  let selloshipErr = '';
   try {
     const sd = await api('GET', `/selloship/couriers?pincode=${pincode}&weight=${weight}&paymentMode=${paymentMode}`);
     if (sd?.success && sd.couriers?.length) selloshipCouriers = sd.couriers;
-  } catch(e) {}
+    else if (!sd?.success) selloshipErr = sd?.message || sd?.detail || 'Selloship unavailable';
+  } catch(e) { selloshipErr = e.message; }
 
   const somBox = document.getElementById('som-couriers');
   let html = '';
@@ -2092,13 +2094,15 @@ async function shipOrder(id) {
   if (selloshipCouriers.length) {
     html += `<div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:12px 0 8px;padding:4px 0 2px;border-bottom:1px solid var(--border)">⚡ Selloship Couriers</div>`;
     html += selloshipCouriers.map(c => `
-      <div class="courier-card" id="som-cc-ss-${c.courier_id||c.id}" onclick="somSelectSelloshipCourier('${c.courier_id||c.id}','${(c.courier_name||c.name).replace(/'/g,"\\'")}',${weight},'${o.paymentMode}',${o.codAmount||0})">
+      <div class="courier-card" id="som-cc-ss-${c.courier_id||c.id}" onclick="somSelectSelloshipCourier('${c.courier_id||c.id}','${(c.courier_name||c.name).replace(/'/g,"\'")}',${weight},'${o.paymentMode}',${o.codAmount||0})">
         <div class="check">✓</div>
         <div class="courier-name">⚡ ${c.courier_name||c.name}</div>
         <div class="courier-sub">${c.rate ? '₹'+c.rate : ''} ${c.etd ? '· '+c.etd : ''}</div>
       </div>`).join('');
+  } else if (selloshipErr) {
+    html += `<div style="font-size:.78rem;color:var(--danger);padding:8px 4px;margin-top:8px;border-top:1px solid var(--border)">⚠️ Selloship error: ${selloshipErr}</div>`;
   }
-  if (!html) html = '<p style="color:var(--danger);font-size:.875rem">No couriers available. Contact admin.</p>';
+  if (!html) html = `<p style="color:var(--danger);font-size:.875rem">No couriers available. Contact admin.${selloshipErr ? '<br/><small>'+selloshipErr+'</small>' : ''}</p>`;
   somBox.innerHTML = html;
   document.getElementById('som-cost-box').style.display = 'none';
   document.getElementById('som-confirm-btn').disabled = true;

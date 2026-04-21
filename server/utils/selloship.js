@@ -314,20 +314,38 @@ async function generateManifest(token, awbNumbers) {
 // ─── SERVICEABILITY ──────────────────────────────────────────────────────────
 
 async function getServiceability(token, { pincode, weight, paymentMode } = {}) {
+  const weightGrams = String(Math.round((parseFloat(weight) || 0.5) * 1000));
+  const params = {
+    pincode:     pincode || '',
+    weight:      weightGrams,
+    paymentMode: (paymentMode || 'PREPAID').toUpperCase()
+  };
+  let res;
   try {
-    const res = await axios.get(`${BASE}/serviceability`, {
+    res = await axios.get(`${BASE}/serviceability`, {
       headers: authHeaders(token),
-      params: {
-        pincode,
-        weight:      String(Math.round((parseFloat(weight) || 0.5) * 1000)),
-        paymentMode: (paymentMode || 'PREPAID').toUpperCase()
-      },
+      params,
       timeout: TIMEOUT_TRACK
     });
-    if (res.data?.status === 'SUCCESS' && Array.isArray(res.data?.couriers))
-      return res.data.couriers;
+  } catch (err) {
+    const msg = err?.response?.data ? JSON.stringify(err.response.data) : err.message;
+    console.error('[Selloship serviceability] HTTP error:', msg);
+    throw new Error('Selloship serviceability failed: ' + msg);
+  }
+
+  console.log('[Selloship serviceability] response:', JSON.stringify(res.data).slice(0, 600));
+
+  const d = res.data;
+  // Handle multiple possible response shapes
+  const isSuccess = d?.status === 'SUCCESS' || d?.Status === 'SUCCESS';
+  if (isSuccess) {
+    const list = d.couriers || d.Couriers || d.data || d.courierList || [];
+    if (Array.isArray(list)) return list;
+    if (typeof list === 'object' && list !== null) return Object.values(list);
     return [];
-  } catch (_) { return []; }
+  }
+  const errMsg = d?.message || d?.Message || d?.error || JSON.stringify(d);
+  throw new Error('Selloship serviceability: ' + errMsg);
 }
 
 // ─── WEBHOOK HMAC VERIFICATION (FIX #9) ─────────────────────────────────────

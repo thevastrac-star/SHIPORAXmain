@@ -35,6 +35,39 @@ router.get('/ping', protect, adminOnly, (req, res) =>
   res.json({ success: true, message: 'Selloship credentials are valid ✅' })
 );
 
+// ─── DEBUG: raw serviceability response (admin only) ──────────────────────────
+// GET /api/selloship/debug-couriers?pincode=110001&weight=0.5&paymentMode=PREPAID
+router.get('/debug-couriers', protect, adminOnly, async (req, res) => {
+  const axios = require('axios');
+  const { BASE } = require('../utils/selloship');
+  const { pincode, weight, paymentMode } = req.query;
+  const weightGrams = String(Math.round((parseFloat(weight) || 0.5) * 1000));
+  try {
+    // Try GET
+    const getRes = await axios.get(`${BASE}/serviceability`, {
+      headers: { 'Content-Type': 'application/json', 'Authorization': req.selloToken },
+      params: { pincode: pincode || '', weight: weightGrams, paymentMode: (paymentMode || 'PREPAID').toUpperCase() },
+      timeout: 15000
+    }).catch(e => ({ error: true, status: e?.response?.status, data: e?.response?.data, msg: e.message }));
+
+    // Try POST as fallback
+    const postRes = await axios.post(`${BASE}/serviceability`,
+      { pincode: pincode || '', weight: weightGrams, paymentMode: (paymentMode || 'PREPAID').toUpperCase() },
+      { headers: { 'Content-Type': 'application/json', 'Authorization': req.selloToken }, timeout: 15000 }
+    ).catch(e => ({ error: true, status: e?.response?.status, data: e?.response?.data, msg: e.message }));
+
+    res.json({
+      success: true,
+      token_preview: req.selloToken ? req.selloToken.slice(0, 20) + '...' : 'MISSING',
+      params_sent: { pincode, weight: weightGrams, paymentMode },
+      get_response:  getRes.data  || getRes,
+      post_response: postRes.data || postRes
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ─── AVAILABLE COURIERS (serviceability) ─────────────────────────────────────
 router.get('/couriers', protect, async (req, res) => {
   try {
