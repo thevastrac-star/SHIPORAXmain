@@ -14,7 +14,7 @@ const {
   getWaybillStatus,
   cancelWaybill,
   generateManifest,
-  buildWaybillPayload,
+  orderToPayloadParams,
   verifyWebhookSignature
 } = require('../utils/selloship');
 
@@ -57,6 +57,10 @@ router.post('/ship/:orderId', protect, async (req, res) => {
     if (!['draft','processing'].includes(order.status))
       return res.status(400).json({ success: false, message: `Cannot ship order with status: ${order.status}` });
 
+    // GUARD: never re-ship if a real AWB is already assigned
+    if (order.awbNumber && order.awbNumber.trim())
+      return res.status(400).json({ success: false, message: `Order already has AWB: ${order.awbNumber}. Cancel first.` });
+
     // Resolve warehouse
     let warehouse = order.pickupWarehouse
       ? await Warehouse.findById(order.pickupWarehouse)
@@ -65,13 +69,14 @@ router.post('/ship/:orderId', protect, async (req, res) => {
     if (!warehouse)
       return res.status(400).json({ success: false, message: 'No pickup warehouse found. Add a warehouse first.' });
 
-    const payload = buildWaybillPayload(order, warehouse);
-    if (req.body.courierId) {
-      payload.courierId   = String(req.body.courierId);
-      payload.courierName = req.body.courierName || '';
-    }
+    // Build params using adapter (converts Order+Warehouse → buildWaybillPayload params)
+    const params = orderToPayloadParams(order, warehouse);
 
-    const result = await createWaybill(req.selloToken, payload);
+    // Apply courier override from request (e.g. "Delhivery Fr" selected in UI)
+    if (req.body.courierId)   params.courierId   = String(req.body.courierId);
+    if (req.body.courierName) params.courierName = String(req.body.courierName);
+
+    const result = await createWaybill(req.selloToken, params);
 
     order.awbNumber = result.waybill;
     order.status    = 'shipped';
@@ -110,7 +115,7 @@ router.post('/reverse/:orderId', protect, async (req, res) => {
     if (!warehouse) warehouse = await Warehouse.findOne({ user: order.user, isDefault: true });
     if (!warehouse) return res.status(400).json({ success: false, message: 'No warehouse found for return address' });
 
-    const result = await createReverseWaybill(req.selloToken, buildWaybillPayload(order, warehouse));
+    const result = await createReverseWaybill(req.selloToken, orderToPayloadParams(order, warehouse));
 
     order.selloship = {
       ...(order.selloship?.toObject?.() || order.selloship || {}),

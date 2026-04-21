@@ -252,6 +252,7 @@ textarea{resize:vertical;min-height:80px}
   <div class="nav-item" onclick="navigate('orders')"><span class="icon">📦</span> Orders</div>
   <div class="nav-item" onclick="navigate('ndr')"><span class="icon">⚠️</span> NDR Management</div>
   <div class="nav-item" onclick="navigate('couriers')"><span class="icon">🚚</span> Couriers</div>
+  <div class="nav-item" onclick="navigate('courier_manager')"><span class="icon">⚡</span> Courier Manager</div>
   <div class="nav-item" onclick="navigate('rates')"><span class="icon">💲</span> Rate Management</div>
   <div class="nav-section">Support & Config</div>
   <div class="nav-item" onclick="navigate('tickets')"><span class="icon">🎫</span> Support Tickets</div>
@@ -654,6 +655,207 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
 
+    </div>
+
+<!-- ═══ COURIER MANAGER ═══ -->
+<div class="page" id="page-courier_manager">
+  <!-- TABS -->
+  <div class="tabs" style="margin-bottom:0">
+    <div class="tab active" onclick="switchTab('cm','sello_couriers',this)">⚡ Selloship Couriers</div>
+    <div class="tab" onclick="switchTab('cm','platform_couriers',this)">🚚 Platform Couriers</div>
+    <div class="tab" onclick="switchTab('cm','mappings',this)">🔗 Courier Mappings</div>
+    <div class="tab" onclick="switchTab('cm','client_rates',this)">💲 Client Rate Manager</div>
+  </div>
+
+  <!-- TAB 1: Live Selloship Couriers from API -->
+  <div class="card" id="cm-tab-sello_couriers">
+    <div class="card-header">
+      <span class="card-title">⚡ Live Selloship Couriers</span>
+      <button class="btn btn-primary btn-sm" onclick="loadSelloCouriers()">🔄 Refresh</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+      <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px">
+        <label style="font-size:.75rem;font-weight:700">Pincode</label>
+        <input id="sc-pincode" placeholder="e.g. 110001" maxlength="6" style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none"/>
+      </div>
+      <div class="form-group" style="margin-bottom:0;flex:1;min-width:120px">
+        <label style="font-size:.75rem;font-weight:700">Weight (kg)</label>
+        <input id="sc-weight" type="number" value="0.5" step="0.1" min="0.1" style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none"/>
+      </div>
+      <div class="form-group" style="margin-bottom:0;flex:1;min-width:120px">
+        <label style="font-size:.75rem;font-weight:700">Payment</label>
+        <select id="sc-pay" style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none">
+          <option value="PREPAID">Prepaid</option>
+          <option value="COD">COD</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="loadSelloCouriers()" style="margin-bottom:0;height:40px">🔍 Check</button>
+    </div>
+    <div id="sc-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+      <div style="padding:20px;color:var(--text-muted);font-size:.875rem">Enter a pincode and click Check to see available couriers from Selloship.</div>
+    </div>
+  </div>
+
+  <!-- TAB 2: Platform Couriers (create/edit) -->
+  <div class="card" id="cm-tab-platform_couriers" style="display:none">
+    <div class="card-header">
+      <span class="card-title">🚚 Platform Couriers</span>
+      <button class="btn btn-primary btn-sm" onclick="openNewPlatformCourierModal()">+ Create Courier</button>
+    </div>
+    <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px">These are couriers shown to your clients. Each platform courier can be mapped to a specific Selloship courier in the <b>Courier Mappings</b> tab.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Name</th><th>Code</th><th>COD</th><th>Selloship Mapped To</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="pcm-tbody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- TAB 3: Courier Mappings -->
+  <div class="card" id="cm-tab-mappings" style="display:none">
+    <div class="card-header">
+      <span class="card-title">🔗 Platform → Selloship Courier Mappings</span>
+      <button class="btn btn-primary btn-sm" onclick="openMappingModal(null)">+ Add Mapping</button>
+    </div>
+    <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px">Map each platform courier to a specific Selloship courier. When a client ships with a platform courier, the mapped Selloship courier is used automatically. Use <b>Auto Route</b> to let Selloship pick the best courier.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Platform Courier</th><th>Selloship Courier ID</th><th>Selloship Courier Name</th><th>Mode</th><th>Active</th><th>Notes</th><th>Actions</th></tr></thead>
+      <tbody id="mapping-tbody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- TAB 4: Client Rate Manager -->
+  <div class="card" id="cm-tab-client_rates" style="display:none">
+    <div class="card-header">
+      <span class="card-title">💲 Per-Client Rate Manager</span>
+    </div>
+    <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:14px">Set custom shipping rates for each client. Select a client to view and edit their rates per courier.</p>
+    <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:flex-start">
+      <!-- Client list -->
+      <div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden">
+        <div style="padding:10px 12px;background:#f8fafc;border-bottom:1px solid var(--border);font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em">👤 Clients</div>
+        <input id="cr-search" placeholder="Search client..." oninput="filterCrClients()" style="width:100%;padding:9px 14px;border:none;border-bottom:1px solid var(--border);font-size:.85rem;outline:none;box-sizing:border-box"/>
+        <div id="cr-client-list" style="max-height:400px;overflow-y:auto"></div>
+      </div>
+      <!-- Rate details -->
+      <div id="cr-rate-panel" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div>
+            <b id="cr-client-name" style="font-size:1rem"></b>
+            <div id="cr-client-email" style="font-size:.8rem;color:var(--text-muted)"></div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openCrAddRate()">+ Add Rate for this Client</button>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Courier</th><th>Slab</th><th>Weight (kg)</th><th>Zone A</th><th>Zone B</th><th>Zone C</th><th>Zone D</th><th>Zone E</th><th>+/500g</th><th>COD</th><th>Fuel</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="cr-rates-tbody"></tbody>
+        </table></div>
+        <div style="margin-top:12px;padding:10px 14px;background:#eff6ff;border-radius:8px;font-size:.8rem;color:#1e40af;border-left:3px solid #3b82f6">
+          💡 <b>Tip:</b> Rates set here override global defaults for this client only. If no custom rate is set, the global default is used.
+        </div>
+      </div>
+      <div id="cr-empty-state" style="display:flex;align-items:center;justify-content:center;min-height:200px;color:var(--text-muted);font-size:.9rem">
+        ← Select a client to manage their rates
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COURIER MANAGER MODALS -->
+
+<!-- Platform Courier Create/Edit Modal -->
+<div class="modal" id="pcm-modal">
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-header"><span id="pcm-modal-title">Create Platform Courier</span><button class="close-btn" onclick="closeModal('pcm-modal')">✕</button></div>
+    <input type="hidden" id="pcm-id"/>
+    <div class="form-group"><label>Courier Name *</label><input id="pcm-name" placeholder="e.g. Delhivery Fast, Bluedart Express" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Courier Code *</label><input id="pcm-code" placeholder="e.g. DLVRY, BLUE" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      <div class="form-group"><label>Supports COD?</label>
+        <select id="pcm-cod" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none">
+          <option value="true">Yes</option><option value="false">No</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Logo URL (optional)</label><input id="pcm-logo" placeholder="https://..." style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+    <button class="btn btn-primary" onclick="savePlatformCourier()" style="width:100%">💾 Save Courier</button>
+  </div>
+</div>
+
+<!-- Mapping Modal -->
+<div class="modal" id="mapping-modal">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-header"><span id="mapping-modal-title">Add Courier Mapping</span><button class="close-btn" onclick="closeModal('mapping-modal')">✕</button></div>
+    <input type="hidden" id="map-id"/>
+    <div class="form-group">
+      <label>Platform Courier *</label>
+      <select id="map-courier" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none">
+        <option value="">Select platform courier...</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px">
+      <label style="font-size:.85rem;font-weight:600;margin:0">Auto Route (Selloship picks best)</label>
+      <input type="checkbox" id="map-autoroute" onchange="toggleMappingAutoRoute()" style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)"/>
+    </div>
+    <div id="map-manual-fields">
+      <div class="form-row">
+        <div class="form-group"><label>Selloship Courier ID</label><input id="map-sello-id" placeholder="e.g. courier_id from API" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+        <div class="form-group"><label>Selloship Courier Name</label><input id="map-sello-name" placeholder="e.g. Delhivery Fr" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      </div>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-top:-8px">💡 Use the <b>Selloship Couriers</b> tab to look up the correct courier ID and name from live API.</p>
+    </div>
+    <div class="form-group"><label>Notes (optional)</label><input id="map-notes" placeholder="e.g. Use for all Prepaid orders" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
+      <label style="font-size:.85rem;font-weight:600;margin:0">Active</label>
+      <input type="checkbox" id="map-active" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)"/>
+    </div>
+    <button class="btn btn-primary" onclick="saveMapping()" style="width:100%">💾 Save Mapping</button>
+  </div>
+</div>
+
+<!-- Client Rate Add/Edit Modal (quick) -->
+<div class="modal" id="cr-modal">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-header"><span id="cr-modal-title">Add Rate</span><button class="close-btn" onclick="closeModal('cr-modal')">✕</button></div>
+    <input type="hidden" id="cr-rate-id"/>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Courier *</label>
+        <select id="cr-courier" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none">
+          <option value="">Select...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Slab Name</label>
+        <input id="cr-slab" placeholder="Standard" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Min Weight (kg)</label><input type="number" id="cr-minw" value="0" step="0.1" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      <div class="form-group"><label>Max Weight (kg)</label><input type="number" id="cr-maxw" value="0.5" step="0.1" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      <div class="form-group"><label>+/500g (₹)</label><input type="number" id="cr-addw" value="0" step="0.5" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px">
+      <div class="form-group" style="margin-bottom:0"><label style="font-size:.73rem">Zone A (₹)</label><input type="number" id="cr-za" placeholder="27" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;text-align:center;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      <div class="form-group" style="margin-bottom:0"><label style="font-size:.73rem">Zone B (₹)</label><input type="number" id="cr-zb" placeholder="38" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;text-align:center;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      <div class="form-group" style="margin-bottom:0"><label style="font-size:.73rem">Zone C (₹)</label><input type="number" id="cr-zc" placeholder="44" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;text-align:center;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      <div class="form-group" style="margin-bottom:0"><label style="font-size:.73rem">Zone D (₹)</label><input type="number" id="cr-zd" placeholder="52" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;text-align:center;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      <div class="form-group" style="margin-bottom:0"><label style="font-size:.73rem">Zone E (₹)</label><input type="number" id="cr-ze" placeholder="65" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;text-align:center;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Fuel Surcharge (₹)</label><input type="number" id="cr-fuel" value="0" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      <div class="form-group"><label>COD Mode</label>
+        <select id="cr-cod-mode" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none">
+          <option value="threshold">Threshold (flat below, % above)</option>
+          <option value="flat_always">Flat Always</option>
+          <option value="percent_always">Percent Always</option>
+        </select>
+      </div>
+      <div class="form-group"><label>COD Flat (₹)</label><input type="number" id="cr-cod-flat" value="30" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      <div class="form-group"><label>COD % </label><input type="number" id="cr-cod-pct" value="1.5" step="0.1" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+    </div>
+    <button class="btn btn-primary" onclick="saveCrRate()" style="width:100%">💾 Save Rate</button>
+  </div>
+</div>
+
 <!-- ═══ TICKETS ═══ -->
     <div class="page" id="page-tickets">
       <div class="card">
@@ -990,7 +1192,7 @@ function navigate(page) {
   document.getElementById('page-' + page).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => { if (n.getAttribute('onclick')?.includes(page)) n.classList.add('active'); });
   document.getElementById('page-title').textContent = page.charAt(0).toUpperCase() + page.slice(1).replace(/_/g,' ');
-  const loaders = { dashboard: loadDashboard, users: loadUsers, kyc: loadKYC, wallet: initWalletPage, recharges: loadRecharges, cod: loadCOD, orders: loadOrders, ndr: loadNDR, couriers: () => { loadCouriers(); loadCourierLockPanel(); }, rates: initRates, tickets: loadTickets, settings: loadSettings, logs: loadLogs };
+  const loaders = { dashboard: loadDashboard, users: loadUsers, kyc: loadKYC, wallet: initWalletPage, recharges: loadRecharges, cod: loadCOD, orders: loadOrders, ndr: loadNDR, couriers: () => { loadCouriers(); loadCourierLockPanel(); }, rates: initRates, tickets: loadTickets, settings: loadSettings, logs: loadLogs, courier_manager: initCourierManager };
   if (loaders[page]) loaders[page]();
 }
 
@@ -1863,10 +2065,12 @@ async function changeTicketStatus() {
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 function switchTab(page, tab, el) {
+  const prefix = page === 'settings' ? 'settings-tab' : `${page}-tab`;
   document.querySelectorAll(`#page-${page} .tab`).forEach(t => t.classList.remove('active'));
-  document.querySelectorAll(`#page-${page} [id^="settings-tab-"]`).forEach(t => t.style.display = 'none');
-  if(el) el.classList.add('active');
-  document.getElementById(`settings-tab-${tab}`).style.display = 'block';
+  document.querySelectorAll(`#page-${page} [id^="${prefix}-"]`).forEach(t => t.style.display = 'none');
+  if (el) el.classList.add('active');
+  const target = document.getElementById(`${prefix}-${tab}`);
+  if (target) target.style.display = 'block';
 }
 
 async function loadSettings() {
@@ -2002,6 +2206,373 @@ function logout() {
 }
 // Close modals on overlay click
 document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); }));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COURIER MANAGER
+// ═══════════════════════════════════════════════════════════════════════════
+
+let cmCouriersCache = [];
+let cmClientsCache  = [];
+let crSelectedUser  = null;
+
+async function initCourierManager() {
+  // switch to first tab
+  switchTab('cm','sello_couriers', document.querySelector('[onclick="switchTab(\'cm\',\'sello_couriers\',this)"]'));
+  await Promise.all([ loadPlatformCouriersTab(), loadMappingsTab(), loadCrClients() ]);
+}
+
+// ── TAB 1: Selloship live couriers ──────────────────────────────────────────
+async function loadSelloCouriers() {
+  const pincode     = document.getElementById('sc-pincode')?.value?.trim() || '';
+  const weight      = document.getElementById('sc-weight')?.value || '0.5';
+  const paymentMode = document.getElementById('sc-pay')?.value || 'PREPAID';
+  const list        = document.getElementById('sc-list');
+  if (!list) return;
+  list.innerHTML = '<div style="padding:16px;color:var(--text-muted)">⏳ Loading couriers from Selloship...</div>';
+  const d = await api('GET', `/selloship/couriers?pincode=${encodeURIComponent(pincode)}&weight=${weight}&paymentMode=${paymentMode}`);
+  if (!d?.success || !d.couriers?.length) {
+    list.innerHTML = '<div style="padding:16px;color:var(--danger)">⚠️ No couriers available. Check Selloship credentials in Settings → Courier APIs.</div>';
+    return;
+  }
+  list.innerHTML = d.couriers.map(c => {
+    const id   = c.courier_id || c.id || '—';
+    const name = c.courier_name || c.name || '—';
+    const rate = c.rate ? '₹' + c.rate : '—';
+    const etd  = c.etd || c.estimated_delivery || '—';
+    return `<div style="border:1.5px solid var(--border);border-radius:12px;padding:14px;background:#fff;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+        <b style="font-size:.9rem;color:var(--text)">⚡ ${name}</b>
+        <span style="font-size:.75rem;background:#eff6ff;color:#1d4ed8;padding:3px 9px;border-radius:999px;font-weight:700">${rate}</span>
+      </div>
+      <div style="font-size:.78rem;color:var(--text-muted)">
+        <span style="margin-right:12px">🆔 ID: <b style="color:var(--text);font-family:monospace">${id}</b></span>
+        <span>📅 ETD: ${etd}</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:4px">
+        <button class="btn btn-outline btn-xs" onclick="copyCourierId('${id}','${name.replace(/'/g,"\\'")}')" title="Copy ID & Name for mapping">📋 Copy ID</button>
+        <button class="btn btn-primary btn-xs" onclick="quickMapCourier('${id}','${name.replace(/'/g,"\\'")}')" title="Create mapping with this courier">🔗 Map Courier</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function copyCourierId(id, name) {
+  navigator.clipboard?.writeText(id).catch(() => {});
+  toast(`Copied: ${id} (${name})`, 'success');
+}
+
+function quickMapCourier(courierId, courierName) {
+  // Switch to mappings tab and pre-fill
+  switchTab('cm','mappings', document.querySelector('[onclick="switchTab(\'cm\',\'mappings\',this)"]'));
+  setTimeout(() => openMappingModal(null, courierId, courierName), 100);
+}
+
+// ── TAB 2: Platform Couriers ─────────────────────────────────────────────────
+async function loadPlatformCouriersTab() {
+  const d = await api('GET', '/couriers');
+  if (!d?.success) return;
+  cmCouriersCache = d.couriers;
+  const tbody = document.getElementById('pcm-tbody');
+  if (!tbody) return;
+  // Also load mappings to show mapped-to info
+  const md = await api('GET', '/selloship/mappings');
+  const mappingMap = {};
+  (md?.mappings || []).forEach(m => { mappingMap[m.courier?._id || m.courier] = m; });
+
+  tbody.innerHTML = d.couriers.map(c => {
+    const m       = mappingMap[c._id];
+    const mapped  = m ? (m.isAutoRoute ? '<span style="color:#059669;font-weight:700">Auto Route</span>' : `<span style="font-family:monospace;font-size:.82rem">${m.selloshipCourierName || m.selloshipCourierId || '—'}</span>`) : '<span style="color:var(--text-muted)">Not mapped</span>';
+    return `<tr>
+      <td>${c.logoUrl ? `<img src="${c.logoUrl}" height="20" style="margin-right:6px;vertical-align:middle;border-radius:3px"/>` : ''}${c.name}</td>
+      <td><code>${c.code}</code></td>
+      <td>${c.supportsCOD ? '✅' : '✗'}</td>
+      <td>${mapped}</td>
+      <td><span class="status s-${c.isActive ? 'approved' : 'rejected'}">${c.isActive ? 'Active' : 'Disabled'}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-outline btn-xs" onclick="openEditPlatformCourierModal('${c._id}')">✏️ Edit</button>
+        <button class="btn btn-xs ${c.isActive ? 'btn-danger' : 'btn-success'}" onclick="togglePlatformCourier('${c._id}')">${c.isActive ? 'Disable' : 'Enable'}</button>
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty">No platform couriers. Click + Create Courier.</td></tr>';
+}
+
+function openNewPlatformCourierModal() {
+  document.getElementById('pcm-id').value    = '';
+  document.getElementById('pcm-name').value  = '';
+  document.getElementById('pcm-code').value  = '';
+  document.getElementById('pcm-logo').value  = '';
+  document.getElementById('pcm-cod').value   = 'true';
+  document.getElementById('pcm-modal-title').textContent = 'Create Platform Courier';
+  openModal('pcm-modal');
+}
+async function openEditPlatformCourierModal(id) {
+  const d = await api('GET', `/couriers/${id}`);
+  if (!d?.courier) return;
+  const c = d.courier;
+  document.getElementById('pcm-id').value    = c._id;
+  document.getElementById('pcm-name').value  = c.name;
+  document.getElementById('pcm-code').value  = c.code;
+  document.getElementById('pcm-logo').value  = c.logoUrl || '';
+  document.getElementById('pcm-cod').value   = String(c.supportsCOD);
+  document.getElementById('pcm-modal-title').textContent = 'Edit Platform Courier';
+  openModal('pcm-modal');
+}
+async function savePlatformCourier() {
+  const id      = document.getElementById('pcm-id').value;
+  const payload = {
+    name:        document.getElementById('pcm-name').value.trim(),
+    code:        document.getElementById('pcm-code').value.trim().toUpperCase(),
+    supportsCOD: document.getElementById('pcm-cod').value === 'true',
+    logoUrl:     document.getElementById('pcm-logo').value.trim()
+  };
+  if (!payload.name || !payload.code) { toast('Name and Code are required','error'); return; }
+  const d = id
+    ? await api('PATCH', `/couriers/${id}`, payload)
+    : await api('POST',  '/couriers',       payload);
+  if (d?.success) {
+    toast(`Courier ${id ? 'updated' : 'created'}`, 'success');
+    closeModal('pcm-modal');
+    loadPlatformCouriersTab();
+    loadCouriers(); // refresh main couriers page too
+  } else toast(d?.message || 'Error', 'error');
+}
+async function togglePlatformCourier(id) {
+  const d = await api('PATCH', `/couriers/${id}/toggle`);
+  if (d?.success) { toast('Status updated','info'); loadPlatformCouriersTab(); }
+  else toast(d?.message || 'Error','error');
+}
+
+// ── TAB 3: Mappings ──────────────────────────────────────────────────────────
+async function loadMappingsTab() {
+  const [md, cd] = await Promise.all([ api('GET','/selloship/mappings'), api('GET','/couriers') ]);
+  cmCouriersCache = cd?.couriers || cmCouriersCache;
+
+  const tbody = document.getElementById('mapping-tbody');
+  if (!tbody) return;
+  const rows = md?.mappings || [];
+  tbody.innerHTML = rows.map(m => `<tr>
+    <td><b>${m.courier?.name || '—'}</b> <code style="font-size:.75rem;color:var(--text-muted)">${m.courier?.code || ''}</code></td>
+    <td><code style="font-size:.82rem">${m.selloshipCourierId || '—'}</code></td>
+    <td>${m.selloshipCourierName || '—'}</td>
+    <td>${m.isAutoRoute ? '<span style="background:#d1fae5;color:#059669;padding:2px 8px;border-radius:999px;font-size:.75rem;font-weight:700">Auto Route</span>' : '<span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:999px;font-size:.75rem;font-weight:700">Manual</span>'}</td>
+    <td>${m.isActive ? '✅' : '❌'}</td>
+    <td style="font-size:.78rem;color:var(--text-muted)">${m.notes || '—'}</td>
+    <td style="white-space:nowrap">
+      <button class="btn btn-outline btn-xs" onclick='openMappingModal(${JSON.stringify(m)})'>✏️ Edit</button>
+      <button class="btn btn-danger btn-xs" onclick="deleteMapping('${m._id}')">🗑</button>
+    </td>
+  </tr>`).join('') || '<tr><td colspan="7" class="empty">No mappings. Add one to control which Selloship courier is used per platform courier.</td></tr>';
+
+  // Populate platform courier dropdown in modal
+  const sel = document.getElementById('map-courier');
+  if (sel) {
+    sel.innerHTML = '<option value="">Select platform courier...</option>' +
+      (cd?.couriers || []).map(c => `<option value="${c._id}">${c.name} (${c.code})</option>`).join('');
+  }
+}
+
+function openMappingModal(mapping, prefillId='', prefillName='') {
+  const isEdit = mapping && mapping._id;
+  document.getElementById('map-id').value        = isEdit ? mapping._id : '';
+  document.getElementById('map-sello-id').value  = isEdit ? (mapping.selloshipCourierId || '') : prefillId;
+  document.getElementById('map-sello-name').value= isEdit ? (mapping.selloshipCourierName || '') : prefillName;
+  document.getElementById('map-notes').value     = isEdit ? (mapping.notes || '') : '';
+  document.getElementById('map-active').checked  = isEdit ? mapping.isActive !== false : true;
+  const ar = isEdit ? (mapping.isAutoRoute || false) : false;
+  document.getElementById('map-autoroute').checked = ar;
+  document.getElementById('map-manual-fields').style.display = ar ? 'none' : 'block';
+  if (isEdit && document.getElementById('map-courier')) {
+    document.getElementById('map-courier').value = mapping.courier?._id || mapping.courier || '';
+  }
+  document.getElementById('mapping-modal-title').textContent = isEdit ? 'Edit Mapping' : 'Add Courier Mapping';
+  openModal('mapping-modal');
+}
+
+function toggleMappingAutoRoute() {
+  const ar = document.getElementById('map-autoroute').checked;
+  document.getElementById('map-manual-fields').style.display = ar ? 'none' : 'block';
+}
+
+async function saveMapping() {
+  const id       = document.getElementById('map-id').value;
+  const payload  = {
+    courierId:            document.getElementById('map-courier').value,
+    selloshipCourierId:   document.getElementById('map-sello-id').value.trim(),
+    selloshipCourierName: document.getElementById('map-sello-name').value.trim(),
+    isAutoRoute:          document.getElementById('map-autoroute').checked,
+    isActive:             document.getElementById('map-active').checked,
+    notes:                document.getElementById('map-notes').value.trim()
+  };
+  if (!payload.courierId) { toast('Please select a platform courier','error'); return; }
+  const d = id
+    ? await api('PATCH', `/selloship/mappings/${id}`, payload)
+    : await api('POST',  '/selloship/mappings',       payload);
+  if (d?.success) {
+    toast('Mapping saved','success');
+    closeModal('mapping-modal');
+    loadMappingsTab();
+    loadPlatformCouriersTab();
+  } else toast(d?.message || 'Error','error');
+}
+
+async function deleteMapping(id) {
+  if (!confirm('Delete this mapping? The courier will revert to Selloship auto-routing.')) return;
+  const d = await api('DELETE', `/selloship/mappings/${id}`);
+  if (d?.success) { toast('Mapping deleted','info'); loadMappingsTab(); loadPlatformCouriersTab(); }
+  else toast(d?.message || 'Error','error');
+}
+
+// ── TAB 4: Per-Client Rate Manager ───────────────────────────────────────────
+async function loadCrClients() {
+  const d = await api('GET', '/couriers/rates/clients-list');
+  if (!d?.success) return;
+  cmClientsCache = d.clients;
+  renderCrClientList(d.clients);
+  // pre-fill courier dropdown
+  const cd = await api('GET', '/couriers');
+  if (cd?.success) {
+    const sel = document.getElementById('cr-courier');
+    if (sel) sel.innerHTML = '<option value="">Select courier...</option>' + cd.couriers.map(c => `<option value="${c._id}">${c.name} (${c.code})</option>`).join('');
+  }
+}
+
+function renderCrClientList(clients) {
+  const el = document.getElementById('cr-client-list');
+  if (!el) return;
+  if (!clients.length) { el.innerHTML = '<div style="padding:12px 14px;color:var(--text-muted);font-size:.85rem">No clients found.</div>'; return; }
+  el.innerHTML = clients.map(c => `
+    <div onclick="selectCrClient('${c._id}','${c.name.replace(/'/g,"\\'")}','${c.email}')"
+         style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:.85rem;transition:background .15s"
+         onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''"
+         id="cr-cl-${c._id}">
+      <div style="font-weight:600;color:var(--text)">${c.name}</div>
+      <div style="font-size:.75rem;color:var(--text-muted)">${c.email}</div>
+    </div>`).join('');
+}
+
+function filterCrClients() {
+  const q = (document.getElementById('cr-search')?.value || '').toLowerCase();
+  renderCrClientList(q ? cmClientsCache.filter(c => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)) : cmClientsCache);
+}
+
+async function selectCrClient(uid, name, email) {
+  crSelectedUser = { _id: uid, name, email };
+  document.getElementById('cr-client-name').textContent  = name;
+  document.getElementById('cr-client-email').textContent = email;
+  // highlight selected
+  document.querySelectorAll('[id^="cr-cl-"]').forEach(el => el.style.background = '');
+  const sel = document.getElementById(`cr-cl-${uid}`);
+  if (sel) sel.style.background = '#eff6ff';
+  document.getElementById('cr-rate-panel').style.display  = 'block';
+  document.getElementById('cr-empty-state').style.display = 'none';
+  await loadCrRates(uid);
+}
+
+async function loadCrRates(uid) {
+  const tbody = document.getElementById('cr-rates-tbody');
+  if (!tbody) return;
+  const d = await api('GET', `/couriers/rates/client/${uid}`);
+  const rates = d?.clientRates || [];
+  tbody.innerHTML = rates.map(r => {
+    const cod = r.cod;
+    const codStr = cod?.mode === 'flat_always' ? `Flat ₹${cod.flat}` : cod?.mode === 'percent_always' ? `${cod.percent}%` : `₹${cod.flat||30} / ${cod.percent||1.5}%`;
+    return `<tr>
+      <td><b>${r.courier?.name || '—'}</b></td>
+      <td>${r.slabName || 'Standard'}</td>
+      <td>${r.minWeight||0} – ${r.maxWeight||0.5} kg</td>
+      <td>₹${r.zones?.a||0}</td><td>₹${r.zones?.b||0}</td><td>₹${r.zones?.c||0}</td><td>₹${r.zones?.d||0}</td><td>₹${r.zones?.e||0}</td>
+      <td>₹${r.additionalWeightRate||0}</td>
+      <td style="font-size:.78rem">${codStr}</td>
+      <td>₹${r.fuelSurcharge||0}</td>
+      <td><span class="status s-${r.isActive?'approved':'rejected'}">${r.isActive?'Active':'Off'}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-outline btn-xs" onclick='openCrEditRate(${JSON.stringify(r)})'>✏️</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteCrRate('${r._id}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="13" class="empty">No custom rates for this client. Click "+ Add Rate" to set one.<br/><small style="color:var(--text-muted)">Global default rates will apply until custom rates are set.</small></td></tr>`;
+}
+
+function openCrAddRate() {
+  document.getElementById('cr-rate-id').value = '';
+  document.getElementById('cr-slab').value    = 'Standard';
+  document.getElementById('cr-minw').value    = '0';
+  document.getElementById('cr-maxw').value    = '0.5';
+  document.getElementById('cr-addw').value    = '0';
+  document.getElementById('cr-za').value      = '';
+  document.getElementById('cr-zb').value      = '';
+  document.getElementById('cr-zc').value      = '';
+  document.getElementById('cr-zd').value      = '';
+  document.getElementById('cr-ze').value      = '';
+  document.getElementById('cr-fuel').value    = '0';
+  document.getElementById('cr-cod-mode').value= 'threshold';
+  document.getElementById('cr-cod-flat').value= '30';
+  document.getElementById('cr-cod-pct').value = '1.5';
+  document.getElementById('cr-modal-title').textContent = `Add Rate — ${crSelectedUser?.name || ''}`;
+  openModal('cr-modal');
+}
+
+function openCrEditRate(r) {
+  document.getElementById('cr-rate-id').value = r._id;
+  document.getElementById('cr-courier').value = r.courier?._id || r.courier || '';
+  document.getElementById('cr-slab').value    = r.slabName || '';
+  document.getElementById('cr-minw').value    = r.minWeight || 0;
+  document.getElementById('cr-maxw').value    = r.maxWeight || 0.5;
+  document.getElementById('cr-addw').value    = r.additionalWeightRate || 0;
+  document.getElementById('cr-za').value      = r.zones?.a || 0;
+  document.getElementById('cr-zb').value      = r.zones?.b || 0;
+  document.getElementById('cr-zc').value      = r.zones?.c || 0;
+  document.getElementById('cr-zd').value      = r.zones?.d || 0;
+  document.getElementById('cr-ze').value      = r.zones?.e || 0;
+  document.getElementById('cr-fuel').value    = r.fuelSurcharge || 0;
+  document.getElementById('cr-cod-mode').value= r.cod?.mode || 'threshold';
+  document.getElementById('cr-cod-flat').value= r.cod?.flat || 30;
+  document.getElementById('cr-cod-pct').value = r.cod?.percent || 1.5;
+  document.getElementById('cr-modal-title').textContent = `Edit Rate — ${crSelectedUser?.name || ''}`;
+  openModal('cr-modal');
+}
+
+async function saveCrRate() {
+  if (!crSelectedUser) { toast('No client selected','error'); return; }
+  const id = document.getElementById('cr-rate-id').value;
+  const payload = {
+    courierId: document.getElementById('cr-courier').value,
+    userId:    crSelectedUser._id,
+    slabName:  document.getElementById('cr-slab').value || 'Standard',
+    minWeight: parseFloat(document.getElementById('cr-minw').value) || 0,
+    maxWeight: parseFloat(document.getElementById('cr-maxw').value) || 0.5,
+    additionalWeightRate: parseFloat(document.getElementById('cr-addw').value) || 0,
+    zones: {
+      a: parseFloat(document.getElementById('cr-za').value) || 0,
+      b: parseFloat(document.getElementById('cr-zb').value) || 0,
+      c: parseFloat(document.getElementById('cr-zc').value) || 0,
+      d: parseFloat(document.getElementById('cr-zd').value) || 0,
+      e: parseFloat(document.getElementById('cr-ze').value) || 0
+    },
+    fuelSurcharge: parseFloat(document.getElementById('cr-fuel').value) || 0,
+    cod: {
+      mode:    document.getElementById('cr-cod-mode').value,
+      flat:    parseFloat(document.getElementById('cr-cod-flat').value) || 30,
+      percent: parseFloat(document.getElementById('cr-cod-pct').value) || 1.5
+    }
+  };
+  if (!payload.courierId) { toast('Select a courier','error'); return; }
+  const d = id
+    ? await api('PATCH', `/couriers/rates/${id}`, payload)
+    : await api('POST',  '/couriers/rates',       payload);
+  if (d?.success) {
+    toast('Rate saved','success');
+    closeModal('cr-modal');
+    loadCrRates(crSelectedUser._id);
+  } else toast(d?.message || 'Error','error');
+}
+
+async function deleteCrRate(id) {
+  if (!confirm('Delete this rate? Global default will apply for this client.')) return;
+  const d = await api('DELETE', `/couriers/rates/${id}`);
+  if (d?.success) { toast('Rate deleted','info'); loadCrRates(crSelectedUser._id); }
+  else toast(d?.message || 'Error','error');
+}
 </script>
 </body>
 </html>

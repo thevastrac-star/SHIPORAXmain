@@ -274,6 +274,10 @@ router.patch('/:id/ship', protect, async (req, res) => {
     if (!['draft','processing'].includes(order.status))
       return res.status(400).json({ success: false, message: `Cannot ship order in status: ${order.status}` });
 
+    // GUARD: never overwrite a real AWB already on the order
+    if (order.awbNumber && order.awbNumber.trim())
+      return res.status(400).json({ success: false, message: `Order already has AWB: ${order.awbNumber}. Cancel shipment first.` });
+
     const user = await User.findById(req.user._id);
     const courierId = req.body.courierId || (order.assignedCourier ? order.assignedCourier.toString() : null);
 
@@ -374,7 +378,14 @@ router.patch('/:id/status', protect, adminOnly, async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
     order.status = status;
-    if (awbNumber) order.awbNumber = awbNumber;
+    if (awbNumber) {
+      const trimmed = awbNumber.trim();
+      // Reject placeholder/sample AWB patterns — real AWBs must come from Selloship API only
+      const samplePatterns = /^(XSE\d+|SAMPLE|TEST|DEMO|FAKE|DUMMY|AWB\d{5,}|1234|0000)/i;
+      if (samplePatterns.test(trimmed))
+        return res.status(400).json({ success: false, message: 'Sample/test AWB numbers cannot be assigned. AWBs are assigned by Selloship API only.' });
+      order.awbNumber = trimmed;
+    }
     if (status === 'ndr' && !order.ndr?.isNDR) {
       order.ndr = { ...order.ndr, isNDR: true };
       await NDR.create({ order: order._id, user: order.user, awbNumber: order.awbNumber, reason: ndrReason });

@@ -246,8 +246,11 @@ async function createWaybill(token, params) {
     const res = await axios.post(`${BASE}/waybill`, payload, {
       headers: authHeaders(token), timeout: TIMEOUT_SHIP
     });
-    if (res.data.status !== 'SUCCESS')
-      throw new Error(`Waybill failed: ${res.data.message} (${res.data.reason})`);
+    if (res.data.status !== 'SUCCESS') {
+      const msg    = res.data.message || res.data.msg || JSON.stringify(res.data);
+      const reason = res.data.reason  || res.data.errorMessage || '';
+      throw new Error(`Waybill failed: ${msg}${reason ? ' (' + reason + ')' : ''} (Something Went Wrong.)`);
+    }
     return { waybill: res.data.waybill, shippingLabel: res.data.shippingLabel,
       courierName: res.data.courierName, routingCode: res.data.routingCode };
   });
