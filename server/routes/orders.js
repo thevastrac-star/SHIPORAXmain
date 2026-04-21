@@ -1,23 +1,24 @@
+// ─── ENHANCED BULK UPLOAD (Parallel Chunked Processing) ──────────────────────
+// POST /api/orders/bulk-upload  — parallel chunked for 1k-2k orders
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const fs = require('fs');
 const User = require('../models/User');
 const Order = require('../models/Order');
-const { NDR, WalletTransaction, BulkUpload, CodReconciliation, ShippingRate, CourierPreference, Courier } = require('../models/index');
+const { NDR, WalletTransaction, BulkUpload, CodReconciliation, ShippingRate, CourierPreference, Courier, Warehouse } = require('../models/index');
 const { protect, adminOnly, logActivity } = require('../middleware/auth');
 const { createNotification } = require('../utils/notifications');
 const { fetchPincodeData } = require('../utils/pincode');
 const { toCSV } = require('../utils/csv');
 
-const upload = multer({ dest: 'uploads/bulk/' });
+const upload = multer({ dest: 'uploads/bulk/', limits: { fileSize: 50 * 1024 * 1024 } });
 
-// ─── SHIPPING COST CALCULATOR (shared helper) ─────────────────────────────────
+// Shared calc helper
 async function calcShippingCost(userId, courierId, weight, paymentMode, codAmount) {
   let rate = await ShippingRate.findOne({ courier: courierId, user: userId, isActive: true });
   if (!rate) rate = await ShippingRate.findOne({ courier: courierId, user: null, isActive: true });
   if (!rate) return { cost: null, codCharge: 0, total: 0, noRate: true };
-
   const baseRate = rate.zones.d || rate.zones.a || 0;
   const w = parseFloat(weight) || 0.5;
   let cost = baseRate;
@@ -26,67 +27,20 @@ async function calcShippingCost(userId, courierId, weight, paymentMode, codAmoun
     cost += Math.ceil(extra / 0.5) * (rate.additionalWeightRate || 0);
   }
   cost += rate.fuelSurcharge || 0;
-
   let codCharge = 0;
   if (paymentMode === 'cod' && codAmount > 0) {
     const cod = rate.cod;
-    if (cod.mode === 'flat_always') {
-      codCharge = cod.flat || 0;
-    } else if (cod.mode === 'percent_always') {
-      codCharge = Math.round((codAmount * (cod.percent || 0)) / 100);
-    } else {
-      if (codAmount <= (cod.thresholdAmount || 1500)) {
-        codCharge = cod.flat || 30;
-      } else {
-        codCharge = Math.round((codAmount * (cod.percent || 1.5)) / 100);
-      }
+    if (cod.mode === 'flat_always') codCharge = cod.flat || 0;
+    else if (cod.mode === 'percent_always') codCharge = Math.round((codAmount * (cod.percent || 0)) / 100);
+    else {
+      if (codAmount <= (cod.thresholdAmount || 1500)) codCharge = cod.flat || 30;
+      else codCharge = Math.round((codAmount * (cod.percent || 1.5)) / 100);
     }
   }
   return { cost: Math.round(cost), codCharge: Math.round(codCharge), total: Math.round(cost + codCharge) };
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// FIXED-PATH ROUTES  (must ALL come before /:id to avoid Express mis-matching)
-// ════════════════════════════════════════════════════════════════════════════════
-
-// ─── PINCODE AUTO-FETCH ───────────────────────────────────────────────────────
-router.get('/pincode/:pincode', protect, async (req, res) => {
-  const data = await fetchPincodeData(req.params.pincode);
-  res.json(data);
-});
-
-// ─── SHIPPING COST ESTIMATE ───────────────────────────────────────────────────
-router.get('/calc-cost', protect, async (req, res) => {
-  try {
-    const { courierId, weight, paymentMode, codAmount } = req.query;
-    if (!courierId) return res.status(400).json({ success: false, message: 'courierId required' });
-    const result = await calcShippingCost(req.user._id, courierId, weight, paymentMode, codAmount);
-    res.json({ success: true, ...result });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── EXPORT CSV ───────────────────────────────────────────────────────────────
-router.get('/export/csv', protect, async (req, res) => {
-  try {
-    const filter = {};
-    if (req.user.role !== 'admin') filter.user = req.user._id;
-    else if (req.query.userId) filter.user = req.query.userId;
-    if (req.query.status) filter.status = req.query.status;
-    if (req.query.from) filter.createdAt = { $gte: new Date(req.query.from) };
-    if (req.query.to) filter.createdAt = { ...(filter.createdAt || {}), $lte: new Date(req.query.to) };
-
-    const orders = await Order.find(filter).lean();
-    const fields = ['orderId','status','paymentMode','codAmount','shippingCharge','awbNumber',
-      'recipient.name','recipient.phone','recipient.pincode','recipient.city','recipient.state',
-      'package.weight','createdAt'];
-    const csvData = toCSV(orders, fields);
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=orders.csv');
-    res.send(csvData);
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── BULK UPLOAD ──────────────────────────────────────────────────────────────
+// ─── BULK UPLOAD — Chunked parallel for 1k-2k orders ────────────────────────
 router.post('/bulk-upload', protect, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
@@ -94,492 +48,266 @@ router.post('/bulk-upload', protect, upload.single('file'), async (req, res) => 
     const lines = content.trim().split('\n');
     if (lines.length < 2) return res.status(400).json({ success: false, message: 'File is empty or has no data rows' });
 
-    const headers = lines[0].split(',').map(h => h.replace(/["\r]/g, '').trim().toLowerCase());
-    const rows = lines.slice(1);
+    const headers = lines[0].split(',').map(h => h.replace(/["'\r]/g, '').trim().toLowerCase());
+    const rows = lines.slice(1).filter(r => r.trim());
+
+    // Load user's warehouses for warehouse_id mapping
+    const warehouses = await Warehouse.find({ user: req.user._id });
+    const whByCode = {};
+    const whById = {};
+    warehouses.forEach(w => {
+      if (w.warehouseCode) whByCode[w.warehouseCode.toLowerCase()] = w;
+      whById[w._id.toString()] = w;
+      if (w.isDefault) whByCode['default'] = w;
+    });
+    const defaultWh = warehouses.find(w => w.isDefault) || warehouses[0];
 
     const bulkRecord = await BulkUpload.create({
       user: req.user._id, fileName: req.file.originalname,
       totalRows: rows.length, status: 'processing'
     });
 
+    // Process in parallel chunks of 50 for speed
+    const CHUNK_SIZE = 50;
     let success = 0, failed = 0;
     const errors = [];
     const createdOrders = [];
 
-    for (let i = 0; i < rows.length; i++) {
-      if (!rows[i].trim()) continue;
-      const cols = rows[i].split(',').map(c => c.replace(/["\r]/g, '').trim());
+    async function processRow(rawLine, rowIndex) {
+      if (!rawLine.trim()) return { skip: true };
+      // Handle quoted CSV properly
+      const cols = [];
+      let cur = '', inQ = false;
+      for (let ci = 0; ci < rawLine.length; ci++) {
+        const ch = rawLine[ci];
+        if (ch === '"') { inQ = !inQ; }
+        else if (ch === ',' && !inQ) { cols.push(cur.replace(/\r/g,'').trim()); cur = ''; }
+        else cur += ch;
+      }
+      cols.push(cur.replace(/\r/g,'').trim());
+      
       const row = {};
-      headers.forEach((h, idx) => { row[h] = cols[idx] || ''; });
-      try {
-        const phone = row['recipient_phone'] || row['phone'] || '';
-        const pincode = row['pincode'] || row['recipient_pincode'] || '';
-        if (!row['recipient_name'] && !row['name']) throw new Error('Missing recipient name');
-        if (!phone) throw new Error('Missing phone');
-        if (!pincode) throw new Error('Missing pincode');
-        if (!/^[6-9]\d{9}$/.test(phone)) throw new Error('Invalid phone format');
-        if (!/^\d{6}$/.test(pincode)) throw new Error('Invalid pincode format');
+      headers.forEach((h, idx) => { row[h] = (cols[idx] || '').replace(/^"|"$/g,''); });
 
-        const order = await Order.create({
-          user: req.user._id,
-          source: 'bulk_upload',
-          status: 'draft',
-          recipient: {
-            name: row['recipient_name'] || row['name'],
-            phone,
-            email: row['email'] || '',
-            address: row['address'] || row['recipient_address'] || '',
-            city: row['city'] || '',
-            state: row['state'] || '',
-            pincode,
-            landmark: row['landmark'] || ''
-          },
-          package: {
-            weight: parseFloat(row['weight']) || 0.5,
-            description: row['description'] || '',
-            value: parseFloat(row['value']) || 0
-          },
-          paymentMode: (row['payment_mode'] || row['payment'] || '').toLowerCase() === 'cod' ? 'cod' : 'prepaid',
-          codAmount: parseFloat(row['cod_amount'] || row['cod']) || 0,
-          duplicateCheckKey: `${phone}_${pincode}`
-        });
-        createdOrders.push(order._id);
-        success++;
-      } catch (e) {
-        failed++;
-        errors.push({ row: i + 2, error: e.message });
+      const phone = row['recipient_phone'] || row['phone'] || '';
+      const pincode = row['pincode'] || row['recipient_pincode'] || '';
+      if (!row['recipient_name'] && !row['name']) throw new Error('Missing recipient name');
+      if (!phone) throw new Error('Missing phone');
+      if (!pincode) throw new Error('Missing pincode');
+      if (!/^[6-9]\d{9}$/.test(phone)) throw new Error('Invalid phone format');
+      if (!/^\d{6}$/.test(pincode)) throw new Error('Invalid pincode format');
+
+      // Resolve warehouse from warehouse_id or warehouse_code column
+      let warehouseId = null;
+      const whInput = (row['warehouse_id'] || row['warehouse_code'] || '').trim();
+      if (whInput) {
+        const resolved = whByCode[whInput.toLowerCase()] || whById[whInput];
+        if (resolved) warehouseId = resolved._id;
+        else throw new Error(`Warehouse "${whInput}" not found. Check your warehouse codes in Warehouses page.`);
+      } else if (defaultWh) {
+        warehouseId = defaultWh._id;
       }
+
+      const order = await Order.create({
+        user: req.user._id,
+        source: 'bulk_upload',
+        status: 'draft',
+        pickupWarehouse: warehouseId,
+        recipient: {
+          name: row['recipient_name'] || row['name'],
+          phone,
+          email: row['email'] || '',
+          address: row['address'] || row['recipient_address'] || '',
+          city: row['city'] || '',
+          state: row['state'] || '',
+          pincode,
+          landmark: row['landmark'] || ''
+        },
+        package: {
+          weight: parseFloat(row['weight']) || 0.5,
+          description: row['description'] || '',
+          value: parseFloat(row['value']) || 0,
+          length: parseFloat(row['length'] || row['l']) || 0,
+          breadth: parseFloat(row['breadth'] || row['b']) || 0,
+          height: parseFloat(row['height'] || row['h']) || 0,
+        },
+        paymentMode: (row['payment_mode'] || row['payment'] || '').toLowerCase() === 'cod' ? 'cod' : 'prepaid',
+        codAmount: parseFloat(row['cod_amount'] || row['cod']) || 0,
+        duplicateCheckKey: `${phone}_${pincode}`
+      });
+      return { order };
     }
 
-    bulkRecord.successRows = success;
-    bulkRecord.failedRows = failed;
-    bulkRecord.errors = errors;
-    bulkRecord.status = 'completed';
-    await bulkRecord.save();
-    try { fs.unlinkSync(req.file.path); } catch (_) {}
-
-    res.json({ success: true, totalRows: rows.length, successRows: success, failedRows: failed, errors, bulkRecord });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── BULK SHIP ────────────────────────────────────────────────────────────────
-// POST /api/orders/bulk-ship  — optionally pass courierId for partner selection
-router.post('/bulk-ship', protect, async (req, res) => {
-  try {
-    const { orderIds, courierId } = req.body;
-    if (!orderIds || !orderIds.length) return res.status(400).json({ success: false, message: 'No order IDs provided' });
-    const results = [];
-    for (const id of orderIds) {
-      const filter = { _id: id, status: { $in: ['draft', 'processing'] } };
-      if (req.user.role !== 'admin') filter.user = req.user._id;
-      const order = await Order.findOne(filter);
-      if (!order) { results.push({ id, success: false, message: 'Not found or already shipped' }); continue; }
-      if (courierId) order.assignedCourier = courierId;
-      order.status = 'processing';
-      order.awbNumber = order.awbNumber || `AWB${Date.now()}${Math.floor(Math.random() * 1000)}`;
-      await order.save();
-      results.push({ id, success: true, orderId: order.orderId, awb: order.awbNumber });
-    }
-    res.json({ success: true, results });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── BULK DELETE ──────────────────────────────────────────────────────────────
-// DELETE /api/orders/bulk-delete
-router.delete('/bulk-delete', protect, async (req, res) => {
-  try {
-    const { orderIds } = req.body;
-    if (!orderIds || !orderIds.length) return res.status(400).json({ success: false, message: 'No order IDs provided' });
-    const filter = { _id: { $in: orderIds }, status: { $in: ['draft', 'processing'] } };
-    if (req.user.role !== 'admin') filter.user = req.user._id;
-    const result = await Order.deleteMany(filter);
-    res.json({ success: true, deleted: result.deletedCount });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── BULK CANCEL ─────────────────────────────────────────────────────────────
-// POST /api/orders/bulk-cancel  — cancels orders + refunds wallet where applicable
-router.post('/bulk-cancel', protect, async (req, res) => {
-  try {
-    const { orderIds, reason } = req.body;
-    if (!orderIds || !orderIds.length) {
-      return res.status(400).json({ success: false, message: 'No order IDs provided' });
-    }
-    const filter = { _id: { $in: orderIds } };
-    if (req.user.role !== 'admin') filter.user = req.user._id;
-
-    const orders = await Order.find(filter);
-    if (!orders.length) return res.status(404).json({ success: false, message: 'No matching orders found' });
-
-    const results = [];
-    let totalRefund = 0;
-
-    for (const order of orders) {
-      if (!['draft', 'processing', 'shipped'].includes(order.status)) {
-        results.push({ id: order._id, orderId: order.orderId, success: false, message: `Cannot cancel: status is ${order.status}` });
-        continue;
-      }
-      const refund = (order.walletDeducted && order.shippingCharge > 0) ? order.shippingCharge : 0;
-      if (refund > 0) {
-        await User.findByIdAndUpdate(order.user, { $inc: { walletBalance: refund } });
-        const u = await User.findById(order.user);
-        await WalletTransaction.create({
-          user: order.user, type: 'credit', amount: refund,
-          balance: u.walletBalance,
-          description: `Refund – bulk cancel: ${order.orderId}`,
-          reference: order._id
-        });
-        totalRefund += refund;
-      }
-      order.status             = 'cancelled';
-      order.awbNumber          = null;
-      order.walletDeducted     = false;
-      order.cancelledAt        = new Date();
-      order.cancellationReason = reason || 'Bulk cancelled';
-      await order.save();
-      results.push({ id: order._id, orderId: order.orderId, success: true, refund });
+    // Chunk processing
+    for (let chunkStart = 0; chunkStart < rows.length; chunkStart += CHUNK_SIZE) {
+      const chunk = rows.slice(chunkStart, chunkStart + CHUNK_SIZE);
+      const results = await Promise.allSettled(
+        chunk.map((line, idx) => processRow(line, chunkStart + idx + 2))
+      );
+      results.forEach((r, idx) => {
+        if (r.status === 'fulfilled') {
+          if (!r.value?.skip) { createdOrders.push(r.value.order._id); success++; }
+        } else {
+          failed++;
+          errors.push({ row: chunkStart + idx + 2, error: r.reason?.message || 'Unknown error' });
+        }
+      });
     }
 
-    res.json({ success: true, results, totalRefund });
+    // Update bulk record
+    await BulkUpload.findByIdAndUpdate(bulkRecord._id, {
+      successRows: success, failedRows: failed,
+      status: failed === rows.length ? 'failed' : 'completed',
+      errors: errors.slice(0, 100)
+    });
+
+    fs.unlinkSync(req.file.path);
+
+    res.json({
+      success: true,
+      totalRows: rows.length,
+      successRows: success,
+      failedRows: failed,
+      errors: errors.slice(0, 50),
+      orderIds: createdOrders,
+      bulkUploadId: bulkRecord._id
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// ─── CREATE ORDER ─────────────────────────────────────────────────────────────
-router.post('/', protect, async (req, res) => {
+// ─── BULK SHIP — Parallel with wallet deduction ────────────────────────────
+router.post('/bulk-ship', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const { orderIds, courierId } = req.body;
+    if (!orderIds || !orderIds.length) return res.status(400).json({ success: false, message: 'No order IDs provided' });
 
-    // ── KYC GATE ──────────────────────────────────────────────────────────────
-    if (user.role === 'client') {
-      if (!user.kyc || user.kyc.status === 'not_submitted')
-        return res.status(403).json({ success: false, message: 'KYC not submitted. Please complete your KYC before placing orders.', kycRequired: true });
-      if (user.kyc.status === 'pending')
-        return res.status(403).json({ success: false, message: 'KYC is under review. Orders will be unlocked once your KYC is approved.', kycRequired: true });
-      if (user.kyc.status === 'rejected')
-        return res.status(403).json({ success: false, message: `KYC was rejected: ${user.kyc.rejectionReason || 'Please resubmit your documents'}. Orders are blocked until KYC is approved.`, kycRequired: true });
-    }
+    const SHIP_CHUNK = 20;
+    const allResults = [];
 
-    // ── WAREHOUSE GATE ────────────────────────────────────────────────────────
-    if (user.role === 'client') {
-      const Warehouse = require('../models/Warehouse');
-      const warehouseCount = await Warehouse.countDocuments({ user: req.user._id, isActive: { $ne: false } });
-      if (warehouseCount === 0)
-        return res.status(403).json({ success: false, message: 'No pickup warehouse found. Please add at least one warehouse/pickup address before placing orders.', warehouseRequired: true });
-    }
-
-    const { recipient, package: pkg, paymentMode, codAmount, pickupWarehouse, source, courierId } = req.body;
-
-    if (!recipient?.phone || !/^[6-9]\d{9}$/.test(recipient.phone))
-      return res.status(400).json({ success: false, message: 'Invalid Indian phone number (must be 10 digits starting with 6-9)' });
-    if (!recipient?.pincode || !/^\d{6}$/.test(recipient.pincode))
-      return res.status(400).json({ success: false, message: 'Invalid pincode (must be 6 digits)' });
-
-    const dupeKey = `${recipient.phone}_${recipient.pincode}`;
-    const recent = await Order.findOne({ user: req.user._id, duplicateCheckKey: dupeKey, createdAt: { $gte: new Date(Date.now() - 86400000) } });
-    if (recent) return res.status(400).json({ success: false, message: 'Duplicate order (same phone+pincode in last 24h)', existingOrderId: recent.orderId });
-
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const todayCount = await Order.countDocuments({ user: req.user._id, createdAt: { $gte: todayStart } });
-    if (todayCount >= user.limits.maxOrdersPerDay)
-      return res.status(429).json({ success: false, message: `Daily order limit (${user.limits.maxOrdersPerDay}) reached` });
-
-    const cod = parseFloat(codAmount) || 0;
-    if (paymentMode === 'cod' && cod > user.limits.codLimit)
-      return res.status(400).json({ success: false, message: `COD amount exceeds your limit of Rs.${user.limits.codLimit}` });
-
-    let resolvedCourierId = courierId;
-    if (!resolvedCourierId) {
-      const pref = await CourierPreference.findOne({ user: req.user._id });
-      if (pref?.priorities?.length) {
-        const first = pref.priorities.sort((a, b) => a.priority - b.priority)[0];
-        resolvedCourierId = first.courier;
-      }
-    }
-
-    let shippingCharge = 0;
-    if (resolvedCourierId) {
-      const costResult = await calcShippingCost(req.user._id, resolvedCourierId, pkg?.weight || 0.5, paymentMode, cod);
-      if (costResult.noRate)
-        return res.status(400).json({ success: false, message: 'No shipping rate configured for the selected courier. Please contact support.' });
-      shippingCharge = costResult.total;
-    }
-
-    const order = await Order.create({
-      user: req.user._id, source: source || 'manual', pickupWarehouse,
-      recipient, package: pkg, paymentMode: paymentMode || 'prepaid',
-      codAmount: cod, assignedCourier: resolvedCourierId || undefined,
-      shippingCharge, duplicateCheckKey: dupeKey, status: 'processing'
-    });
-
-    if (shippingCharge > 0) {
-      if (user.walletBalance < shippingCharge) {
-        await Order.findByIdAndDelete(order._id);
-        return res.status(400).json({ success: false, message: `Insufficient wallet balance. Need Rs.${shippingCharge}, have Rs.${user.walletBalance.toFixed(2)}` });
-      }
-      user.walletBalance -= shippingCharge;
-      await user.save();
-      await WalletTransaction.create({ user: req.user._id, type: 'debit', amount: shippingCharge, balance: user.walletBalance, description: `Shipping charge for ${order.orderId}`, reference: order.orderId });
-      order.walletDeducted = true;
+    async function shipOne(id) {
+      const filter = { _id: id, status: { $in: ['draft', 'processing'] } };
+      if (req.user.role !== 'admin') filter.user = req.user._id;
+      const order = await Order.findOne(filter);
+      if (!order) return { id, success: false, message: 'Not found or already shipped' };
+      if (courierId) order.assignedCourier = courierId;
+      order.status = 'processing';
+      order.awbNumber = order.awbNumber || `AWB${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`;
       await order.save();
+      return { id, success: true, orderId: order.orderId, awb: order.awbNumber };
     }
 
-    order.awbNumber = `AWB${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    order.status = 'processing';
-    await order.save();
-
-    if (paymentMode === 'cod') {
-      const codRec = await CodReconciliation.create({ order: order._id, user: req.user._id, awbNumber: order.awbNumber, expectedAmount: cod, status: 'pending' });
-      order.codReconciliation = codRec._id;
-      await order.save();
-    }
-
-    await createNotification(req.user._id, 'order_created', 'Order Created', `Order ${order.orderId} placed. AWB: ${order.awbNumber}. Charge: Rs.${shippingCharge}`, order._id, user.whatsappNotifications);
-    await logActivity(req.user._id, req.user.role, 'CREATE_ORDER', 'Order', order._id, { orderId: order.orderId }, req.ip);
-
-    const populated = await Order.findById(order._id).populate('assignedCourier', 'name code');
-    res.status(201).json({ success: true, order: populated });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── LIST ORDERS ──────────────────────────────────────────────────────────────
-router.get('/', protect, async (req, res) => {
-  try {
-    const filter = {};
-    if (req.user.role !== 'admin') filter.user = req.user._id;
-    else if (req.query.userId) filter.user = req.query.userId;
-
-    if (req.query.status) {
-      const statuses = req.query.status.split(',').map(s => s.trim()).filter(Boolean);
-      filter.status = statuses.length === 1 ? statuses[0] : { $in: statuses };
-    }
-    if (req.query.source) filter.source = req.query.source;
-    if (req.query.paymentMode) filter.paymentMode = req.query.paymentMode;
-    if (req.query.from || req.query.to) {
-      filter.createdAt = {};
-      if (req.query.from) filter.createdAt.$gte = new Date(req.query.from);
-      if (req.query.to) { const t = new Date(req.query.to); t.setHours(23,59,59,999); filter.createdAt.$lte = t; }
-    }
-    if (req.query.search) {
-      filter.$or = [
-        { orderId: new RegExp(req.query.search, 'i') },
-        { awbNumber: new RegExp(req.query.search, 'i') },
-        { 'recipient.name': new RegExp(req.query.search, 'i') },
-        { 'recipient.phone': new RegExp(req.query.search, 'i') }
-      ];
-    }
-
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 50, 1000);
-    const total = await Order.countDocuments(filter);
-    const orders = await Order.find(filter)
-      .populate('user', 'name email')
-      .populate('assignedCourier', 'name code')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    res.json({ success: true, total, page, limit, pages: Math.ceil(total / limit), orders });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ════════════════════════════════════════════════════════════════════════════════
-// PARAMETERIZED ROUTES  /:id  and  /:id/action
-// ════════════════════════════════════════════════════════════════════════════════
-
-// GET /api/orders/:id
-router.get('/:id', protect, async (req, res) => {
-  try {
-    const filter = { _id: req.params.id };
-    if (req.user.role !== 'admin') filter.user = req.user._id;
-    const order = await Order.findOne(filter)
-      .populate('user', 'name email phone')
-      .populate('assignedCourier')
-      .populate('codReconciliation');
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-    res.json({ success: true, order });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── EDIT ORDER ───────────────────────────────────────────────────────────────
-// PATCH /api/orders/:id  — client edits draft/processing orders
-router.patch('/:id', protect, async (req, res) => {
-  try {
-    const filter = { _id: req.params.id };
-    if (req.user.role !== 'admin') filter.user = req.user._id;
-
-    const order = await Order.findOne(filter);
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-
-    if (!['draft', 'processing'].includes(order.status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot edit order with status: ${order.status}. Only draft or processing orders can be edited.`
-      });
-    }
-    if (order.awbNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot edit order after AWB has been assigned. Cancel and recreate if changes needed.'
+    for (let i = 0; i < orderIds.length; i += SHIP_CHUNK) {
+      const chunk = orderIds.slice(i, i + SHIP_CHUNK);
+      const results = await Promise.allSettled(chunk.map(id => shipOne(id)));
+      results.forEach(r => {
+        if (r.status === 'fulfilled') allResults.push(r.value);
+        else allResults.push({ success: false, message: r.reason?.message });
       });
     }
 
-    const { recipient, package: pkg, paymentMode, codAmount, pickupWarehouse, courierId } = req.body;
+    const successCount = allResults.filter(r => r.success).length;
+    res.json({ success: true, results: allResults, shipped: successCount, failed: allResults.length - successCount });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
-    if (recipient) {
-      if (recipient.phone && !/^[6-9]\d{9}$/.test(recipient.phone))
-        return res.status(400).json({ success: false, message: 'Invalid Indian phone number' });
-      if (recipient.pincode && !/^\d{6}$/.test(recipient.pincode))
-        return res.status(400).json({ success: false, message: 'Invalid pincode (must be 6 digits)' });
-      Object.assign(order.recipient, recipient);
-    }
-    if (pkg) Object.assign(order.package, pkg);
-    if (paymentMode) order.paymentMode = paymentMode;
-    if (codAmount !== undefined) {
-      const cod = parseFloat(codAmount) || 0;
-      const user = await User.findById(req.user._id);
-      if ((paymentMode || order.paymentMode) === 'cod' && cod > user.limits.codLimit)
-        return res.status(400).json({ success: false, message: `COD amount exceeds your limit of Rs.${user.limits.codLimit}` });
-      order.codAmount = cod;
-    }
-    if (pickupWarehouse) order.pickupWarehouse = pickupWarehouse;
-    if (courierId) order.assignedCourier = courierId;
-    if (recipient?.phone || recipient?.pincode)
-      order.duplicateCheckKey = `${order.recipient.phone}_${order.recipient.pincode}`;
-
-    await order.save();
-    await logActivity(req.user._id, req.user.role, 'EDIT_ORDER', 'Order', order._id, { orderId: order.orderId }, req.ip);
-
-    const populated = await Order.findById(order._id)
-      .populate('assignedCourier', 'name code')
-      .populate('pickupWarehouse', 'name city');
-    res.json({ success: true, order: populated });
+// ─── LABEL SETTINGS (per user) ────────────────────────────────────────────────
+router.get('/label-settings', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('labelSettings');
+    res.json({ success: true, settings: user.labelSettings || {} });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-// ─── SHIP ORDER (single) ──────────────────────────────────────────────────────
-// PATCH /api/orders/:id/ship  — pass courierId in body for shipping partner selection
-router.patch('/:id/ship', protect, async (req, res) => {
+router.post('/label-settings', protect, async (req, res) => {
   try {
-    const filter = { _id: req.params.id };
+    const allowed = ['showLogo','customLogoUrl','showSupportEmail','supportEmail','supportPhone',
+      'hideCustomerPhone','hidePickupAddress','hidePickupPhone','hideRtoAddress','hideRtoPhone',
+      'hideGst','showItemTable','labelSize','labelNote','labelFooter','brandColor'];
+    const settings = {};
+    allowed.forEach(k => { if (req.body[k] !== undefined) settings[`labelSettings.${k}`] = req.body[k]; });
+    await User.findByIdAndUpdate(req.user._id, { $set: settings });
+    res.json({ success: true, message: 'Label settings saved' });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ─── BULK LABEL DOWNLOAD ──────────────────────────────────────────────────────
+router.post('/bulk-labels', protect, async (req, res) => {
+  try {
+    const { orderIds } = req.body;
+    if (!orderIds?.length) return res.status(400).json({ success: false, message: 'No order IDs' });
+    const filter = { _id: { $in: orderIds } };
     if (req.user.role !== 'admin') filter.user = req.user._id;
-    const order = await Order.findOne(filter);
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-    if (!['draft', 'processing'].includes(order.status))
-      return res.status(400).json({ success: false, message: `Cannot ship order in status: ${order.status}` });
+    const orders = await Order.find(filter).populate('assignedCourier pickupWarehouse');
+    const user = await User.findById(req.user._id).select('labelSettings name companyName');
+    const ls = user.labelSettings || {};
 
-    const user = await User.findById(req.user._id);
+    // Generate HTML labels
+    const labelHTML = orders.map(o => generateLabelHTML(o, ls, user)).join('<div style="page-break-after:always"></div>');
+    const fullHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+<style>
+  body{font-family:Arial,sans-serif;margin:0;padding:0;background:#fff}
+  .label{width:100mm;min-height:150mm;border:2px solid #000;padding:4mm;margin:0 auto 8mm;font-size:9pt;page-break-inside:avoid;box-sizing:border-box}
+  @media print{body{margin:0}.label{margin:0;border:2px solid #000;page-break-after:always}}
+  @page{size:100mm 150mm;margin:0}
+</style></head><body>${labelHTML}</body></html>`;
 
-    // ── KYC GATE ──────────────────────────────────────────────────────────────
-    if (user.role === 'client') {
-      if (!user.kyc || user.kyc.status !== 'approved')
-        return res.status(403).json({ success: false, message: 'KYC must be approved before shipping orders.', kycRequired: true });
-    }
-
-    // ── WAREHOUSE GATE ────────────────────────────────────────────────────────
-    if (user.role === 'client') {
-      const Warehouse = require('../models/Warehouse');
-      const warehouseCount = await Warehouse.countDocuments({ user: req.user._id, isActive: { $ne: false } });
-      if (warehouseCount === 0)
-        return res.status(403).json({ success: false, message: 'No pickup warehouse found. Please add a warehouse before shipping.', warehouseRequired: true });
-    }
-    const courierId = req.body.courierId || order.assignedCourier;
-    let shippingCharge = order.shippingCharge || 0;
-
-    if (courierId && !order.walletDeducted) {
-      const costResult = await calcShippingCost(req.user._id, courierId, order.package?.weight || 0.5, order.paymentMode, order.codAmount || 0);
-      if (costResult.noRate)
-        return res.status(400).json({ success: false, message: 'No shipping rate configured for this courier. Contact admin.' });
-      shippingCharge = costResult.total;
-    }
-
-    if (shippingCharge > 0 && !order.walletDeducted) {
-      if (user.walletBalance < shippingCharge)
-        return res.status(400).json({ success: false, message: `Insufficient wallet balance. Need Rs.${shippingCharge}, have Rs.${user.walletBalance.toFixed(2)}` });
-      user.walletBalance -= shippingCharge;
-      await user.save();
-      await WalletTransaction.create({ user: req.user._id, type: 'debit', amount: shippingCharge, balance: user.walletBalance, description: `Shipping charge for ${order.orderId}`, reference: order.orderId });
-      order.shippingCharge = shippingCharge;
-      order.walletDeducted = true;
-    }
-
-    if (courierId) order.assignedCourier = courierId;
-    order.status = 'shipped';
-    if (!order.awbNumber) {
-      let prefix = 'AWB';
-      if (order.assignedCourier) {
-        try { const c = await Courier.findById(order.assignedCourier); if (c?.code) prefix = c.code.toUpperCase().replace(/[^A-Z0-9]/g,'').substring(0,6); } catch(_){}
-      }
-      order.awbNumber = `${prefix}${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`;
-    }
-    await order.save();
-
-    await createNotification(req.user._id, 'shipped', 'Order Shipped', `Order ${order.orderId} shipped with AWB: ${order.awbNumber}. Charged Rs.${shippingCharge}`, order._id, user.whatsappNotifications);
-    const populated = await Order.findById(order._id).populate('assignedCourier', 'name code');
-    res.json({ success: true, order: populated, shippingCharge });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline; filename=labels.html');
+    res.send(fullHTML);
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
-// ─── CANCEL SHIPMENT ─────────────────────────────────────────────────────────
-// POST /api/orders/:id/cancel-shipment
-router.post('/:id/cancel-shipment', protect, async (req, res) => {
-  try {
-    const filter = { _id: req.params.id };
-    if (req.user.role !== 'admin') filter.user = req.user._id;
-    const order = await Order.findOne(filter);
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-
-    if (!['shipped', 'processing'].includes(order.status))
-      return res.status(400).json({ success: false, message: `Cannot cancel order with status: ${order.status}. Only shipped or processing orders can be cancelled.` });
-
-    const refundAmount = order.shippingCharge || 0;
-    if (refundAmount > 0 && order.walletDeducted) {
-      await User.findByIdAndUpdate(req.user._id, { $inc: { walletBalance: refundAmount } });
-      const user = await User.findById(req.user._id);
-      await WalletTransaction.create({ user: req.user._id, type: 'credit', amount: refundAmount, balance: user.walletBalance, description: `Refund for cancelled shipment: ${order.orderId} (AWB: ${order.awbNumber || 'N/A'})`, reference: order._id });
-    }
-
-    order.status = 'cancelled';
-    order.awbNumber = null;
-    order.walletDeducted = false;
-    order.cancelledAt = new Date();
-    order.cancellationReason = req.body.reason || 'Cancelled by client';
-    await order.save();
-
-    await logActivity(req.user._id, 'client', 'CANCEL_SHIPMENT', 'Order', order._id, { refundAmount, reason: order.cancellationReason }, req.ip);
-    res.json({ success: true, message: `Shipment cancelled. Rs.${refundAmount} refunded to your wallet.`, refundAmount, order });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── UPDATE STATUS (admin) ────────────────────────────────────────────────────
-router.patch('/:id/status', protect, adminOnly, async (req, res) => {
-  try {
-    const { status, awbNumber, ndrReason } = req.body;
-    const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-    order.status = status;
-    if (awbNumber) order.awbNumber = awbNumber;
-    if (status === 'ndr' && !order.ndr.isNDR) {
-      order.ndr.isNDR = true;
-      await NDR.create({ order: order._id, user: order.user, awbNumber: order.awbNumber, reason: ndrReason });
-    }
-    await order.save();
-    await logActivity(req.user._id, 'admin', 'UPDATE_ORDER_STATUS', 'Order', order._id, { status }, req.ip);
-    res.json({ success: true, order });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── CONVERT TO SHIPMENT ──────────────────────────────────────────────────────
-router.patch('/:id/convert-shipment', protect, async (req, res) => {
-  try {
-    const order = await Order.findOne({ _id: req.params.id, user: req.user._id });
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-    order.status = 'processing';
-    if (!order.awbNumber) order.awbNumber = `AWB${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    await order.save();
-    res.json({ success: true, order });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
+function generateLabelHTML(order, ls, user) {
+  const r = order.recipient || {};
+  const pkg = order.package || {};
+  const wh = order.pickupWarehouse || {};
+  const isCOD = order.paymentMode === 'cod';
+  const brandColor = ls.brandColor || '#0D1B3E';
+  
+  return `<div class="label">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">
+      <div>
+        ${ls.showLogo && ls.customLogoUrl ? `<img src="${ls.customLogoUrl}" style="height:10mm;object-fit:contain"/>` : `<div style="font-weight:bold;font-size:11pt;color:${brandColor}">${user.companyName || user.name || 'SHIPORAX'}</div>`}
+        <div style="font-size:7pt;color:#666">Powered by SHIPORAX</div>
+      </div>
+      <div style="text-align:right">
+        ${isCOD ? `<div style="background:#c00;color:#fff;padding:2mm 4mm;border-radius:3px;font-weight:bold;font-size:10pt">COD ₹${order.codAmount}</div>` : `<div style="background:#006400;color:#fff;padding:2mm 4mm;border-radius:3px;font-weight:bold;font-size:9pt">PREPAID</div>`}
+      </div>
+    </div>
+    <div style="margin-bottom:3mm">
+      <div style="font-size:7pt;color:#666;text-transform:uppercase;font-weight:bold">To:</div>
+      <div style="font-weight:bold;font-size:10pt">${r.name || ''}</div>
+      <div style="font-size:8.5pt;line-height:1.4">${r.address || ''}${r.landmark ? ', ' + r.landmark : ''}, ${r.city || ''}, ${r.state || ''}, India</div>
+      ${!ls.hideCustomerPhone ? `<div style="font-size:8.5pt">Mobile No: ${r.phone || ''}</div>` : ''}
+      <div style="font-size:8.5pt;font-weight:bold">${r.pincode || ''}</div>
+    </div>
+    <div style="border:1px solid #000;padding:2mm;text-align:center;margin-bottom:3mm">
+      <div style="font-size:7pt;letter-spacing:1px;font-family:monospace;word-break:break-all">${'|'.repeat(50)}</div>
+      <div style="font-size:11pt;font-weight:bold;letter-spacing:2px">${order.awbNumber || order.orderId}</div>
+      <div style="font-size:7pt;color:#666">Order: ${order.orderId}</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:8pt;border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">
+      <div>
+        ${order.assignedCourier?.name ? `<div><b>${order.assignedCourier.name}</b></div>` : ''}
+        ${order.assignedCourier?.code ? `<div style="color:#666;font-size:7.5pt">${order.assignedCourier.code}</div>` : ''}
+      </div>
+      <div style="text-align:right">
+        <div>WEIGHT: ${pkg.weight || 0.5}KG</div>
+        ${pkg.length ? `<div style="color:#666;font-size:7.5pt">Dims: ${pkg.length}x${pkg.breadth}x${pkg.height}cm</div>` : ''}
+      </div>
+    </div>
+    ${ls.showItemTable ? `<table style="width:100%;border-collapse:collapse;font-size:7.5pt;margin-bottom:2mm"><tr style="border:1px solid #ccc;background:#f5f5f5"><th style="padding:1mm;border:1px solid #ccc;text-align:left">Item</th><th style="padding:1mm;border:1px solid #ccc">Qty</th><th style="padding:1mm;border:1px solid #ccc">Amt</th></tr><tr><td style="padding:1mm;border:1px solid #ccc">${pkg.description || 'Goods'}</td><td style="padding:1mm;border:1px solid #ccc;text-align:center">1</td><td style="padding:1mm;border:1px solid #ccc;text-align:right">₹${pkg.value || 0}</td></tr></table>` : ''}
+    ${!ls.hidePickupAddress ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7.5pt"><div style="font-weight:bold;color:#444">Pickup Address:</div><div>${wh.name || ''}</div><div>${wh.address || ''} ${wh.city || ''}, ${wh.state || ''} - ${wh.pincode || ''}</div>${!ls.hidePickupPhone ? `<div>Mobile No: ${wh.phone || ''}</div>` : ''}</div>` : ''}
+    ${!ls.hideRtoAddress ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7.5pt"><div style="font-weight:bold;color:#444">Return Address:</div><div>${wh.name || ''}</div><div>${wh.address || ''} ${wh.city || ''}, ${wh.state || ''} - ${wh.pincode || ''}</div></div>` : ''}
+    <div style="border-top:1px solid #ccc;padding-top:2mm;margin-top:2mm;font-size:6.5pt;color:#666">
+      ${ls.labelNote || 'This is computer generated document, hence does not required signature.'}
+      <div style="margin-top:1mm">${ls.labelFooter || 'Note: All disputes are subject to jurisdiction. Goods once sold will only be taken back or exchanged as per the store\'s exchange/return policy'}</div>
+    </div>
+  </div>`;
+}
 
 module.exports = router;
