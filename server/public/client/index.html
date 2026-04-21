@@ -870,11 +870,11 @@ td b{color:var(--text)}
           <!-- Upload area -->
           <div id="bulk-drop-zone" style="border:2px dashed var(--border2);border-radius:14px;padding:32px;text-align:center;cursor:pointer;transition:.2s;background:var(--bg)" onclick="document.getElementById('bulk-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--brand)';this.style.background='var(--brand-light)'" ondragleave="this.style.borderColor='var(--border2)';this.style.background='var(--bg)'" ondrop="handleBulkDrop(event)">
             <div style="font-size:2.5rem;margin-bottom:10px">📁</div>
-            <div style="font-weight:700;color:var(--text);margin-bottom:4px">Drop CSV or Excel file here or click to browse</div>
-            <div style="font-size:.8rem;color:var(--muted)">Supports up to 2,000 orders per file • .csv or .xlsx format</div>
+            <div style="font-weight:700;color:var(--text);margin-bottom:4px">Drop CSV here or click to browse</div>
+            <div style="font-size:.8rem;color:var(--muted)">Supports up to 2,000 orders per file • .csv format</div>
             <div id="bulk-file-name" style="margin-top:10px;font-size:.82rem;color:var(--brand);font-weight:600;display:none"></div>
           </div>
-          <input type="file" id="bulk-file" accept=".csv,.xlsx" style="display:none" onchange="onBulkFileSelect()"/>
+          <input type="file" id="bulk-file" accept=".csv" style="display:none" onchange="onBulkFileSelect()"/>
 
           <!-- Progress bar (hidden by default) -->
           <div id="bulk-progress-wrap" style="display:none;margin-top:16px">
@@ -1495,8 +1495,10 @@ const pageLoaders = {
   'label-settings': loadLabelSettings
 };
 function navigate(page) {
+  const pageEl = document.getElementById('page-' + page);
+  if (!pageEl) { console.warn('navigate: no page element for', page); return; }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
+  pageEl.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => {
     n.classList.remove('active');
     if (n.getAttribute('onclick') === `navigate('${page}')`) n.classList.add('active');
@@ -1506,7 +1508,8 @@ function navigate(page) {
     n.classList.remove('active');
     if (n.getAttribute('data-page') === page) n.classList.add('active');
   });
-  document.getElementById('page-title').textContent = page.replace(/-/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+  const titleEl = document.getElementById('page-title');
+  if (titleEl) titleEl.textContent = page.replace(/-/g,' ').replace(/\b\w/g, c => c.toUpperCase());
   if (pageLoaders[page]) pageLoaders[page]();
   window.scrollTo(0,0);
 }
@@ -1604,12 +1607,13 @@ async function loadDashboard() {
   const d = await api('GET', '/analytics/client/dashboard');
   if (!d?.success) return;
   const s = d.stats;
-  document.getElementById('d-total').textContent = s.totalOrders || 0;
-  document.getElementById('d-delivered').textContent = s.deliveredCount || 0;
-  document.getElementById('d-transit').textContent = s.processingCount || 0;
-  document.getElementById('d-rto').textContent = s.rtoCount || 0;
-  document.getElementById('d-ndr').textContent = s.ndrCount || 0;
-  document.getElementById('d-wallet').textContent = '₹' + (s.walletBalance || 0).toFixed(2);
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('d-total', s.totalOrders || 0);
+  set('d-delivered', s.deliveredCount || 0);
+  set('d-transit', s.processingCount || 0);
+  set('d-rto', s.rtoCount || 0);
+  set('d-ndr', s.ndrCount || 0);
+  set('d-wallet', '₹' + (s.walletBalance || 0).toFixed(2));
   const od = await api('GET', '/orders?limit=8');
   if (od?.success) {
     document.getElementById('recent-orders-tbody').innerHTML = od.orders.map(o =>
@@ -1943,8 +1947,6 @@ async function shipViaSelloship(orderId) {
   }
 }
 
-/
-
 function clearOrderFilters() {
   ['order-search','order-pay-filter','order-from','order-to'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   ordersPage = 1; loadOrders();
@@ -2192,7 +2194,7 @@ async function exportOrders() {
 // ─── BULK UPLOAD ───────────────────────────────────────────────────────────────
 async function bulkUpload() {
   const file = document.getElementById('bulk-file').files[0];
-  if (!file) { toast('Please select a CSV or Excel file', 'error'); return; }
+  if (!file) { toast('Please select a CSV file', 'error'); return; }
   const fd = new FormData(); fd.append('file', file);
   const res = await fetch(`${API}/orders/bulk-upload`, { method:'POST', headers:{Authorization:'Bearer '+token}, body:fd });
   const d = await res.json();
@@ -2612,7 +2614,7 @@ function handleBulkDrop(e) {
   const dz = document.getElementById('bulk-drop-zone');
   dz.style.borderColor='var(--border2)'; dz.style.background='var(--bg)';
   const f = e.dataTransfer.files[0];
-  if (!f || (!f.name.endsWith('.csv') && !f.name.endsWith('.xlsx'))) { toast('Please drop a .csv or .xlsx file','error'); return; }
+  if (!f || !f.name.endsWith('.csv')) { toast('Please drop a .csv file','error'); return; }
   document.getElementById('bulk-file').files; // can't set directly
   const dt = new DataTransfer(); dt.items.add(f);
   document.getElementById('bulk-file').files = dt.files;
@@ -2634,7 +2636,7 @@ async function bulkShipSelected() {
   document.getElementById('bsm-ok').textContent='0';
   document.getElementById('bsm-fail').textContent='0';
   document.getElementById('bsm-bar').style.width='0%';
-  document.getElementById('bsm-status').textC orders in parallel...`;
+  document.getElementById('bsm-status').textContent=`Shipping ${total} orders in parallel...`;
   document.getElementById('bsm-log').textContent='';
   document.getElementById('bsm-done-msg').style.display='none';
   document.getElementById('bsm-close-btn').style.display='none';
