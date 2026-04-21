@@ -542,8 +542,19 @@ td b{color:var(--text)}
 .quick-action .qa-sub{font-size:.76rem;color:var(--muted);margin-top:2px}
 .quick-action .qa-arrow{margin-left:auto;color:var(--muted);font-size:1rem}
 
-/* Checkbox */
-input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--brand)}
+/* ── TOGGLE SWITCH ── */
+.toggle-switch{position:relative;display:inline-block;width:46px;height:24px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:#CBD5E1;border-radius:999px;transition:.25s}
+.toggle-slider:before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.25s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.toggle-switch input:checked + .toggle-slider{background:var(--brand)}
+.toggle-switch input:checked + .toggle-slider:before{transform:translateX(22px)}
+
+/* ── BULK SHIP PROGRESS MODAL ── */
+#bulk-ship-modal .modal-box{max-width:500px}
+.bs-progress{height:12px;background:var(--border);border-radius:999px;overflow:hidden;margin:10px 0}
+.bs-progress-bar{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));border-radius:999px;width:0%;transition:width .4s ease}
+
 
 /* Bulk actions bar */
 #bulk-actions{
@@ -602,6 +613,7 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
   <div class="nav-item" onclick="navigate('tickets')"><span class="ni">🎫</span> Support</div>
   <div class="nav-item" onclick="navigate('integrations')"><span class="ni">🔌</span> Integrations</div>
   <div class="nav-item" onclick="navigate('settings')"><span class="ni">⚙️</span> Settings</div>
+  <div class="nav-item" onclick="navigate('label-settings')"><span class="ni">🏷️</span> Label Settings</div>
 
   <div style="margin-top:auto;padding:12px 10px;border-top:1px solid var(--sidebar-b)">
     <div class="nav-item" onclick="logout()" style="color:var(--danger)">
@@ -735,6 +747,7 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
           <span class="card-ttl">📋 My Orders <small style="font-size:.75rem;color:var(--muted);font-weight:500;margin-left:8px">(Ready to Ship)</small></span>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn btn-outline btn-sm" onclick="exportOrders()">📤 Export CSV</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabels()" id="bulk-label-btn" style="display:none">🏷️ Download Labels</button>
             <button class="btn btn-primary btn-sm" onclick="navigate('create-order')">➕ New Order</button>
           </div>
         </div>
@@ -818,21 +831,96 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
       </div>
     </div>
 
-    <!-- ═══ BULK UPLOAD ═══ -->
+    <!-- ═══ BULK UPLOAD (Enhanced) ═══ -->
     <div class="page" id="page-bulk-upload">
-      <div class="card" style="max-width:680px">
-        <div class="card-hdr"><span class="card-ttl">📁 Bulk Order Upload</span></div>
-        <div style="background:var(--brand-light);border:1px solid var(--brand-mid);border-radius:12px;padding:16px;margin-bottom:18px;font-size:.875rem">
-          <b style="color:var(--brand)">📋 Required CSV Columns:</b><br/>
-          <code style="font-size:.78rem;display:block;margin-top:8px;color:var(--muted);line-height:1.6">recipient_name, recipient_phone, pincode, address, city, state, weight, payment_mode (prepaid/cod), cod_amount, value, description, landmark</code>
-          <button class="btn btn-outline btn-sm" style="margin-top:12px" onclick="downloadSampleCSV()">⬇ Download Sample CSV</button>
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+        <div class="stat-card" style="border-top:2px solid var(--brand)"><div class="lbl">⚡ Max Speed</div><div class="val" style="font-size:1.4rem">2000</div><div class="sub">orders per batch</div></div>
+        <div class="stat-card" style="border-top:2px solid var(--success)"><div class="lbl">🚀 Parallel</div><div class="val" style="font-size:1.4rem">50×</div><div class="sub">concurrent processing</div></div>
+        <div class="stat-card" style="border-top:2px solid var(--info)"><div class="lbl">🏭 Warehouse</div><div class="val" style="font-size:1.4rem">Auto</div><div class="sub">pickup via WH code</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start">
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">📁 Bulk Order Upload</span>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-outline btn-sm" onclick="downloadSampleCSV()">⬇ Sample CSV</button>
+              <button class="btn btn-outline btn-sm" onclick="downloadSampleCSVWithWarehouse()">⬇ Sample + Warehouse</button>
+            </div>
+          </div>
+
+          <!-- Column guide -->
+          <div style="background:var(--brand-light);border:1px solid var(--brand-mid);border-radius:12px;padding:14px;margin-bottom:18px;font-size:.82rem">
+            <div style="font-weight:700;color:var(--brand);margin-bottom:8px">📋 CSV Column Reference</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div style="background:#fff;border-radius:8px;padding:8px 10px">
+                <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px">Required Columns</div>
+                <code style="font-size:.75rem;color:var(--text2);line-height:1.7;display:block">recipient_name<br/>recipient_phone<br/>pincode<br/>address<br/>weight<br/>payment_mode</code>
+              </div>
+              <div style="background:#fff;border-radius:8px;padding:8px 10px">
+                <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px">Optional Columns</div>
+                <code style="font-size:.75rem;color:var(--teal);line-height:1.7;display:block">warehouse_id ← NEW<br/>city, state<br/>cod_amount<br/>value, description<br/>landmark<br/>email</code>
+              </div>
+            </div>
+            <div style="margin-top:10px;padding:8px 12px;background:#FFF8E1;border-radius:8px;border:1px solid #FFE082;font-size:.78rem;color:#E65100">
+              💡 <b>warehouse_id</b> column: enter your Warehouse Code (e.g. WH-KWL-001) to set pickup address per row. Leave blank to use your default warehouse.
+            </div>
+          </div>
+
+          <!-- Upload area -->
+          <div id="bulk-drop-zone" style="border:2px dashed var(--border2);border-radius:14px;padding:32px;text-align:center;cursor:pointer;transition:.2s;background:var(--bg)" onclick="document.getElementById('bulk-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--brand)';this.style.background='var(--brand-light)'" ondragleave="this.style.borderColor='var(--border2)';this.style.background='var(--bg)'" ondrop="handleBulkDrop(event)">
+            <div style="font-size:2.5rem;margin-bottom:10px">📁</div>
+            <div style="font-weight:700;color:var(--text);margin-bottom:4px">Drop CSV here or click to browse</div>
+            <div style="font-size:.8rem;color:var(--muted)">Supports up to 2,000 orders per file • .csv format</div>
+            <div id="bulk-file-name" style="margin-top:10px;font-size:.82rem;color:var(--brand);font-weight:600;display:none"></div>
+          </div>
+          <input type="file" id="bulk-file" accept=".csv" style="display:none" onchange="onBulkFileSelect()"/>
+
+          <!-- Progress bar (hidden by default) -->
+          <div id="bulk-progress-wrap" style="display:none;margin-top:16px">
+            <div style="display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted);margin-bottom:6px">
+              <span id="bulk-progress-label">Processing orders...</span>
+              <span id="bulk-progress-pct">0%</span>
+            </div>
+            <div style="height:10px;background:var(--border);border-radius:999px;overflow:hidden">
+              <div id="bulk-progress-bar" style="height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));border-radius:999px;width:0%;transition:width .3s ease"></div>
+            </div>
+            <div id="bulk-progress-stats" style="display:flex;gap:16px;margin-top:8px;font-size:.78rem">
+              <span style="color:var(--success)">✅ <span id="bp-ok">0</span> success</span>
+              <span style="color:var(--danger)">❌ <span id="bp-fail">0</span> failed</span>
+              <span style="color:var(--muted)">📦 <span id="bp-total">0</span> total</span>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:16px">
+            <button class="btn btn-primary btn-lg" style="flex:1" id="bulk-upload-btn" onclick="bulkUpload()">⚡ Upload &amp; Process Orders</button>
+            <button class="btn btn-outline" onclick="navigate('orders')" title="View uploaded orders">📋 View Orders</button>
+          </div>
+          <div id="bulk-result" style="margin-top:16px;display:none"></div>
         </div>
-        <div class="form-group">
-          <label>Select CSV File</label>
-          <input type="file" id="bulk-file" accept=".csv"/>
+
+        <!-- Warehouse Quick Ref Panel -->
+        <div>
+          <div class="card" style="margin-bottom:14px">
+            <div class="card-hdr" style="margin-bottom:12px"><span class="card-ttl">🏭 Your Warehouse Codes</span><button class="btn btn-outline btn-xs" onclick="navigate('warehouses')">Manage →</button></div>
+            <div style="font-size:.76rem;color:var(--muted);margin-bottom:10px">Use these codes in the <code style="background:var(--bg);padding:1px 5px;border-radius:4px">warehouse_id</code> column of your CSV:</div>
+            <div id="bulk-wh-list">
+              <div style="text-align:center;color:var(--muted);padding:16px;font-size:.8rem">Loading warehouses...</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-ttl" style="margin-bottom:10px;font-size:.9rem">📈 Bulk Upload Tips</div>
+            <div style="font-size:.78rem;color:var(--text2);line-height:1.8">
+              <div>✅ Max <b>2,000 orders</b> per file</div>
+              <div>⚡ Processed in <b>50-parallel</b> chunks</div>
+              <div>🏭 Leave warehouse_id blank → uses <b>default</b></div>
+              <div>📱 Phone must be <b>10 digits, starts 6-9</b></div>
+              <div>📍 Pincode must be <b>exactly 6 digits</b></div>
+              <div>💰 COD: set payment_mode=<b>cod</b></div>
+              <div>⚠️ After upload → go to <b>My Orders</b> to ship</div>
+            </div>
+          </div>
         </div>
-        <button class="btn btn-primary btn-lg" style="width:100%" onclick="bulkUpload()">📤 Upload &amp; Process Orders</button>
-        <div id="bulk-result" style="margin-top:16px;display:none"></div>
       </div>
     </div>
 
@@ -900,14 +988,18 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
       </div>
     </div>
 
-    <!-- ═══ WAREHOUSES ═══ -->
+    <!-- ═══ WAREHOUSES (Enhanced with Unique IDs) ═══ -->
     <div class="page" id="page-warehouses">
       <div class="card">
         <div class="card-hdr">
           <span class="card-ttl">🏢 Warehouses / Pickup Points</span>
           <button class="btn btn-primary btn-sm" onclick="openModal('warehouse-modal');resetWarehouseForm()">+ Add Warehouse</button>
         </div>
-        <div id="warehouses-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px"></div>
+        <!-- Info about warehouse codes -->
+        <div style="background:var(--info-light);border:1px solid #C8DCFA;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:.82rem;color:var(--info)">
+          🆔 Each warehouse has a unique <b>Warehouse Code</b> (e.g. WH-KWL-001). Use this code in the <code style="background:#fff;padding:1px 5px;border-radius:4px">warehouse_id</code> column of your bulk CSV to assign pickup addresses per order.
+        </div>
+        <div id="warehouses-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px"></div>
       </div>
     </div>
 
@@ -1069,6 +1161,156 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
         </div>
       </div>
     </div>
+
+    <!-- ═══ LABEL SETTINGS ═══ -->
+    <div class="page" id="page-label-settings">
+      <div style="display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start">
+        <!-- Settings Panel -->
+        <div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">🏷️ Label Settings</span>
+              <button class="btn btn-primary btn-sm" onclick="saveLabelSettings()">💾 Save Settings</button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="pg-tabs" style="margin-bottom:20px">
+              <button class="pg-tab active" onclick="switchLabelTab(0,this)">Common Setting</button>
+              <button class="pg-tab" onclick="switchLabelTab(1,this)">Warehouse Setting</button>
+              <button class="pg-tab" onclick="switchLabelTab(2,this)">Size &amp; Style</button>
+            </div>
+
+            <!-- Tab 0: Common -->
+            <div id="ls-tab-0">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
+                <div>
+                  <div style="font-weight:600;font-size:.9rem">Show Logo on Label</div>
+                  <div style="font-size:.75rem;color:var(--muted);margin-top:2px">Upload your brand logo to display on shipping labels</div>
+                </div>
+                <label class="toggle-switch"><input type="checkbox" id="ls-show-logo" onchange="updateLabelPreview()"><span class="toggle-slider"></span></label>
+              </div>
+              <div id="ls-logo-section" style="padding:14px 0;border-bottom:1px solid var(--border);display:none">
+                <div class="form-group" style="margin-bottom:10px"><label>Upload Custom Logo</label>
+                  <input type="file" id="ls-logo-file" accept="image/*" onchange="handleLogoUpload(this)"/>
+                </div>
+                <div id="ls-logo-preview" style="margin-top:8px;display:none">
+                  <img id="ls-logo-img" style="max-height:60px;max-width:160px;object-fit:contain;border:1px solid var(--border);border-radius:8px;padding:4px"/>
+                </div>
+                <input type="hidden" id="ls-logo-url"/>
+              </div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
+                <div>
+                  <div style="font-weight:600;font-size:.9rem">Show Support Email/Mobile No</div>
+                  <div style="font-size:.75rem;color:var(--muted);margin-top:2px">Display your contact info on label</div>
+                </div>
+                <label class="toggle-switch"><input type="checkbox" id="ls-show-support" onchange="toggleSupportFields();updateLabelPreview()"><span class="toggle-slider"></span></label>
+              </div>
+              <div id="ls-support-section" style="padding:14px 0;border-bottom:1px solid var(--border);display:none">
+                <div class="form-row">
+                  <div class="form-group"><label>Enter Email Id</label><input id="ls-support-email" placeholder="Enter email" oninput="updateLabelPreview()"/></div>
+                  <div class="form-group"><label>Enter Mobile No</label><input id="ls-support-phone" placeholder="Enter Mobile No" oninput="updateLabelPreview()"/></div>
+                </div>
+              </div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
+                <div><div style="font-weight:600;font-size:.9rem">Hide Customer Mobile Number</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="ls-hide-phone" onchange="updateLabelPreview()"><span class="toggle-slider"></span></label>
+              </div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
+                <div><div style="font-weight:600;font-size:.9rem">Show Item Table</div><div style="font-size:.75rem;color:var(--muted);margin-top:2px">Show Item Name, Qty, Amount table</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="ls-show-items" onchange="updateLabelPreview()"><span class="toggle-slider"></span></label>
+              </div>
+
+              <div style="padding:14px 0;border-bottom:1px solid var(--border)">
+                <div class="form-group" style="margin-bottom:10px"><label>Label Note (Footer Line 1)</label><input id="ls-label-note" placeholder="This is computer generated document..." oninput="updateLabelPreview()"/></div>
+                <div class="form-group"><label>Label Footer (Footer Line 2)</label><textarea id="ls-label-footer" rows="2" placeholder="Note: All disputes are subject to..." oninput="updateLabelPreview()"></textarea></div>
+              </div>
+
+              <div style="padding:14px 0">
+                <div class="form-group"><label>Brand Color (on label)</label>
+                  <div style="display:flex;gap:10px;align-items:center">
+                    <input type="color" id="ls-brand-color" value="#0D1B3E" onchange="updateLabelPreview()" style="width:48px;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:2px;cursor:pointer"/>
+                    <input id="ls-brand-color-hex" value="#0D1B3E" style="width:120px" placeholder="#0D1B3E" oninput="document.getElementById('ls-brand-color').value=this.value;updateLabelPreview()"/>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 1: Warehouse -->
+            <div id="ls-tab-1" style="display:none">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
+                <div><div style="font-weight:600;font-size:.9rem">Hide Pickup Address</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="ls-hide-pickup-addr" onchange="updateLabelPreview()"><span class="toggle-slider"></span></label>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
+                <div><div style="font-weight:600;font-size:.9rem">Hide Pickup Mobile Number</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="ls-hide-pickup-phone" onchange="updateLabelPreview()"><span class="toggle-slider"></span></label>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
+                <div><div style="font-weight:600;font-size:.9rem">Hide RTO Address</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="ls-hide-rto-addr" onchange="updateLabelPreview()"><span class="toggle-slider"></span></label>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
+                <div><div style="font-weight:600;font-size:.9rem">Hide RTO Mobile Number</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="ls-hide-rto-phone" onchange="updateLabelPreview()"><span class="toggle-slider"></span></label>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0">
+                <div><div style="font-weight:600;font-size:.9rem">Hide GST Number</div></div>
+                <label class="toggle-switch"><input type="checkbox" id="ls-hide-gst" onchange="updateLabelPreview()"><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+
+            <!-- Tab 2: Size & Style -->
+            <div id="ls-tab-2" style="display:none">
+              <div class="form-group" style="padding-top:14px">
+                <label>Label Size</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+                  <div id="ls-size-a4" class="courier-card selected" onclick="selectLabelSize('a4')" style="text-align:center;padding:14px">
+                    <div class="check">✓</div>
+                    <div style="font-size:1.2rem">📄</div>
+                    <div style="font-weight:700;font-size:.85rem;margin-top:4px">A4</div>
+                    <div style="font-size:.7rem;color:var(--muted)">210 × 297mm</div>
+                  </div>
+                  <div id="ls-size-100x150" class="courier-card" onclick="selectLabelSize('100x150')" style="text-align:center;padding:14px">
+                    <div class="check">✓</div>
+                    <div style="font-size:1.2rem">🏷️</div>
+                    <div style="font-weight:700;font-size:.85rem;margin-top:4px">100×150</div>
+                    <div style="font-size:.7rem;color:var(--muted)">100 × 150mm</div>
+                  </div>
+                  <div id="ls-size-4x6" class="courier-card" onclick="selectLabelSize('4x6')" style="text-align:center;padding:14px">
+                    <div class="check">✓</div>
+                    <div style="font-size:1.2rem">📃</div>
+                    <div style="font-weight:700;font-size:.85rem;margin-top:4px">4×6 inch</div>
+                    <div style="font-size:.7rem;color:var(--muted)">101 × 152mm</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:10px">
+              <button class="btn btn-primary" onclick="saveLabelSettings()">💾 Save All Settings</button>
+              <button class="btn btn-outline" onclick="resetLabelSettings()">↺ Reset Defaults</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Label Preview -->
+        <div>
+          <div class="card" style="position:sticky;top:80px">
+            <div class="card-hdr" style="margin-bottom:12px"><span class="card-ttl">👁 Live Preview</span>
+              <button class="btn btn-outline btn-sm" onclick="printLabelPreview()">🖨 Print Sample</button>
+            </div>
+            <div id="label-preview-wrap" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fff">
+              <div id="label-preview-inner" style="transform-origin:top left;width:100%">
+                <!-- rendered by updateLabelPreview() -->
+              </div>
+            </div>
+            <div style="margin-top:10px;font-size:.74rem;color:var(--muted);text-align:center">Live preview · actual label may vary by courier</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1179,6 +1421,25 @@ input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--br
   </div>
 </div>
 
+<!-- Bulk Ship Progress Modal -->
+<div class="modal" id="bulk-ship-modal">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-hdr"><span class="modal-ttl">⚡ Bulk Shipping Progress</span></div>
+    <div id="bsm-status" style="font-size:.88rem;color:var(--muted);margin-bottom:8px">Initializing...</div>
+    <div class="bs-progress"><div class="bs-progress-bar" id="bsm-bar"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:16px">
+      <span style="color:var(--success)">✅ Shipped: <b id="bsm-ok">0</b></span>
+      <span style="color:var(--danger)">❌ Failed: <b id="bsm-fail">0</b></span>
+      <span style="color:var(--muted)">📦 Total: <b id="bsm-total">0</b></span>
+    </div>
+    <div id="bsm-log" style="max-height:180px;overflow-y:auto;font-size:.75rem;font-family:monospace;background:var(--bg);border-radius:8px;padding:10px;color:var(--text2)"></div>
+    <div style="margin-top:16px;text-align:center">
+      <div id="bsm-done-msg" style="display:none;margin-bottom:12px;font-weight:700;color:var(--success)">🎉 Bulk shipping complete!</div>
+      <button class="btn btn-outline btn-sm" id="bsm-close-btn" onclick="closeModal('bulk-ship-modal');loadOrders();loadTracking()" style="display:none">Close &amp; Refresh</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = (window.__API_URL || window.location.origin) + '/api';
 let token = localStorage.getItem('client_token');
@@ -1230,7 +1491,8 @@ const pageLoaders = {
   integrations: loadIntegrations,
   ndr: loadNDR,
   'create-order': () => { loadWarehouses(true); loadCouriers(); },
-  settings: loadSettings
+  settings: loadSettings,
+  'label-settings': loadLabelSettings
 };
 function navigate(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1681,18 +1943,7 @@ async function shipViaSelloship(orderId) {
   }
 }
 
-// Bulk ship via Selloship
-async function bulkShipSelected() {
-  if (!selectedOrders.size) return;
-  const ids = [...selectedOrders];
-  let ok = 0, fail = 0;
-  for (const id of ids) {
-    const d = await api('POST', `/selloship/ship/${id}`);
-    if (d?.success) ok++; else fail++;
-  }
-  toast(`Shipped: ${ok} ✅  Failed: ${fail} ❌`, ok > 0 ? 'success' : 'error');
-  loadOrders(); loadWalletBalance();
-}
+/
 
 function clearOrderFilters() {
   ['order-search','order-pay-filter','order-from','order-to'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
@@ -1706,13 +1957,7 @@ function toggleOrderSelect(id, checked) {
 function toggleSelectAll(cb) {
   document.querySelectorAll('.row-check').forEach(el => { el.checked = cb.checked; toggleOrderSelect(el.value, cb.checked); });
 }
-function updateBulkActions() {
-  const n = selectedOrders.size;
-  const ba = document.getElementById('bulk-actions');
-  if (ba) ba.style.display = n > 0 ? 'flex' : 'none';
-  const sc = document.getElementById('selected-count');
-  if (sc) sc.textContent = n + ' selected';
-}
+
 
 // ─── TRACKING (shipped orders) ─────────────────────────────────────────────────
 async function loadTracking() {
@@ -1927,13 +2172,7 @@ async function confirmShipOrder() {
   }
 }
 
-// ─── BULK ACTIONS ──────────────────────────────────────────────────────────────
-async function bulkShipSelected() {
-  if (!selectedOrders.size) return;
-  const d = await api('POST', '/orders/bulk-ship', { orderIds: [...selectedOrders] });
-  if (d?.success) { toast(`Shipped ${d.results.filter(r=>r.success).length} orders`, 'success'); loadTracking(); navigate('tracking'); }
-  else toast(d?.message || 'Error', 'error');
-}
+
 async function bulkDeleteSelected() {
   if (!selectedOrders.size) return;
   if (!confirm(`Delete ${selectedOrders.size} orders?`)) return;
@@ -2039,28 +2278,7 @@ function switchBillingTab(idx) {
   [0,1].forEach(i => { document.getElementById(`billing-tab-${i}`).style.display = i===idx?'block':'none'; });
 }
 
-// ─── WAREHOUSES ────────────────────────────────────────────────────────────────
-async function loadWarehouses(forOrder) {
-  const d = await api('GET', '/warehouses');
-  if (!d?.success) return;
-  if (forOrder) {
-    const sel = document.getElementById('co-warehouse');
-    sel.innerHTML = '<option value="">Select warehouse...</option>' + d.warehouses.map(w=>`<option value="${w._id}">${w.name} – ${w.city}</option>`).join('');
-    return;
-  }
-  document.getElementById('warehouses-list').innerHTML = d.warehouses.map(w =>
-    `<div class="card" style="border:2px solid ${w.isDefault?'var(--brand)':'var(--border)'}">
-      ${w.isDefault?'<span class="status s-delivered" style="font-size:.7rem;margin-bottom:8px;display:inline-block">⭐ Default</span>':''}
-      <div style="font-weight:700;color:var(--text);margin-bottom:4px;font-size:1rem">${w.name}</div>
-      <div style="font-size:.85rem;color:var(--muted);margin-bottom:4px">${w.address||''}, ${w.city||''}, ${w.state||''} - ${w.pincode||''}</div>
-      <div style="font-size:.82rem;color:var(--muted)">${w.contactName||''} ${w.phone?'| '+w.phone:''}</div>
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-outline btn-sm" onclick="editWarehouse('${w._id}','${w.name}','${w.contactName||''}','${w.phone||''}','${(w.address||'').replace(/'/g,"\\'")}','${w.city||''}','${w.state||''}','${w.pincode||''}',${w.isDefault})">✏ Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteWarehouse('${w._id}')">🗑 Delete</button>
-      </div>
-    </div>`
-  ).join('') || '<div style="color:var(--muted);padding:20px">No warehouses yet. Add one above.</div>';
-}
+
 function resetWarehouseForm() { ['wh-id','wh-name','wh-contact','wh-phone','wh-address','wh-city','wh-state','wh-pincode'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; }); document.getElementById('wh-default').checked=false; }
 function editWarehouse(id,name,contact,phone,address,city,state,pincode,def) {
   document.getElementById('wh-id').value=id; document.getElementById('wh-name').value=name; document.getElementById('wh-contact').value=contact; document.getElementById('wh-phone').value=phone; document.getElementById('wh-address').value=address; document.getElementById('wh-city').value=city; document.getElementById('wh-state').value=state; document.getElementById('wh-pincode').value=pincode; document.getElementById('wh-default').checked=def; openModal('warehouse-modal');
@@ -2326,6 +2544,294 @@ async function saveCourierPref() {
 async function saveNotifPref() {
   const d=await api('PATCH','/users/me/profile',{whatsappNotifications:document.getElementById('wa-notif').value==='true',whatsappNumber:document.getElementById('wa-number').value});
   if (d?.success) toast('Notification settings saved','success'); else toast(d?.message||'Error','error');
+}
+
+// ─── ENHANCED WAREHOUSE RENDER ────────────────────────────────────────────────
+async function loadWarehouses(forOrder) {
+  const d = await api('GET', '/warehouses');
+  if (!d?.success) return;
+  if (forOrder) {
+    const sel = document.getElementById('co-warehouse');
+    if(sel) sel.innerHTML = '<option value="">Select warehouse...</option>' + d.warehouses.map(w=>`<option value="${w._id}">${w.name} – ${w.city}${w.warehouseCode?' ['+w.warehouseCode+']':''}</option>`).join('');
+    return;
+  }
+  // Update bulk upload warehouse list
+  const bwl = document.getElementById('bulk-wh-list');
+  if (bwl) {
+    bwl.innerHTML = d.warehouses.length ? d.warehouses.map(w=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;background:var(--bg);margin-bottom:6px">
+        <div>
+          <div style="font-weight:600;font-size:.82rem;color:var(--text)">${w.name}</div>
+          <div style="font-size:.72rem;color:var(--muted)">${w.city||''} ${w.pincode?'- '+w.pincode:''}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:monospace;font-size:.78rem;font-weight:700;color:var(--brand);background:var(--brand-light);border:1px solid var(--brand-mid);padding:3px 8px;border-radius:6px;cursor:pointer" onclick="copyWHCode('${w.warehouseCode||''}')" title="Click to copy">${w.warehouseCode||'No Code'}</div>
+          ${w.isDefault?'<div style="font-size:.65rem;color:var(--success);margin-top:2px">⭐ Default</div>':''}
+        </div>
+      </div>`).join('') : '<div style="color:var(--muted);font-size:.8rem;text-align:center;padding:16px">No warehouses added yet</div>';
+  }
+  // Main warehouse page
+  const el = document.getElementById('warehouses-list');
+  if (!el) return;
+  el.innerHTML = d.warehouses.map(w => `
+    <div class="card" style="border:2px solid ${w.isDefault?'var(--brand)':'var(--border)'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>${w.isDefault?'<span class="status s-delivered" style="font-size:.7rem;margin-bottom:6px;display:inline-block">⭐ Default</span><br/>':''}<div style="font-weight:700;color:var(--text);font-size:1rem">${w.name}</div></div>
+        <div style="text-align:right;flex-shrink:0;margin-left:10px">
+          <div style="font-family:monospace;font-size:.85rem;font-weight:800;color:var(--brand);background:var(--brand-light);border:1.5px solid var(--brand-mid);padding:5px 10px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px" onclick="copyWHCode('${w.warehouseCode||''}')" title="Click to copy">
+            🆔 ${w.warehouseCode||'—'}
+            <span style="font-size:.6rem;color:var(--muted)">copy</span>
+          </div>
+          <div style="font-size:.65rem;color:var(--muted);margin-top:3px;text-align:center">CSV: warehouse_id</div>
+        </div>
+      </div>
+      <div style="font-size:.84rem;color:var(--muted);margin-bottom:4px">📍 ${w.address||''}, ${w.city||''}, ${w.state||''} - ${w.pincode||''}</div>
+      <div style="font-size:.8rem;color:var(--muted)">${w.contactName||''} ${w.phone?'| 📞 '+w.phone:''}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-outline btn-sm" onclick="editWarehouse('${w._id}','${w.name}','${w.contactName||''}','${w.phone||''}','${(w.address||'').replace(/'/g,"\\'")}','${w.city||''}','${w.state||''}','${w.pincode||''}',${w.isDefault})">✏ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteWarehouse('${w._id}')">🗑 Delete</button>
+      </div>
+    </div>`).join('') || '<div style="color:var(--muted);padding:20px">No warehouses yet. Add one above.</div>';
+}
+function copyWHCode(code) {
+  if (!code) return;
+  navigator.clipboard?.writeText(code).then(()=>toast('Copied: '+code,'success')).catch(()=>{
+    const t=document.createElement('textarea');t.value=code;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);toast('Copied: '+code,'success');
+  });
+}
+
+// ─── ENHANCED BULK UPLOAD ─────────────────────────────────────────────────────
+function onBulkFileSelect() {
+  const file = document.getElementById('bulk-file').files[0];
+  if (!file) return;
+  const fn = document.getElementById('bulk-file-name');
+  fn.style.display='block'; fn.textContent='📄 '+file.name+' ('+Math.round(file.size/1024)+'KB)';
+}
+function handleBulkDrop(e) {
+  e.preventDefault();
+  const dz = document.getElementById('bulk-drop-zone');
+  dz.style.borderColor='var(--border2)'; dz.style.background='var(--bg)';
+  const f = e.dataTransfer.files[0];
+  if (!f || !f.name.endsWith('.csv')) { toast('Please drop a .csv file','error'); return; }
+  document.getElementById('bulk-file').files; // can't set directly
+  const dt = new DataTransfer(); dt.items.add(f);
+  document.getElementById('bulk-file').files = dt.files;
+  onBulkFileSelect();
+}
+
+function downloadSampleCSVWithWarehouse() {
+  const csv='recipient_name,recipient_phone,pincode,address,city,state,weight,payment_mode,cod_amount,value,description,warehouse_id\nAnil Sharma,9876543210,110001,"House 1, MG Road",Delhi,Delhi,0.5,prepaid,0,500,Books,WH-KWL-001\nPriya Patel,8765432109,400001,"Flat 2B, Linking Road",Mumbai,Maharashtra,1.0,cod,800,800,Clothes,WH-KWL-002';
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='sample_orders_with_warehouse.csv';a.click();
+}
+
+// ─── ENHANCED BULK SHIP (parallel with progress) ──────────────────────────────
+async function bulkShipSelected() {
+  if (!selectedOrders.size) return;
+  const ids = [...selectedOrders];
+  const total = ids.length;
+  // Show progress modal
+  document.getElementById('bsm-total').textContent=total;
+  document.getElementById('bsm-ok').textContent='0';
+  document.getElementById('bsm-fail').textContent='0';
+  document.getElementById('bsm-bar').style.width='0%';
+  document.getElementById('bsm-status').textC orders in parallel...`;
+  document.getElementById('bsm-log').textContent='';
+  document.getElementById('bsm-done-msg').style.display='none';
+  document.getElementById('bsm-close-btn').style.display='none';
+  openModal('bulk-ship-modal');
+
+  // Chunk into batches of 20
+  const CHUNK=20; let ok=0,fail=0;
+  const log = document.getElementById('bsm-log');
+  for (let i=0;i<ids.length;i+=CHUNK) {
+    const chunk=ids.slice(i,i+CHUNK);
+    const d=await api('POST','/orders/bulk-ship',{orderIds:chunk});
+    if (d?.results) {
+      d.results.forEach(r=>{
+        if(r.success){ok++;log.innerHTML+=`<div style="color:var(--success)">✅ ${r.orderId} → ${r.awb}</div>`;}
+        else{fail++;log.innerHTML+=`<div style="color:var(--danger)">❌ ${r.id}: ${r.message}</div>`;}
+        log.scrollTop=log.scrollHeight;
+      });
+    } else { fail+=chunk.length; }
+    const done=Math.min(i+CHUNK,ids.length);
+    document.getElementById('bsm-ok').textContent=ok;
+    document.getElementById('bsm-fail').textContent=fail;
+    document.getElementById('bsm-bar').style.width=Math.round(done/total*100)+'%';
+    document.getElementById('bsm-status').textContent=`Processing... ${done}/${total}`;
+  }
+  document.getElementById('bsm-status').textContent=`Done! Shipped: ${ok} | Failed: ${fail}`;
+  document.getElementById('bsm-done-msg').style.display='block';
+  document.getElementById('bsm-close-btn').style.display='inline-flex';
+  selectedOrders.clear(); updateBulkActions();
+  loadWalletBalance();
+}
+
+// ─── BULK LABEL DOWNLOAD ──────────────────────────────────────────────────────
+async function bulkDownloadLabels() {
+  const ids = [...selectedOrders];
+  if (!ids.length) { toast('Select orders first','error'); return; }
+  toast(`Generating ${ids.length} labels...`,'info');
+  const res = await fetch(`${API}/orders/bulk-labels`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}, body:JSON.stringify({orderIds:ids}) });
+  if (!res.ok) { toast('Label generation failed','error'); return; }
+  const html = await res.text();
+  const w = window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),800);
+}
+function updateBulkActions() {
+  const n = selectedOrders.size;
+  const ba = document.getElementById('bulk-actions');
+  if (ba) ba.style.display = n>0?'flex':'none';
+  const sc = document.getElementById('selected-count');
+  if (sc) sc.textContent = n+' selected';
+  const lb = document.getElementById('bulk-label-btn');
+  if (lb) lb.style.display = n>0?'inline-flex':'none';
+}
+
+// ─── LABEL SETTINGS ───────────────────────────────────────────────────────────
+let labelSize = 'a4';
+async function loadLabelSettings() {
+  const d = await api('GET','/orders/label-settings');
+  const s = d?.settings || {};
+  const set = (id,val)=>{ const el=document.getElementById(id); if(el){ if(el.type==='checkbox') el.checked=!!val; else el.value=val||''; }};
+  set('ls-show-logo', s.showLogo);
+  set('ls-show-support', s.showSupportEmail);
+  set('ls-hide-phone', s.hideCustomerPhone);
+  set('ls-show-items', s.showItemTable);
+  set('ls-support-email', s.supportEmail);
+  set('ls-support-phone', s.supportPhone);
+  set('ls-label-note', s.labelNote);
+  set('ls-label-footer', s.labelFooter);
+  set('ls-brand-color', s.brandColor||'#0D1B3E');
+  set('ls-brand-color-hex', s.brandColor||'#0D1B3E');
+  set('ls-logo-url', s.customLogoUrl||'');
+  if (s.showLogo) document.getElementById('ls-logo-section').style.display='block';
+  if (s.showSupportEmail) document.getElementById('ls-support-section').style.display='block';
+  if (s.customLogoUrl) { document.getElementById('ls-logo-preview').style.display='block'; document.getElementById('ls-logo-img').src=s.customLogoUrl; }
+  if (s.labelSize) selectLabelSize(s.labelSize);
+  setTimeout(updateLabelPreview,100);
+}
+async function saveLabelSettings() {
+  const g = id => document.getElementById(id);
+  const payload = {
+    showLogo: g('ls-show-logo')?.checked||false,
+    customLogoUrl: g('ls-logo-url')?.value||'',
+    showSupportEmail: g('ls-show-support')?.checked||false,
+    supportEmail: g('ls-support-email')?.value||'',
+    supportPhone: g('ls-support-phone')?.value||'',
+    hideCustomerPhone: g('ls-hide-phone')?.checked||false,
+    showItemTable: g('ls-show-items')?.checked||false,
+    hidePickupAddress: g('ls-hide-pickup-addr')?.checked||false,
+    hidePickupPhone: g('ls-hide-pickup-phone')?.checked||false,
+    hideRtoAddress: g('ls-hide-rto-addr')?.checked||false,
+    hideRtoPhone: g('ls-hide-rto-phone')?.checked||false,
+    hideGst: g('ls-hide-gst')?.checked||false,
+    labelNote: g('ls-label-note')?.value||'',
+    labelFooter: g('ls-label-footer')?.value||'',
+    brandColor: g('ls-brand-color')?.value||'#0D1B3E',
+    labelSize
+  };
+  const d = await api('POST','/orders/label-settings', payload);
+  if (d?.success) toast('Label settings saved ✅','success'); else toast(d?.message||'Error','error');
+}
+function resetLabelSettings() {
+  ['ls-show-logo','ls-show-support','ls-hide-phone','ls-show-items','ls-hide-pickup-addr','ls-hide-pickup-phone','ls-hide-rto-addr','ls-hide-rto-phone','ls-hide-gst'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
+  set('ls-label-note','This is computer generated document, hence does not required signature.');
+  set('ls-label-footer',"Note: All disputes are subject to jurisdiction. Goods once sold will only be taken back or exchanged as per the store's exchange/return policy");
+  set('ls-brand-color','#0D1B3E'); set('ls-brand-color-hex','#0D1B3E');
+  document.getElementById('ls-logo-section').style.display='none';
+  document.getElementById('ls-support-section').style.display='none';
+  selectLabelSize('a4');
+  updateLabelPreview();
+  toast('Reset to defaults','info');
+}
+function switchLabelTab(idx,btn) {
+  [0,1,2].forEach(i=>{ const el=document.getElementById('ls-tab-'+i); if(el) el.style.display=i===idx?'block':'none'; });
+  document.querySelectorAll('#page-label-settings .pg-tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+}
+function toggleSupportFields() {
+  const show = document.getElementById('ls-show-support')?.checked;
+  const sec = document.getElementById('ls-support-section');
+  if (sec) sec.style.display = show?'block':'none';
+}
+function selectLabelSize(size) {
+  labelSize = size;
+  ['a4','100x150','4x6'].forEach(s=>{ document.getElementById('ls-size-'+s)?.classList.toggle('selected',s===size); });
+  updateLabelPreview();
+}
+function handleLogoUpload(input) {
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('ls-logo-url').value = e.target.result;
+    document.getElementById('ls-logo-img').src = e.target.result;
+    document.getElementById('ls-logo-preview').style.display='block';
+    document.getElementById('ls-logo-section').style.display='block';
+    updateLabelPreview();
+  };
+  reader.readAsDataURL(file);
+}
+document.addEventListener('change', e=>{ if(e.target.id==='ls-show-logo'){ document.getElementById('ls-logo-section').style.display=e.target.checked?'block':'none'; updateLabelPreview(); }});
+function getLabelSettings() {
+  const g=id=>{const el=document.getElementById(id);return el?(el.type==='checkbox'?el.checked:el.value):null;};
+  return {
+    showLogo:g('ls-show-logo'), customLogoUrl:g('ls-logo-url'),
+    showSupportEmail:g('ls-show-support'), supportEmail:g('ls-support-email'), supportPhone:g('ls-support-phone'),
+    hideCustomerPhone:g('ls-hide-phone'), showItemTable:g('ls-show-items'),
+    hidePickupAddress:g('ls-hide-pickup-addr'), hidePickupPhone:g('ls-hide-pickup-phone'),
+    hideRtoAddress:g('ls-hide-rto-addr'), hideRtoPhone:g('ls-hide-rto-phone'), hideGst:g('ls-hide-gst'),
+    labelNote:g('ls-label-note'), labelFooter:g('ls-label-footer'),
+    brandColor:g('ls-brand-color')||'#0D1B3E', labelSize
+  };
+}
+function updateLabelPreview() {
+  const ls = getLabelSettings();
+  const bc = ls.brandColor||'#0D1B3E';
+  const html = `
+  <div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">
+      <div>
+        ${ls.showLogo && ls.customLogoUrl ? `<img src="${ls.customLogoUrl}" style="height:32px;object-fit:contain"/>` : `<div style="font-weight:bold;font-size:11pt;color:${bc}">YOUR BRAND</div>`}
+        ${ls.showSupportEmail && (ls.supportEmail||ls.supportPhone) ? `<div style="font-size:6.5pt;color:#666">${ls.supportEmail||''} ${ls.supportPhone||''}</div>` : ''}
+        <div style="font-size:6pt;color:#999">Powered by SHIPORAX</div>
+      </div>
+      <div style="background:#c00;color:#fff;padding:3px 7px;border-radius:3px;font-weight:bold;font-size:9pt">COD ₹100</div>
+    </div>
+    <div style="margin-bottom:3mm">
+      <div style="font-size:6.5pt;color:#666;text-transform:uppercase;font-weight:bold">To:</div>
+      <div style="font-weight:bold;font-size:10pt">Mr. Kishan</div>
+      <div style="font-size:8pt">62, Test Patel Apartments, Sector-512, Gurugram, Haryana, India</div>
+      ${!ls.hideCustomerPhone ? '<div style="font-size:8pt">Mobile No: 9999999999</div>' : '<div style="font-size:7pt;color:#aaa;font-style:italic">(mobile hidden)</div>'}
+      <div style="font-size:8pt;font-weight:bold">131028</div>
+    </div>
+    <div style="border:1px solid #000;padding:3mm;text-align:center;margin-bottom:3mm">
+      <div style="font-size:7pt;font-family:monospace;letter-spacing:-0.5px">||||||||||||||||||||||||||||||||||||||||||</div>
+      <div style="font-size:11pt;font-weight:bold;letter-spacing:2px">1686558180</div>
+      <div style="font-size:6.5pt;color:#666">Order: Jul 27,2023 | Invoice No: 1686558180</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:7.5pt;border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">
+      <div><div style="font-weight:bold;color:${bc}">Delhivery</div><div style="color:#666">XSE21157413001</div></div>
+      <div style="text-align:right"><div>WEIGHT: 0.5KG</div><div style="color:#666;font-size:6.5pt">Dims: 10x10x10cm</div></div>
+    </div>
+    ${ls.showItemTable ? '<table style="width:100%;border-collapse:collapse;font-size:7pt;margin-bottom:2mm"><tr style="background:#f5f5f5"><th style="border:1px solid #ccc;padding:1mm;text-align:left">Item Name</th><th style="border:1px solid #ccc;padding:1mm">Qty</th><th style="border:1px solid #ccc;padding:1mm">Amount</th></tr><tr><td style="border:1px solid #ccc;padding:1mm">Product</td><td style="border:1px solid #ccc;padding:1mm;text-align:center">1</td><td style="border:1px solid #ccc;padding:1mm;text-align:right">₹100</td></tr></table>' : ''}
+    ${!ls.hidePickupAddress ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt"><div style="font-weight:bold;color:#444">Pickup Address:</div><div>Pickup Warehouse Name</div><div>Test 234 45678 Gurugram, Haryana, India - 122001</div>${!ls.hidePickupPhone?'<div>Mobile No: 9999999999'+(!ls.hideGst?' , GST No: 123456789876543':'')+'</div>':''}</div>` : ''}
+    ${!ls.hideRtoAddress ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt"><div style="font-weight:bold;color:#444">Return Address:</div><div>Return Warehouse Name</div><div>Test 234 45678 Gurugram, Haryana, India - 122001</div></div>` : ''}
+    <div style="border-top:1px solid #ccc;padding-top:2mm;margin-top:2mm;font-size:6pt;color:#666">
+      ${ls.labelNote||'This is computer generated document, hence does not required signature.'}
+      <div>${ls.labelFooter||"Note: All disputes are subject to jurisdiction. Goods once sold will only be taken back or exchanged as per the store's exchange/return policy"}</div>
+    </div>
+  </div>`;
+  const prev = document.getElementById('label-preview-inner');
+  if (prev) prev.innerHTML = html;
+}
+function printLabelPreview() {
+  const html = document.getElementById('label-preview-inner')?.innerHTML;
+  if (!html) return;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;margin:0;padding:8mm}@media print{body{margin:0}}</style></head><body>${html}</body></html>`);
+  w.document.close(); setTimeout(()=>w.print(),500);
 }
 
 // ─── HELPERS ───────────────────────────────────────────────────────────────────
