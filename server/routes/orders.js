@@ -44,11 +44,29 @@ async function calcShippingCost(userId, courierId, weight, paymentMode, codAmoun
 router.post('/bulk-upload', protect, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
-    const content = fs.readFileSync(req.file.path, 'utf8');
+    // Read file — strip BOM (Excel CSV exports prepend \uFEFF which corrupts first header)
+    let rawContent;
+    const fileName = req.file.originalname || '';
+    const isExcel = /\.xlsx$/i.test(fileName);
+
+    if (isExcel) {
+      // Parse Excel file using xlsx library
+      const XLSX = require('xlsx');
+      const wb = XLSX.readFile(req.file.path);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      rawContent = XLSX.utils.sheet_to_csv(ws, { blankrows: false });
+    } else {
+      rawContent = fs.readFileSync(req.file.path, 'utf8');
+    }
+
+    // Strip UTF-8 BOM if present (common in Excel-exported CSVs)
+    const content = rawContent.replace(/^\uFEFF/, '');
+
     const lines = content.trim().split('\n');
     if (lines.length < 2) return res.status(400).json({ success: false, message: 'File is empty or has no data rows' });
 
-    const headers = lines[0].split(',').map(h => h.replace(/["'\r]/g, '').trim().toLowerCase());
+    // Strip BOM, quotes, \r, and whitespace from all header names
+    const headers = lines[0].split(',').map(h => h.replace(/[\uFEFF"'\r\t]/g, '').trim().toLowerCase());
     const rows = lines.slice(1).filter(r => r.trim());
 
     // Load user's warehouses for warehouse_id mapping
@@ -309,5 +327,15 @@ function generateLabelHTML(order, ls, user) {
     </div>
   </div>`;
 }
+
+// ─── PINCODE LOOKUP (must be present when orders_enhanced.js replaces orders.js)
+router.get('/pincode/:pincode', protect, async (req, res) => {
+  try {
+    const data = await fetchPincodeData(req.params.pincode);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 module.exports = router;
