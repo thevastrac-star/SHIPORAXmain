@@ -35,37 +35,80 @@ router.get('/ping', protect, adminOnly, (req, res) =>
   res.json({ success: true, message: 'Selloship credentials are valid ✅' })
 );
 
-// ─── DEBUG: raw serviceability response (admin only) ──────────────────────────
-// GET /api/selloship/debug-couriers?pincode=110001&weight=0.5&paymentMode=PREPAID
+// ─── DEBUG: probe multiple possible serviceability URLs ──────────────────────
 router.get('/debug-couriers', protect, adminOnly, async (req, res) => {
   const axios = require('axios');
-  const { BASE } = require('../utils/selloship');
-  const { pincode, weight, paymentMode } = req.query;
-  const weightGrams = String(Math.round((parseFloat(weight) || 0.5) * 1000));
-  try {
-    // Try GET
-    const getRes = await axios.get(`${BASE}/serviceability`, {
-      headers: { 'Content-Type': 'application/json', 'Authorization': req.selloToken },
-      params: { pincode: pincode || '', weight: weightGrams, paymentMode: (paymentMode || 'PREPAID').toUpperCase() },
-      timeout: 15000
-    }).catch(e => ({ error: true, status: e?.response?.status, data: e?.response?.data, msg: e.message }));
+  const BASE = 'https://selloship.com/api/lock_actvs/channels';
+  const BASE2 = 'https://selloship.com/api/lock_actvs';
+  const BASE3 = 'https://selloship.com/api';
+  const { pincode = '110001', weight = '0.5', paymentMode = 'PREPAID' } = req.query;
+  const wg = String(Math.round((parseFloat(weight) || 0.5) * 1000));
+  const headers = { 'Content-Type': 'application/json', 'Authorization': req.selloToken };
+  const body = { pincode, weight: wg, paymentMode: paymentMode.toUpperCase() };
 
-    // Try POST as fallback
-    const postRes = await axios.post(`${BASE}/serviceability`,
-      { pincode: pincode || '', weight: weightGrams, paymentMode: (paymentMode || 'PREPAID').toUpperCase() },
-      { headers: { 'Content-Type': 'application/json', 'Authorization': req.selloToken }, timeout: 15000 }
-    ).catch(e => ({ error: true, status: e?.response?.status, data: e?.response?.data, msg: e.message }));
+  const probe = async (method, url, opts = {}) => {
+    try {
+      const r = method === 'GET'
+        ? await axios.get(url, { headers, params: body, timeout: 8000 })
+        : await axios.post(url, body, { headers, timeout: 8000 });
+      return { status: r.status, data: typeof r.data === 'string' ? r.data.slice(0, 200) : r.data };
+    } catch (e) {
+      return { status: e?.response?.status, data: typeof e?.response?.data === 'string' ? e.response.data.slice(0,200) : e?.response?.data, err: e.message };
+    }
+  };
 
-    res.json({
-      success: true,
-      token_preview: req.selloToken ? req.selloToken.slice(0, 20) + '...' : 'MISSING',
-      params_sent: { pincode, weight: weightGrams, paymentMode },
-      get_response:  getRes.data  || getRes,
-      post_response: postRes.data || postRes
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  const results = await Promise.all([
+    probe('GET',  BASE  + '/serviceability'),
+    probe('POST', BASE  + '/serviceability'),
+    probe('GET',  BASE  + '/checkServiceability'),
+    probe('POST', BASE  + '/checkServiceability'),
+    probe('GET',  BASE  + '/courierServiceability'),
+    probe('POST', BASE  + '/courierServiceability'),
+    probe('GET',  BASE2 + '/serviceability'),
+    probe('POST', BASE2 + '/serviceability'),
+    probe('GET',  BASE3 + '/serviceability'),
+    probe('POST', BASE3 + '/serviceability'),
+    probe('GET',  BASE  + '/availableCouriers'),
+    probe('POST', BASE  + '/availableCouriers'),
+    probe('GET',  BASE  + '/couriers'),
+    probe('POST', BASE  + '/couriers'),
+    probe('GET',  BASE  + '/getServiceability'),
+    probe('POST', BASE  + '/getServiceability'),
+  ]);
+
+  const labels = [
+    'GET  BASE/serviceability',
+    'POST BASE/serviceability',
+    'GET  BASE/checkServiceability',
+    'POST BASE/checkServiceability',
+    'GET  BASE/courierServiceability',
+    'POST BASE/courierServiceability',
+    'GET  BASE2/serviceability',
+    'POST BASE2/serviceability',
+    'GET  BASE3/serviceability',
+    'POST BASE3/serviceability',
+    'GET  BASE/availableCouriers',
+    'POST BASE/availableCouriers',
+    'GET  BASE/couriers',
+    'POST BASE/couriers',
+    'GET  BASE/getServiceability',
+    'POST BASE/getServiceability',
+  ];
+
+  const summary = results.map((r, i) => ({
+    url: labels[i],
+    status: r.status,
+    looks_good: r.status === 200 && !JSON.stringify(r.data).includes('404') && !JSON.stringify(r.data).includes('Not Found'),
+    data_preview: JSON.stringify(r.data).slice(0, 120)
+  }));
+
+  res.json({
+    success: true,
+    token_ok: !!req.selloToken,
+    token_preview: req.selloToken?.slice(0,20) + '...',
+    working_endpoints: summary.filter(s => s.looks_good),
+    all_results: summary
+  });
 });
 
 // ─── AVAILABLE COURIERS (serviceability) ─────────────────────────────────────
