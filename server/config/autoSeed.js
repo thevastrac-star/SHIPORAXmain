@@ -1,6 +1,6 @@
 // autoSeed.js — runs on server start, idempotent
 const User         = require('../models/User');
-const { Courier, ShippingRate, Settings } = require('../models/index');
+const { Courier, CourierSelloshipMapping, ShippingRate, Settings } = require('../models/index');
 
 async function autoSeed() {
   try {
@@ -35,41 +35,64 @@ async function autoSeed() {
       }
     }
 
-    // ── Couriers ──────────────────────────────────────────────────────────────
-    const couriers = [
-      { name: 'Delhivery',  code: 'DELHIVERY',  supportsCOD: true, isActive: true },
-      { name: 'Blue Dart',  code: 'BLUEDART',   supportsCOD: true, isActive: true },
-      { name: 'Ekart',      code: 'EKART',       supportsCOD: true, isActive: true },
-      { name: 'DTDC',       code: 'DTDC',        supportsCOD: true, isActive: true },
-      { name: 'Xpressbees', code: 'XPRESSBEES', supportsCOD: true, isActive: true }
-    ];
-    for (const c of couriers) {
-      await Courier.findOneAndUpdate({ code: c.code }, c, { upsert: true, new: true });
-    }
-    console.log('✅ Couriers ready (5)');
+    // ── Couriers: only Delhivery FR and Amazon Shipping ──────────────────────
+    // Disable any legacy couriers that aren't in our approved list
+    await Courier.updateMany(
+      { code: { $nin: ['DLVRY', 'AMZN'] } },
+      { $set: { isActive: false } }
+    );
 
-    // FIX #6: seed uses correct ShippingRate schema fields (zones.a/b/c/d/e, additionalWeightRate, cod.*)
-    const delhivery = await Courier.findOne({ code: 'DELHIVERY' });
-    if (delhivery) {
-      const rateExists = await ShippingRate.findOne({ courier: delhivery._id, user: null });
+    const approvedCouriers = [
+      {
+        courier: { name: 'Delhivery FR', code: 'DLVRY', supportsCOD: true, isActive: true,
+          logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Delhivery-Logo.svg/200px-Delhivery-Logo.svg.png' },
+        mapping: { selloshipCourierId: '30', selloshipCourierName: 'Delhivery FR', isAutoRoute: false, isActive: true,
+          notes: 'Delhivery Forward via Selloship — courier_id 30' }
+      },
+      {
+        courier: { name: 'Amazon Shipping', code: 'AMZN', supportsCOD: true, isActive: true,
+          logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amazon_logo.svg/200px-Amazon_logo.svg.png' },
+        mapping: { selloshipCourierId: '24', selloshipCourierName: 'Amazon Shipping', isAutoRoute: false, isActive: true,
+          notes: 'Amazon Shipping via Selloship — courier_id 24' }
+      }
+    ];
+
+    for (const def of approvedCouriers) {
+      const c = await Courier.findOneAndUpdate(
+        { code: def.courier.code },
+        def.courier,
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      // Upsert the selloship mapping for this courier
+      const existingMap = await CourierSelloshipMapping.findOne({ courier: c._id });
+      if (!existingMap) {
+        await CourierSelloshipMapping.create({ courier: c._id, ...def.mapping });
+        console.log(`✅ Courier + mapping created: ${c.name} (Selloship ID: ${def.mapping.selloshipCourierId})`);
+      } else {
+        await CourierSelloshipMapping.findByIdAndUpdate(existingMap._id, def.mapping);
+        console.log(`✔  Courier + mapping verified: ${c.name}`);
+      }
+
+      // Seed default rates if none exist
+      const rateExists = await ShippingRate.findOne({ courier: c._id, user: null });
       if (!rateExists) {
         await ShippingRate.insertMany([
           {
-            courier: delhivery._id, user: null, slabName: 'Light (up to 500g)',
+            courier: c._id, user: null, slabName: 'Light (up to 500g)',
             zones: { a: 40, b: 55, c: 60, d: 70, e: 90 },
             minWeight: 0, maxWeight: 0.5, additionalWeightRate: 20,
             cod: { mode: 'threshold', flat: 30, percent: 1.5, thresholdAmount: 1500 },
             fuelSurcharge: 0, isActive: true
           },
           {
-            courier: delhivery._id, user: null, slabName: 'Standard (500g–2kg)',
+            courier: c._id, user: null, slabName: 'Standard (500g–2kg)',
             zones: { a: 55, b: 70, c: 80, d: 90, e: 120 },
             minWeight: 0.5, maxWeight: 2, additionalWeightRate: 25,
             cod: { mode: 'threshold', flat: 30, percent: 1.5, thresholdAmount: 1500 },
             fuelSurcharge: 0, isActive: true
           }
         ]);
-        console.log('✅ Sample rates created for Delhivery');
+        console.log(`✅ Default rates seeded for ${c.name}`);
       }
     }
 

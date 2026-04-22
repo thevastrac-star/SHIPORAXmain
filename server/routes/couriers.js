@@ -205,4 +205,14 @@ router.patch('/:id/api-config', protect, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+router.delete('/:id', protect, adminOnly, async (req, res) => {
+  try {
+    const { CourierSelloshipMapping } = require('../models/index');
+    await Courier.findByIdAndDelete(req.params.id);
+    await CourierSelloshipMapping.deleteMany({ courier: req.params.id });
+    await logActivity(req.user._id, 'admin', 'COURIER_DELETE', 'Courier', req.params.id, {}, req.ip);
+    res.json({ success: true, message: 'Courier deleted' });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 module.exports = router;

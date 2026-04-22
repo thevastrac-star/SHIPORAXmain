@@ -821,12 +821,16 @@ textarea{resize:vertical;min-height:80px}
 
 <!-- Platform Courier Create/Edit Modal -->
 <div class="modal" id="pcm-modal">
-  <div class="modal-box" style="max-width:500px">
+  <div class="modal-box" style="max-width:540px">
     <div class="modal-header"><span id="pcm-modal-title">Create Platform Courier</span><button class="close-btn" onclick="closeModal('pcm-modal')">✕</button></div>
     <input type="hidden" id="pcm-id"/>
-    <div class="form-group"><label>Courier Name *</label><input id="pcm-name" placeholder="e.g. Delhivery Fast, Bluedart Express" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+    <input type="hidden" id="pcm-mapping-id"/>
+
+    <!-- Courier Details -->
+    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">📦 Courier Details</div>
+    <div class="form-group"><label>Courier Name *</label><input id="pcm-name" placeholder="e.g. Delhivery FR, Amazon Shipping" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
     <div class="form-row">
-      <div class="form-group"><label>Courier Code *</label><input id="pcm-code" placeholder="e.g. DLVRY, BLUE" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
+      <div class="form-group"><label>Courier Code *</label><input id="pcm-code" placeholder="e.g. DLVRY, AMZN" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
       <div class="form-group"><label>Supports COD?</label>
         <select id="pcm-cod" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none">
           <option value="true">Yes</option><option value="false">No</option>
@@ -834,7 +838,36 @@ textarea{resize:vertical;min-height:80px}
       </div>
     </div>
     <div class="form-group"><label>Logo URL (optional)</label><input id="pcm-logo" placeholder="https://..." style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/></div>
-    <button class="btn btn-primary" onclick="savePlatformCourier()" style="width:100%">💾 Save Courier</button>
+
+    <!-- Selloship Routing -->
+    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:16px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">⚡ Selloship Routing (Courier API)</div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;font-size:.78rem;color:#1e40af;margin-bottom:12px">
+      Paste the <b>courier_id</b> and <b>courier_name</b> from Selloship API. This tells Selloship which courier to use when a client ships with this platform courier.
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+      <label style="font-size:.85rem;font-weight:600;margin:0;white-space:nowrap">Auto Route</label>
+      <input type="checkbox" id="pcm-autoroute" onchange="togglePcmAutoRoute()" style="width:18px;height:18px;cursor:pointer;accent-color:var(--primary)"/>
+      <span style="font-size:.78rem;color:var(--text-muted)">(Let Selloship pick best courier automatically)</span>
+    </div>
+    <div id="pcm-sello-fields">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Selloship Courier ID *</label>
+          <input id="pcm-sello-id" placeholder='e.g. 30 (Delhivery FR) or 24 (Amazon)' style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box;font-family:monospace"/>
+        </div>
+        <div class="form-group">
+          <label>Selloship Courier Name *</label>
+          <input id="pcm-sello-name" placeholder='e.g. Delhivery FR or Amazon Shipping' style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/>
+        </div>
+      </div>
+      <div style="font-size:.74rem;color:var(--text-muted);margin-top:-8px;margin-bottom:12px">
+        💡 Quick fill: 
+        <a href="#" onclick="pcmFillSelloship('30','Delhivery FR');return false" style="color:var(--primary);font-weight:600;margin-right:8px">Delhivery FR (30)</a>
+        <a href="#" onclick="pcmFillSelloship('24','Amazon Shipping');return false" style="color:var(--primary);font-weight:600">Amazon Shipping (24)</a>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="savePlatformCourier()" style="width:100%;margin-top:4px">💾 Save Courier</button>
   </div>
 </div>
 
@@ -2748,21 +2781,25 @@ async function loadPlatformCouriersTab() {
       <td>${c.supportsCOD ? '✅' : '✗'}</td>
       <td>${mapped}</td>
       <td><span class="status s-${c.isActive ? 'approved' : 'rejected'}">${c.isActive ? 'Active' : 'Disabled'}</span></td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-outline btn-xs" onclick="openEditPlatformCourierModal('${c._id}')">✏️ Edit</button>
+      <td><button class="btn btn-outline btn-xs" onclick="openEditPlatformCourierModal('${c._id}')">✏️ Edit</button>
         <button class="btn btn-xs ${c.isActive ? 'btn-danger' : 'btn-success'}" onclick="togglePlatformCourier('${c._id}')">${c.isActive ? 'Disable' : 'Enable'}</button>
-      </td>
+        <button class="btn btn-danger btn-xs" onclick="deletePlatformCourier('${c._id}','${c.name}')" title="Delete courier permanently">🗑</button></td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" class="empty">No platform couriers. Click + Create Courier.</td></tr>';
 }
 
 function openNewPlatformCourierModal() {
-  document.getElementById('pcm-id').value    = '';
-  document.getElementById('pcm-name').value  = '';
-  document.getElementById('pcm-code').value  = '';
-  document.getElementById('pcm-logo').value  = '';
-  document.getElementById('pcm-cod').value   = 'true';
-  document.getElementById('pcm-modal-title').textContent = 'Create Platform Courier';
+  document.getElementById('pcm-id').value         = '';
+  document.getElementById('pcm-mapping-id').value = '';
+  document.getElementById('pcm-name').value        = '';
+  document.getElementById('pcm-code').value        = '';
+  document.getElementById('pcm-logo').value        = '';
+  document.getElementById('pcm-cod').value         = 'true';
+  document.getElementById('pcm-sello-id').value    = '';
+  document.getElementById('pcm-sello-name').value  = '';
+  document.getElementById('pcm-autoroute').checked = false;
+  document.getElementById('pcm-sello-fields').style.display = 'block';
+  document.getElementById('pcm-modal-title').textContent = 'Create Courier';
   openModal('pcm-modal');
 }
 async function openEditPlatformCourierModal(id) {
@@ -2774,11 +2811,31 @@ async function openEditPlatformCourierModal(id) {
   document.getElementById('pcm-code').value  = c.code;
   document.getElementById('pcm-logo').value  = c.logoUrl || '';
   document.getElementById('pcm-cod').value   = String(c.supportsCOD);
-  document.getElementById('pcm-modal-title').textContent = 'Edit Platform Courier';
+  // Load existing mapping if any
+  const md = await api('GET', '/selloship/mappings');
+  const mapping = (md?.mappings || []).find(m => (m.courier?._id || m.courier) === c._id);
+  document.getElementById('pcm-mapping-id').value = mapping?._id || '';
+  document.getElementById('pcm-sello-id').value   = mapping?.selloshipCourierId || '';
+  document.getElementById('pcm-sello-name').value = mapping?.selloshipCourierName || '';
+  const ar = mapping?.isAutoRoute || false;
+  document.getElementById('pcm-autoroute').checked = ar;
+  document.getElementById('pcm-sello-fields').style.display = ar ? 'none' : 'block';
+  document.getElementById('pcm-modal-title').textContent = 'Edit Courier';
   openModal('pcm-modal');
+}
+function togglePcmAutoRoute() {
+  const ar = document.getElementById('pcm-autoroute').checked;
+  document.getElementById('pcm-sello-fields').style.display = ar ? 'none' : 'block';
+}
+function pcmFillSelloship(id, name) {
+  document.getElementById('pcm-sello-id').value   = id;
+  document.getElementById('pcm-sello-name').value = name;
+  document.getElementById('pcm-autoroute').checked = false;
+  document.getElementById('pcm-sello-fields').style.display = 'block';
 }
 async function savePlatformCourier() {
   const id      = document.getElementById('pcm-id').value;
+  const mapId   = document.getElementById('pcm-mapping-id').value;
   const payload = {
     name:        document.getElementById('pcm-name').value.trim(),
     code:        document.getElementById('pcm-code').value.trim().toUpperCase(),
@@ -2786,15 +2843,45 @@ async function savePlatformCourier() {
     logoUrl:     document.getElementById('pcm-logo').value.trim()
   };
   if (!payload.name || !payload.code) { toast('Name and Code are required','error'); return; }
+
   const d = id
     ? await api('PATCH', `/couriers/${id}`, payload)
     : await api('POST',  '/couriers',       payload);
-  if (d?.success) {
-    toast(`Courier ${id ? 'updated' : 'created'}`, 'success');
-    closeModal('pcm-modal');
-    loadPlatformCouriersTab();
-    loadCouriers(); // refresh main couriers page too
-  } else toast(d?.message || 'Error', 'error');
+  if (!d?.success) { toast(d?.message || 'Error saving courier', 'error'); return; }
+
+  const courierId = d.courier?._id || id;
+
+  // Save Selloship mapping
+  const isAutoRoute   = document.getElementById('pcm-autoroute').checked;
+  const selloId       = document.getElementById('pcm-sello-id').value.trim();
+  const selloName     = document.getElementById('pcm-sello-name').value.trim();
+
+  if (isAutoRoute || selloId || selloName) {
+    const mapPayload = {
+      courierId,
+      selloshipCourierId:   selloId,
+      selloshipCourierName: selloName,
+      isAutoRoute,
+      isActive: true
+    };
+    const md = mapId
+      ? await api('PATCH', `/selloship/mappings/${mapId}`, mapPayload)
+      : await api('POST',  '/selloship/mappings',          mapPayload);
+    if (!md?.success) toast('Courier saved but mapping failed: ' + (md?.message||''), 'error');
+    else toast(`Courier ${id ? 'updated' : 'created'} + routing saved ✅`, 'success');
+  } else {
+    toast(`Courier ${id ? 'updated' : 'created'} ✅`, 'success');
+  }
+
+  closeModal('pcm-modal');
+  loadPlatformCouriersTab();
+  loadCouriers();
+}
+async function deletePlatformCourier(id, name) {
+  if (!confirm(`⚠️ Permanently delete courier "${name}"?\n\nThis will also delete its Selloship mapping. This cannot be undone.`)) return;
+  const d = await api('DELETE', `/couriers/${id}`);
+  if (d?.success) { toast(`Courier "${name}" deleted`, 'success'); loadPlatformCouriersTab(); loadCouriers(); }
+  else toast(d?.message || 'Error', 'error');
 }
 async function togglePlatformCourier(id) {
   const d = await api('PATCH', `/couriers/${id}/toggle`);

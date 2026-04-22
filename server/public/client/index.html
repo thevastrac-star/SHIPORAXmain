@@ -42,7 +42,6 @@ body{
   background:var(--bg);color:var(--text);
   display:flex;min-height:100vh;font-size:15px;
   -webkit-font-smoothing:antialiased;
-  overflow-x:hidden;
 }
 
 /* ── SIDEBAR ── */
@@ -305,7 +304,7 @@ td b{color:var(--text)}
   #mob-topbar{
     display:flex;align-items:center;justify-content:space-between;
     background:#0D1B3E;padding:12px 16px;
-    position:sticky;top:0;z-index:500;
+    position:sticky;top:0;z-index:200;
     box-shadow:0 2px 8px rgba(0,0,0,.2);
   }
   #mob-topbar .mob-brand{display:flex;align-items:center;gap:8px}
@@ -315,14 +314,14 @@ td b{color:var(--text)}
   #mob-topbar .mob-wallet{background:rgba(240,90,34,.15);border:1px solid rgba(240,90,34,.3);color:#FF8C42;padding:5px 12px;border-radius:999px;font-size:.75rem;font-weight:700}
 
   #mob-nav{
-    display:flex;position:fixed;bottom:0;left:0;right:0;z-index:500;
+    display:flex;position:fixed;bottom:0;left:0;right:0;z-index:200;
     background:#0D1B3E;border-top:1.5px solid rgba(255,255,255,.1);
     padding:6px 0 max(6px, env(safe-area-inset-bottom));
     box-shadow:0 -4px 16px rgba(0,0,0,.3);
   }
   .mob-nav-item{
     flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-    padding:8px 4px;cursor:pointer;transition:.15s;touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:rgba(240,90,34,.2);
+    padding:6px 4px;cursor:pointer;transition:.15s;
     font-size:.58rem;font-weight:600;color:rgba(255,255,255,.5);
     text-transform:uppercase;letter-spacing:.04em;position:relative;
   }
@@ -429,7 +428,7 @@ td b{color:var(--text)}
 /* ── MODAL ── */
 .modal{
   display:none;position:fixed;inset:0;
-  background:rgba(18,23,43,.45);z-index:600;
+  background:rgba(18,23,43,.45);z-index:200;
   align-items:center;justify-content:center;
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
 }
@@ -455,7 +454,7 @@ td b{color:var(--text)}
 .close-btn:hover{background:var(--danger-light);color:var(--danger)}
 
 /* ── TOAST ── */
-#toast{position:fixed;bottom:80px;right:16px;z-index:499;display:flex;flex-direction:column;gap:8px}
+#toast{position:fixed;bottom:28px;right:28px;z-index:999;display:flex;flex-direction:column;gap:8px}
 .toast-item{
   padding:13px 20px;border-radius:var(--r2);
   font-size:.875rem;font-weight:600;
@@ -1469,7 +1468,6 @@ let currentUser = JSON.parse(localStorage.getItem('client_user') || '{}');
 let ordersPage = 1;
 let trackingPage = 1;
 let selectedOrders = new Set();
-let selectedTrackIds = new Set();
 let couriersCache = [];
 let selectedCourierId = null;
 let activeTicketId = null;
@@ -1945,9 +1943,9 @@ function renderOrderRows(orders, total, pages, page) {
         : '';
       actionCell = editBtn + `<button class="btn btn-primary btn-xs" onclick="shipOrder('${o._id}')">🚀 Ship</button> <button class="btn btn-outline btn-xs" onclick="cloneOrder('${o._id}')" title="Clone Order">🔁</button>`;
     } else if (isShipped && sello?.labelUrl) {
-      actionCell = `<a href="${sello.labelUrl}" target="_blank" class="btn btn-outline btn-xs">🏷 Label</a> <button class="btn btn-outline btn-xs" onclick="cloneOrder('${o._id}')" title="Clone Order">🔁</button>`;
+      actionCell = `<a href="${sello.labelUrl}" target="_blank" class="btn btn-outline btn-xs">🏷 Label</a> <button class="btn btn-outline btn-xs" onclick="printOrderLabel('${o._id}')" title="Print with label settings">🖨</button> <button class="btn btn-outline btn-xs" onclick="cloneOrder('${o._id}')" title="Clone Order">🔁</button>`;
     } else if (isShipped) {
-      actionCell = `<span style="font-size:.72rem;color:var(--muted)">${o.status}</span>`;
+      actionCell = `<button class="btn btn-outline btn-xs" onclick="printOrderLabel('${o._id}')" title="Print label">🖨 Label</button> <button class="btn btn-outline btn-xs" onclick="cloneOrder('${o._id}')" title="Clone Order">🔁</button>`;
     } else {
       actionCell = `<span style="font-size:.72rem;color:var(--muted)">${o.status}</span>`;
     }
@@ -2045,8 +2043,11 @@ async function loadTracking() {
       <td><span class="status s-${o.status}">${o.status}</span></td>
       <td>${fmtDate(o.updatedAt)}</td>
       <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
-        ${labelUrl ? `<a href="${labelUrl}" target="_blank" class="btn btn-outline btn-xs">🏷 Label</a>` : ''}
-        ${isCancellable ? `<button class="btn btn-danger btn-xs" onclick="openCancelModal('${o._id}','${o.orderId}','${o.awbNumber||''}',${o.shippingCharge||0})">❌ Cancel</button>` : `<span style="color:var(--muted);font-size:.78rem">${o.status}</span>`}
+        ${labelUrl
+          ? `<a href="${labelUrl}" target="_blank" class="btn btn-primary btn-xs" title="Download Label">📥 Label</a>`
+          : (o.awbNumber ? `<button class="btn btn-outline btn-xs" onclick="fetchAndDownloadLabel('${o._id}')" title="Fetch & Download Label">📥 Label</button>` : '')}
+        <button class="btn btn-outline btn-xs" onclick="printOrderLabel('${o._id}')" title="Print Label">🖨</button>
+        ${isCancellable ? `<button class="btn btn-danger btn-xs" onclick="openCancelModal('${o._id}','${o.orderId}','${o.awbNumber||''}',${o.shippingCharge||0})">❌ Cancel</button>` : ''}
       </td>
     </tr>`;
   }).join('') || `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">
@@ -2111,22 +2112,20 @@ async function shipOrder(id) {
   const o = d.order;
   somCurrentOrder = o;
   somSelectedCourierId = null;
+  const weight = o.package?.weight || 0.5;
   document.getElementById('som-order-id').value = id;
   document.getElementById('som-order-info').innerHTML =
     `<b style="color:var(--text)">${o.orderId}</b> &nbsp;|&nbsp; ${o.recipient?.name} &nbsp;|&nbsp; ${o.recipient?.city||''} ${o.recipient?.pincode||''}
      &nbsp;|&nbsp; <span class="status s-${o.paymentMode}">${o.paymentMode==='cod'?'COD ₹'+o.codAmount:'Prepaid'}</span>
-     &nbsp;|&nbsp; Weight: ${o.package?.weight||0.5} kg`;
-  const cd = await api('GET', '/couriers');
-  // Selloship has no courier listing API — courier routing is handled
-  // automatically by the mapping config in admin. Only platform couriers shown here.
+     &nbsp;|&nbsp; Weight: ${weight} kg`;
+  const [cd, wb] = await Promise.all([api('GET', '/couriers'), api('GET', '/wallet/balance')]);
+  document.getElementById('som-wallet-bal').textContent = (wb?.balance||0).toFixed(2);
 
   const somBox = document.getElementById('som-couriers');
   let html = '';
-  // Local couriers section
   if (cd?.success && cd.couriers?.length) {
-    html += `<div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;padding:4px 0 2px;border-bottom:1px solid var(--border)">🏠 Platform Couriers</div>`;
     html += cd.couriers.map(c => `
-      <div class="courier-card" id="som-cc-${c._id}" onclick="somSelectCourier('${c._id}','${c.name}',${weight},'${o.paymentMode}',${o.codAmount||0},'local')">
+      <div class="courier-card" id="som-cc-${c._id}" onclick="somSelectCourier('${c._id}','${encodeURIComponent(c.name)}',${weight},'${o.paymentMode}',${o.codAmount||0},'local')">
         <div class="check">✓</div>
         <div class="courier-name">${c.logoUrl?`<img src="${c.logoUrl}" height="20" style="border-radius:4px;margin-right:6px;vertical-align:middle"/>`:'🚚 '}${c.name}</div>
         <div class="courier-sub">${c.code||''}</div>
@@ -2136,10 +2135,15 @@ async function shipOrder(id) {
   somBox.innerHTML = html;
   document.getElementById('som-cost-box').style.display = 'none';
   document.getElementById('som-confirm-btn').disabled = true;
-  document.getElementById('som-confirm-btn').textContent = '🚀 Confirm & Deduct Wallet';
-  const wb = await api('GET', '/wallet/balance');
-  document.getElementById('som-wallet-bal').textContent = (wb?.balance||0).toFixed(2);
+  document.getElementById('som-confirm-btn').textContent = '🚀 Confirm & Ship';
   openModal('ship-order-modal');
+
+  // Auto-select courier: if order already has one, or only one available
+  if (cd?.success && cd.couriers?.length) {
+    const preselect = cd.couriers.find(c => o.assignedCourier?._id === c._id || o.assignedCourier === c._id)
+      || (cd.couriers.length === 1 ? cd.couriers[0] : null);
+    if (preselect) somSelectCourier(preselect._id, encodeURIComponent(preselect.name), weight, o.paymentMode, o.codAmount||0, 'local');
+  }
 }
 
 async function somSelectCourier(courierId, courierName, weight, paymentMode, codAmount, type='local') {
@@ -2204,6 +2208,19 @@ async function confirmShipOrder() {
   }
 }
 
+
+async function fetchAndDownloadLabel(orderId) {
+  try {
+    const d = await api('GET', `/orders/${orderId}`);
+    if (!d?.success) { toast('Could not load order', 'error'); return; }
+    const labelUrl = d.order?.selloship?.labelUrl;
+    if (labelUrl) {
+      window.open(labelUrl, '_blank');
+    } else {
+      toast('Label not available yet. It will appear once the order is shipped.', 'error');
+    }
+  } catch(e) { toast('Error fetching label: ' + e.message, 'error'); }
+}
 
 async function bulkDeleteSelected() {
   if (!selectedOrders.size) return;
@@ -2906,6 +2923,7 @@ function logout() { localStorage.removeItem('client_token'); localStorage.remove
 document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); }));
 
 // ─── TRACKING BULK SELECT ─────────────────────────────────────────────────────
+const selectedTrackIds = new Set();
 function toggleTrackSelect(id, checked) {
   checked ? selectedTrackIds.add(id) : selectedTrackIds.delete(id);
   updateTrackBulkBtns();
@@ -2926,10 +2944,17 @@ function updateTrackBulkBtns() {
 }
 async function bulkDownloadLabels() {
   const checks = [...document.querySelectorAll('.track-check:checked')];
-  const urls = checks.map(c => c.dataset.label).filter(Boolean);
-  if (!urls.length) { toast('No labels available for selected orders', 'error'); return; }
-  urls.forEach((url, i) => setTimeout(() => window.open(url, '_blank'), i * 300));
-  toast(`📥 Opening ${urls.length} label(s)...`, 'success');
+  if (!checks.length) { toast('Select orders first', 'error'); return; }
+  const withUrl = checks.filter(c => c.dataset.label);
+  const withoutUrl = checks.filter(c => !c.dataset.label);
+  if (withUrl.length) {
+    withUrl.forEach((c, i) => setTimeout(() => window.open(c.dataset.label, '_blank'), i * 300));
+    toast(`📥 Opening ${withUrl.length} label(s)...`, 'success');
+  }
+  if (withoutUrl.length) {
+    const ids = withoutUrl.map(c => c.value);
+    for (const id of ids) await printOrderLabel(id);
+  }
 }
 async function bulkCancelShipments() {
   const ids = [...selectedTrackIds];
@@ -2944,6 +2969,49 @@ async function bulkCancelShipments() {
     loadTracking();
     loadWalletBalance();
   } else toast(d?.message||'Error', 'error');
+}
+
+// ─── PRINT ORDER LABEL (uses label settings) ──────────────────────────────────
+async function printOrderLabel(id) {
+  const od = await api('GET', `/orders/${id}`);
+  if (!od?.success) { toast('Could not load order', 'error'); return; }
+  const o = od.order;
+  const ls = getLabelSettings();
+  const bc = ls.brandColor || '#0D1B3E';
+  const isCOD = o.paymentMode === 'cod';
+  const wh = o.warehouse || {};
+  const html = `<div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4;max-width:${ls.labelSize==='a4'?'190mm':ls.labelSize==='100x150'?'96mm':'96mm'}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">
+      <div>
+        ${ls.showLogo && ls.customLogoUrl ? `<img src="${ls.customLogoUrl}" style="height:32px;object-fit:contain"/>` : `<div style="font-weight:bold;font-size:11pt;color:${bc}">SHIPORAX</div>`}
+        ${ls.showSupportEmail && (ls.supportEmail||ls.supportPhone) ? `<div style="font-size:6.5pt;color:#666">${ls.supportEmail||''} ${ls.supportPhone||''}</div>` : ''}
+      </div>
+      ${isCOD ? `<div style="background:#c00;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">COD ₹${o.codAmount||0}</div>` : '<div style="background:#059669;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">PREPAID</div>'}
+    </div>
+    <div style="margin-bottom:3mm">
+      <div style="font-size:6.5pt;color:#666;text-transform:uppercase;font-weight:bold">To:</div>
+      <div style="font-weight:bold;font-size:10pt">${o.recipient?.name||''}</div>
+      <div style="font-size:8pt">${o.recipient?.address||''}${o.recipient?.city?', '+o.recipient.city:''}${o.recipient?.state?', '+o.recipient.state:''}</div>
+      ${!ls.hideCustomerPhone ? `<div style="font-size:8pt">Mobile: ${o.recipient?.phone||''}</div>` : ''}
+      <div style="font-size:8pt;font-weight:bold">${o.recipient?.pincode||''}</div>
+    </div>
+    <div style="border:1px solid #000;padding:3mm;text-align:center;margin-bottom:3mm">
+      <div style="font-size:7pt;font-family:monospace;letter-spacing:-0.5px">||||||||||||||||||||||||||||||||||||||||||</div>
+      <div style="font-size:11pt;font-weight:bold;letter-spacing:2px">${o.awbNumber||o.orderId}</div>
+      <div style="font-size:6.5pt;color:#666">Order: ${new Date(o.createdAt).toLocaleDateString('en-IN')} | ${o.orderId}</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:7.5pt;border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">
+      <div><div style="font-weight:bold;color:${bc}">${o.assignedCourier?.name||'Auto'}</div></div>
+      <div style="text-align:right"><div>WT: ${o.weight||'—'}kg</div></div>
+    </div>
+    ${!ls.hidePickupAddress && wh.name ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt"><div style="font-weight:bold;color:#444">Pickup:</div><div>${wh.name}</div><div>${wh.address||''} ${wh.pincode||''}</div>${!ls.hidePickupPhone&&wh.phone?`<div>${wh.phone}</div>`:''}</div>` : ''}
+    ${!ls.hideRtoAddress && wh.name ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt"><div style="font-weight:bold;color:#444">Return:</div><div>${wh.name}</div><div>${wh.address||''} ${wh.pincode||''}</div></div>` : ''}
+    <div style="border-top:1px solid #ccc;padding-top:2mm;margin-top:2mm;font-size:6pt;color:#666">${ls.labelNote||'This is a computer generated document.'}<div>${ls.labelFooter||''}</div></div>
+  </div>`;
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><style>body{margin:0;padding:8mm;font-family:Arial,sans-serif}@media print{body{margin:0;padding:0}}</style></head><body>${html}</body></html>`);
+  w.document.close();
+  setTimeout(() => w.print(), 500);
 }
 
 // ─── CLONE ORDER ──────────────────────────────────────────────────────────────
