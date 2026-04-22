@@ -1179,6 +1179,44 @@ td b{color:var(--text)}
     </div>
 
     <!-- ═══ LABEL SETTINGS ═══ -->
+    
+      <!-- [FIX-API] API Key Section -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-hdr">
+          <span class="card-ttl">🔑 API Key</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="generateApiKey()">⚡ Generate Key</button>
+            <button class="btn btn-outline btn-sm" onclick="revokeApiKey()">🗑 Revoke</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:.82rem;color:var(--muted);margin-bottom:12px">
+            Use your API key to create and ship orders programmatically.
+            Send as <code style="background:#f0f0f0;padding:1px 4px;border-radius:3px">X-API-Key</code> header.
+          </p>
+          <div style="margin-bottom:10px;font-size:.85rem">
+            Status: <strong id="api-key-status-text">Checking...</strong>
+          </div>
+          <div id="api-key-display" style="display:none">
+            <div style="font-size:.75rem;color:#c00;font-weight:600;margin-bottom:6px">⚠ Copy now — shown only once!</div>
+            <div style="display:flex;gap:8px">
+              <input id="api-key-value" type="text" readonly
+                style="flex:1;font-family:monospace;font-size:.8rem;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:#f9f9f9"/>
+              <button class="btn btn-outline btn-sm" onclick="copyApiKey()">📋 Copy</button>
+            </div>
+          </div>
+          <div style="margin-top:14px;background:#f5f7ff;border-radius:8px;padding:12px;font-size:.78rem">
+            <div style="font-weight:600;margin-bottom:6px">API Endpoints:</div>
+            <div style="font-family:monospace;color:#333;line-height:1.8">
+              POST /api/orders/v1/ship → single order<br/>
+              POST /api/orders/v1/bulk-ship → bulk (up to 100)<br/>
+              GET  /api/orders/v1/job/:jobId → poll status<br/>
+              GET  /api/orders/v1/status/:orderId → order info<br/>
+              GET  /api/orders/v1/label/:orderId → download label
+            </div>
+          </div>
+        </div>
+      </div>
     <div class="page" id="page-label-settings">
       <div style="display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start">
         <!-- Settings Panel -->
@@ -2979,7 +3017,7 @@ async function printOrderLabel(id) {
   const ls = getLabelSettings();
   const bc = ls.brandColor || '#0D1B3E';
   const isCOD = o.paymentMode === 'cod';
-  const wh = o.warehouse || {};
+  const wh = o.pickupWarehouse || o.warehouse || {};  // [FIX-LABEL-2] pickupWarehouse is now populated
   const html = `<div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4;max-width:${ls.labelSize==='a4'?'190mm':ls.labelSize==='100x150'?'96mm':'96mm'}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">
       <div>
@@ -3019,6 +3057,68 @@ async function cloneOrder(id) {
   const d = await api('POST', `/orders/clone/${id}`);
   if (d?.success) { toast(`✅ Cloned → ${d.order.orderId}`, 'success'); loadOrders(); }
   else toast(d?.message||'Clone failed', 'error');
+}
+
+// ─── [FIX-QUEUE] Poll shipping job status ─────────────────────────────────────
+async function pollJobStatus(jobId, orderId) {
+  let attempts = 0;
+  const maxAttempts = 60; // 2 min timeout
+  const interval = setInterval(async () => {
+    attempts++;
+    if (attempts > maxAttempts) {
+      clearInterval(interval);
+      toast('Shipping timeout. Check order status manually.', 'error');
+      return;
+    }
+    try {
+      const d = await api('GET', '/orders/job-status/' + jobId);
+      if (!d) return;
+      if (d.status === 'done' && d.result) {
+        clearInterval(interval);
+        toast('✅ Shipped! AWB: ' + d.result.awbNumber, 'success');
+        if (typeof loadOrders === 'function') loadOrders();
+        if (typeof loadTracking === 'function') loadTracking();
+        if (typeof loadWalletBalance === 'function') loadWalletBalance();
+      } else if (d.status === 'failed') {
+        clearInterval(interval);
+        toast('❌ Shipping failed: ' + (d.error || 'Unknown error'), 'error');
+        if (typeof loadOrders === 'function') loadOrders();
+      }
+    } catch(e) { /* keep polling */ }
+  }, 2000);
+}
+
+// ─── [FIX-API] API Key management ─────────────────────────────────────────────
+async function generateApiKey() {
+  if (!confirm('Generate a new API key? Any existing key will be replaced.')) return;
+  const d = await api('POST', '/users/api-key/generate');
+  if (d && d.success) {
+    document.getElementById('api-key-display').style.display = 'block';
+    document.getElementById('api-key-value').value = d.apiKey;
+    document.getElementById('api-key-status-text').textContent = 'Active';
+    toast('✅ API key generated! Copy it now.', 'success');
+  } else toast(d && d.message || 'Failed', 'error');
+}
+async function revokeApiKey() {
+  if (!confirm('Revoke API key? All integrations using it will stop working.')) return;
+  const d = await api('DELETE', '/users/api-key/revoke');
+  if (d && d.success) {
+    document.getElementById('api-key-display').style.display = 'none';
+    document.getElementById('api-key-value').value = '';
+    document.getElementById('api-key-status-text').textContent = 'Not active';
+    toast('API key revoked.', 'success');
+  } else toast(d && d.message || 'Failed', 'error');
+}
+async function loadApiKeyStatus() {
+  try {
+    const d = await api('GET', '/users/api-key/status');
+    const st = document.getElementById('api-key-status-text');
+    if (st) st.textContent = (d && d.hasApiKey) ? 'Active' : 'Not active';
+  } catch(e) {}
+}
+function copyApiKey() {
+  const el = document.getElementById('api-key-value');
+  if (el) { el.select(); document.execCommand('copy'); toast('Copied!', 'success'); }
 }
 
 </script>
