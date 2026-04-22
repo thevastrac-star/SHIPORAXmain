@@ -73,10 +73,11 @@ async function shipViaSelloship(order, courierId) {
     const mapping = await CourierSelloshipMapping.findOne({ courier: courierId, isActive: true });
     if (mapping && !mapping.isAutoRoute) {
       // Admin has mapped this courier to a specific Selloship courier
-      if (mapping.selloshipCourierId)   params.courierId   = mapping.selloshipCourierId;
+      // [FIX-F] use courierID (uppercase) as canonical key
+      if (mapping.selloshipCourierId)   params.courierID   = mapping.selloshipCourierId;
       if (mapping.selloshipCourierName) params.courierName = mapping.selloshipCourierName;
     }
-    // if isAutoRoute or no mapping → no courierId/Name in payload → Selloship auto-selects
+    // if isAutoRoute or no mapping → no courierID/Name in payload → Selloship auto-selects
   }
 
   const result = await createWaybill(token, params);
@@ -157,7 +158,7 @@ router.delete('/bulk-delete', protect, async (req, res) => {
 router.post('/', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    const { recipient, package: pkg, paymentMode, codAmount, pickupWarehouse, source, courierId } = req.body;
+    const { recipient, package: pkg, paymentMode, codAmount, pickupWarehouse, source, courierId, invoiceCode, serviceType } = req.body;
 
     if (!recipient?.phone || !/^[6-9]\d{9}$/.test(recipient.phone))
       return res.status(400).json({ success: false, message: 'Invalid phone (10 digits, start 6-9)' });
@@ -196,7 +197,9 @@ router.post('/', protect, async (req, res) => {
       user: req.user._id, source: source || 'manual', pickupWarehouse,
       recipient, package: pkg, paymentMode: paymentMode || 'prepaid',
       codAmount: cod, assignedCourier: resolvedCourierId || undefined,
-      shippingCharge, duplicateCheckKey: dupeKey, status: 'processing'
+      shippingCharge, duplicateCheckKey: dupeKey, status: 'processing',
+      invoiceCode: invoiceCode || undefined,
+      serviceType: serviceType || 'Surface'
     });
 
     if (shippingCharge > 0) {
@@ -264,9 +267,11 @@ router.get('/', protect, async (req, res) => {
 // ─── SHIP ORDER (client presses "Ship") ──────────────────────────────────────
 // PATCH /api/orders/:id/ship
 // 1. Client selects courier → saved as assignedCourier
-// 2. Admin has mapped that courier to a Selloship courierId/name in CourierSelloshipMapping
+// 2. Admin has mapped that courier to a Selloship courierID/name in CourierSelloshipMapping
 // 3. We lookup the mapping → call Selloship with right courier override (or auto if no mapping)
 // 4. Save AWB + label URL back on order
+// [FIX-F] courierId in req.body is the internal Mongo _id of the Courier doc (not the Selloship ID)
+//         The Selloship courierID (uppercase) is resolved via CourierSelloshipMapping and set in shipViaSelloship()
 router.patch('/:id/ship', protect, async (req, res) => {
   try {
     const order = await Order.findOne({ _id: req.params.id, user: req.user._id });
@@ -459,6 +464,8 @@ router.post('/bulk-upload', protect, upload.single('file'), async (req, res) => 
             description: row['description'] || '', value: parseFloat(row['value']) || 0 },
           paymentMode: (row['payment_mode']||row['payment']||'').toLowerCase() === 'cod' ? 'cod' : 'prepaid',
           codAmount: parseFloat(row['cod_amount']||row['cod']) || 0,
+          invoiceCode: row['invoice_code'] || row['invoice'] || undefined,
+          serviceType: (['Air','air'].includes(row['service_type']||row['service']||'')) ? 'Air' : 'Surface',
           duplicateCheckKey: `${phone}_${pincode}`
         });
         success++;

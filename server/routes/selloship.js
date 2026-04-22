@@ -30,6 +30,72 @@ router.use((req, res, next) => {
     }));
 });
 
+// ─── TEST ENDPOINTS (admin API panel — fires real Selloship calls with raw params) ──
+// POST /api/selloship/test/waybill  — fires buildForwardPayload + /waybill
+// POST /api/selloship/test/rvp      — fires buildRVPPayload + /waybillRVP
+// POST /api/selloship/cancel-direct — cancel by AWB directly
+// POST /api/selloship/manifest-direct — manifest by AWB list directly
+
+const { buildForwardPayload, buildRVPPayload } = require('../utils/selloship');
+
+router.post('/test/waybill', protect, adminOnly, async (req, res) => {
+  try {
+    const payload = buildForwardPayload(req.body);
+    console.log('[Selloship /test/waybill] payload:', JSON.stringify(payload, null, 2));
+    const axios = require('axios');
+    const { BASE } = require('../utils/selloship');
+    const r = await axios.post(`${BASE}/waybill`, payload, {
+      headers: { 'Content-Type': 'application/json', 'Authorization': req.selloToken },
+      timeout: 30000
+    });
+    console.log('[Selloship /test/waybill] response:', JSON.stringify(r.data));
+    res.json({ success: r.data.status === 'SUCCESS', selloshipPayload: payload, selloshipResponse: r.data });
+  } catch (err) {
+    const detail = err?.response?.data || err.message;
+    res.status(400).json({ success: false, message: err.message, detail });
+  }
+});
+
+router.post('/test/rvp', protect, adminOnly, async (req, res) => {
+  try {
+    const payload = buildRVPPayload(req.body);
+    console.log('[Selloship /test/rvp] payload:', JSON.stringify(payload, null, 2));
+    const axios = require('axios');
+    const { BASE } = require('../utils/selloship');
+    const r = await axios.post(`${BASE}/waybillRVP`, payload, {
+      headers: { 'Content-Type': 'application/json', 'Authorization': req.selloToken },
+      timeout: 30000
+    });
+    console.log('[Selloship /test/rvp] response:', JSON.stringify(r.data));
+    res.json({ success: r.data.status === 'SUCCESS', selloshipPayload: payload, selloshipResponse: r.data });
+  } catch (err) {
+    const detail = err?.response?.data || err.message;
+    res.status(400).json({ success: false, message: err.message, detail });
+  }
+});
+
+router.post('/cancel-direct', protect, adminOnly, async (req, res) => {
+  try {
+    const { awb } = req.body;
+    if (!awb) return res.status(400).json({ success: false, message: 'awb required' });
+    const result = await cancelWaybill(req.selloToken, awb);
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+router.post('/manifest-direct', protect, adminOnly, async (req, res) => {
+  try {
+    const { awbNumbers } = req.body;
+    if (!awbNumbers?.length) return res.status(400).json({ success: false, message: 'awbNumbers required' });
+    const result = await generateManifest(req.selloToken, awbNumbers);
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+});
+
 // ─── PING ────────────────────────────────────────────────────────────────────
 router.get('/ping', protect, adminOnly, (req, res) =>
   res.json({ success: true, message: 'Selloship credentials are valid ✅' })
@@ -72,8 +138,12 @@ router.post('/ship/:orderId', protect, async (req, res) => {
     const params = orderToPayloadParams(order, warehouse);
 
     // Apply courier override from request (e.g. "Delhivery Fr" selected in UI)
-    if (req.body.courierId)   params.courierId   = String(req.body.courierId);
+    // [FIX-F] accept both courierID (canonical) and courierId (legacy) from request body
+    const incomingCourierID = req.body.courierID || req.body.courierId || '';
+    if (incomingCourierID)    params.courierID   = String(incomingCourierID);
     if (req.body.courierName) params.courierName = String(req.body.courierName);
+    // Allow serviceType override from request (relevant for admin re-shipping)
+    if (req.body.serviceType) params.serviceType = req.body.serviceType;
 
     const result = await createWaybill(req.selloToken, params);
 

@@ -1,15 +1,23 @@
-// utils/selloship.js — Selloship API Integration v2.1
-// Fixed against official CURL samples (Selloship 2.0 API):
+// utils/selloship.js — Selloship API Integration v4.0
 //
-// BUG FIXES vs v2.0:
-//   [FIX-1]  serviceType "Air"/"Surface" was MISSING — caused "Insufficient parameters"
-//   [FIX-2]  courierId field: CURL uses lowercase "courierId", not "courierID"
-//   [FIX-3]  itemPrice must be a STRING "199.00", not a number — per CURL sample
-//   [FIX-4]  Shipment.weight must be plain "500" string, NOT "500.0000"
-//   [FIX-5]  address2 must ALWAYS be sent (empty string ""), not omitted
-//   [FIX-6]  email must ALWAYS be sent in all address objects (empty string ok)
-//   [FIX-7]  alternatePhone must ALWAYS be sent in deliveryAddressDetails
-//   [FIX-8]  courierId/courierName must ALWAYS be sent (empty string ok, not omitted)
+// CHANGES vs v3.0 (derived from tester HTML analysis):
+//
+//   [FIX-D] invoiceCode added to Shipment block.
+//           The tester sends invoiceCode inside Shipment{}; Selloship accepts it.
+//           buildShipmentBlock() now includes it when present.
+//           orderToPayloadParams() passes order.invoiceCode (falls back to orderId).
+//
+//   [FIX-E] currencyCode: 'INR' added to both forward and RVP payloads at root level.
+//           The tester always includes it; omitting it causes silent failures on some accounts.
+//
+//   [FIX-F] courierID (uppercase "ID") is the canonical Selloship field name.
+//           Confirmed via the tester's cURL builder which uses 'courierID'.
+//           v3 used lowercase 'courierId'. Both spellings are now accepted in params,
+//           but only the canonical uppercase 'courierID' is sent in the payload.
+//
+//   [KEPT]  All v3 fixes: weight "500.0000" format (FIX-A), serviceType omitted on
+//           /waybill (FIX-B), separate builders for forward vs RVP (FIX-C),
+//           auto-retry on 401, 55-min token caching, HMAC webhook verification.
 
 const axios  = require('axios');
 const crypto = require('crypto');
@@ -22,7 +30,6 @@ const TIMEOUT_TRACK    = 15000;
 const TIMEOUT_CANCEL   = 15000;
 const TIMEOUT_MANIFEST = 30000;
 
-// Per-username token cache (55-min TTL)
 const _caches = {};
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
@@ -79,75 +86,13 @@ async function safeCall(fn, username) {
   }
 }
 
-// ─── PAYLOAD BUILDER ─────────────────────────────────────────────────────────
-//
-// Built to EXACTLY match official Selloship CURL sample structure.
-// Every field present in CURL is sent — empty string where optional but expected.
-//
-// CURL reference (waybillRVP):
-// {
-//   "Shipment": { orderCode, items[{name,skuCode,category,quantity,itemPrice}],
-//                 height, length, breadth, weight },
-//   "isLablePdf": false,
-//   "courierId": "",           ← always sent, even if empty
-//   "courierName": "",         ← always sent, even if empty
-//   "paymentMode": "COD",
-//   "serviceType": "Air",      ← REQUIRED, was missing before
-//   "totalAmount": "199.00",
-//   "collectableAmount": "199.00",
-//   "pickupAddressDetails":   { name, email, phone, address1, address2, city, state, pincode, country },
-//   "returnAddressDetails":   { name, email, phone, address1, address2, city, state, pincode, country },
-//   "deliveryAddressDetails": { name, email, phone, alternatePhone, address1, address2,
-//                               city, state, pincode, country }
-// }
+// [FIX-A] "500.0000" format — Selloship requires 4-decimal float string for weight
+function gramsToStr(grams) {
+  return parseFloat(grams).toFixed(4);
+}
 
-function buildWaybillPayload(params) {
-  const {
-    shipment,
-    deliveryAddress,
-    pickupAddress,
-    returnAddress,
-    paymentMode,
-    totalAmount,
-    collectableAmount,
-    courierName   = '',
-    courierId     = '',
-    isLablePdf    = false,
-    serviceType   = 'Surface'   // [FIX-1] REQUIRED field — "Air" or "Surface"
-  } = params;
-
-  if (!shipment)        throw new Error('shipment is required');
-  if (!deliveryAddress) throw new Error('deliveryAddress is required');
-  if (!pickupAddress)   throw new Error('pickupAddress is required');
-  if (!returnAddress)   throw new Error('returnAddress is required');
-  if (!paymentMode)     throw new Error('paymentMode is required');
-  if (totalAmount === undefined || totalAmount === null) throw new Error('totalAmount is required');
-  if (collectableAmount === undefined || collectableAmount === null)
-    throw new Error('collectableAmount is required');
-
-  if (!['COD','PREPAID'].includes(paymentMode.toUpperCase()))
-    throw new Error('paymentMode must be COD or PREPAID');
-
-  validateFields(shipment, ['orderCode','weight','length','height','breadth','items'], 'shipment');
-  if (!Array.isArray(shipment.items) || !shipment.items.length)
-    throw new Error('[shipment.items] Must be a non-empty array');
-
-  shipment.items.forEach((item, i) => {
-    validateFields(item, ['name','quantity','skuCode','itemPrice'], `shipment.items[${i}]`);
-    if (!Number.isInteger(item.quantity) || item.quantity < 1)
-      throw new Error(`[shipment.items[${i}].quantity] Must be a positive integer`);
-  });
-
-  const addrReq = ['name','phone','address1','pincode','city','state','country'];
-  validateFields(deliveryAddress, addrReq, 'deliveryAddress');
-  validateFields(pickupAddress,   addrReq, 'pickupAddress');
-  validateFields(returnAddress,   addrReq, 'returnAddress');
-
-  // [FIX-4] weight as plain integer string "500", NOT "500.0000"
-  const weightStr = String(Math.round(parseFloat(shipment.weight)));
-
-  // [FIX-5,6] address builder — always includes email, address2 (empty string ok)
-  const buildAddr = (addr) => ({
+function buildAddr(addr) {
+  return {
     name:     String(addr.name     || ''),
     email:    String(addr.email    || ''),
     phone:    String(addr.phone    || ''),
@@ -157,46 +102,132 @@ function buildWaybillPayload(params) {
     state:    String(addr.state    || ''),
     pincode:  String(addr.pincode  || ''),
     country:  String(addr.country  || 'India')
+  };
+}
+
+function buildDeliveryAddr(addr) {
+  return { ...buildAddr(addr), alternatePhone: String(addr.alternatePhone || '') };
+}
+
+// [FIX-D] invoiceCode included when provided
+function buildShipmentBlock(shipment) {
+  validateFields(shipment, ['orderCode', 'weight', 'length', 'height', 'breadth', 'items'], 'shipment');
+  if (!Array.isArray(shipment.items) || !shipment.items.length)
+    throw new Error('[shipment.items] Must be a non-empty array');
+  shipment.items.forEach((item, i) => {
+    validateFields(item, ['name', 'quantity', 'skuCode', 'itemPrice'], `shipment.items[${i}]`);
+    if (!Number.isInteger(item.quantity) || item.quantity < 1)
+      throw new Error(`[shipment.items[${i}].quantity] Must be a positive integer`);
   });
 
-  // [FIX-7] deliveryAddress always includes alternatePhone
-  const buildDeliveryAddr = (addr) => ({
-    ...buildAddr(addr),
-    alternatePhone: String(addr.alternatePhone || '')
-  });
+  const block = {
+    orderCode: String(shipment.orderCode),
+    weight:    gramsToStr(shipment.weight),  // [FIX-A]
+    length:    String(shipment.length),
+    height:    String(shipment.height),
+    breadth:   String(shipment.breadth),
+    items: shipment.items.map(item => ({
+      name:      String(item.name),
+      skuCode:   String(item.skuCode),
+      category:  String(item.category || ''),
+      quantity:  item.quantity,
+      itemPrice: String(parseFloat(item.itemPrice).toFixed(2))
+    }))
+  };
+
+  // [FIX-D] Include invoiceCode when present
+  if (shipment.invoiceCode) block.invoiceCode = String(shipment.invoiceCode);
+
+  return block;
+}
+
+function validateCommonParams(params) {
+  const { shipment, deliveryAddress, pickupAddress, returnAddress, paymentMode, totalAmount, collectableAmount } = params;
+  if (!shipment)        throw new Error('shipment is required');
+  if (!deliveryAddress) throw new Error('deliveryAddress is required');
+  if (!pickupAddress)   throw new Error('pickupAddress is required');
+  if (!returnAddress)   throw new Error('returnAddress is required');
+  if (!paymentMode)     throw new Error('paymentMode is required');
+  if (totalAmount === undefined || totalAmount === null) throw new Error('totalAmount is required');
+  if (collectableAmount === undefined || collectableAmount === null) throw new Error('collectableAmount is required');
+  if (!['COD', 'PREPAID'].includes(paymentMode.toUpperCase()))
+    throw new Error('paymentMode must be COD or PREPAID');
+}
+
+function validateAddresses(d, p, r) {
+  const req = ['name', 'phone', 'address1', 'pincode', 'city', 'state', 'country'];
+  validateFields(d, req, 'deliveryAddress');
+  validateFields(p, req, 'pickupAddress');
+  validateFields(r, req, 'returnAddress');
+}
+
+// ─── [FIX-C] FORWARD WAYBILL BUILDER (/waybill) ──────────────────────────────
+// [FIX-B] serviceType NOT sent — invalid on /waybill
+// [FIX-E] currencyCode: 'INR' added
+// [FIX-F] courierID (uppercase) is canonical
+
+function buildForwardPayload(params) {
+  validateCommonParams(params);
+  const {
+    shipment, deliveryAddress, pickupAddress, returnAddress,
+    paymentMode, totalAmount, collectableAmount,
+    courierName = '',
+    courierID = '', courierId = '',   // [FIX-F] accept both spellings
+    isLablePdf = false
+    // serviceType deliberately excluded — [FIX-B]
+  } = params;
+  validateAddresses(deliveryAddress, pickupAddress, returnAddress);
 
   return {
-    Shipment: {
-      orderCode: String(shipment.orderCode),
-      // [FIX-4] weight as plain "500" not "500.0000"
-      weight:  weightStr,
-      length:  String(shipment.length),
-      height:  String(shipment.height),
-      breadth: String(shipment.breadth),
-      items: shipment.items.map(item => ({
-        name:      String(item.name),
-        skuCode:   String(item.skuCode),
-        category:  String(item.category || ''),
-        quantity:  item.quantity,
-        // [FIX-3] itemPrice as STRING "199.00" per CURL sample
-        itemPrice: String(parseFloat(item.itemPrice).toFixed(2))
-      }))
-    },
+    Shipment:               buildShipmentBlock(shipment),
     isLablePdf,
-    // [FIX-2] lowercase "courierId" per CURL sample (not "courierID")
-    // [FIX-8] always sent, even if empty string
-    courierId:   String(courierId   || ''),
-    courierName: String(courierName || ''),
-    paymentMode: paymentMode.toUpperCase(),
-    // [FIX-1] serviceType always sent — this was the main cause of "Insufficient parameters"
-    serviceType: serviceType || 'Surface',
-    totalAmount:       String(parseFloat(totalAmount).toFixed(2)),
-    collectableAmount: String(parseFloat(collectableAmount).toFixed(2)),
+    courierID:              String(courierID || courierId || ''),  // [FIX-F]
+    courierName:            String(courierName || ''),
+    currencyCode:           'INR',                                  // [FIX-E]
+    paymentMode:            paymentMode.toUpperCase(),
+    totalAmount:            String(parseFloat(totalAmount).toFixed(2)),
+    collectableAmount:      String(parseFloat(collectableAmount).toFixed(2)),
     pickupAddressDetails:   buildAddr(pickupAddress),
     returnAddressDetails:   buildAddr(returnAddress),
     deliveryAddressDetails: buildDeliveryAddr(deliveryAddress)
   };
 }
+
+// ─── [FIX-C] REVERSE WAYBILL BUILDER (/waybillRVP) ───────────────────────────
+// serviceType IS sent — required on RVP
+// [FIX-E] currencyCode: 'INR' added
+// [FIX-F] courierID (uppercase)
+
+function buildRVPPayload(params) {
+  validateCommonParams(params);
+  const {
+    shipment, deliveryAddress, pickupAddress, returnAddress,
+    paymentMode, totalAmount, collectableAmount,
+    courierName = '',
+    courierID = '', courierId = '',   // [FIX-F]
+    isLablePdf = false,
+    serviceType = 'Surface'
+  } = params;
+  validateAddresses(deliveryAddress, pickupAddress, returnAddress);
+
+  return {
+    Shipment:               buildShipmentBlock(shipment),
+    isLablePdf,
+    courierID:              String(courierID || courierId || ''),  // [FIX-F]
+    courierName:            String(courierName || ''),
+    currencyCode:           'INR',                                  // [FIX-E]
+    paymentMode:            paymentMode.toUpperCase(),
+    serviceType:            serviceType || 'Surface',
+    totalAmount:            String(parseFloat(totalAmount).toFixed(2)),
+    collectableAmount:      String(parseFloat(collectableAmount).toFixed(2)),
+    pickupAddressDetails:   buildAddr(pickupAddress),
+    returnAddressDetails:   buildAddr(returnAddress),
+    deliveryAddressDetails: buildDeliveryAddr(deliveryAddress)
+  };
+}
+
+// Legacy alias — maps to forward builder
+function buildWaybillPayload(params) { return buildForwardPayload(params); }
 
 // ─── ORDER → PAYLOAD ADAPTER ─────────────────────────────────────────────────
 
@@ -208,10 +239,7 @@ function orderToPayloadParams(order, warehouse) {
   const isCOD     = order.paymentMode === 'cod';
   const itemValue = Number(pkg.value || order.codAmount || 1);
   const codAmt    = isCOD ? Number(order.codAmount || 0) : 0;
-
-  // kg → grams as integer (e.g. 0.5kg → 500), minimum 10g
   const weightGrams = Math.round(Math.max(parseFloat(pkg.weight) || 0.5, 0.01) * 1000);
-
   const cleanPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
 
   const errors = [];
@@ -241,11 +269,12 @@ function orderToPayloadParams(order, warehouse) {
 
   return {
     shipment: {
-      orderCode: order.orderId,
-      weight:    weightGrams,  // integer grams — buildWaybillPayload will String() it
-      length:    String(pkg.length  || 15),
-      height:    String(pkg.height  || 10),
-      breadth:   String(pkg.breadth || 15),
+      orderCode:   order.orderId,
+      invoiceCode: order.invoiceCode || order.orderId,   // [FIX-D]
+      weight:      weightGrams,
+      length:      String(pkg.length  || 15),
+      height:      String(pkg.height  || 10),
+      breadth:     String(pkg.breadth || 15),
       items: [{
         name:      (pkg.description || 'Shipment').substring(0, 100),
         quantity:  1,
@@ -272,7 +301,7 @@ function orderToPayloadParams(order, warehouse) {
     serviceType:       order.serviceType || 'Surface',
     totalAmount:       itemValue.toFixed(2),
     collectableAmount: codAmt.toFixed(2),
-    courierId:         '',
+    courierID:         '',    // [FIX-F] canonical key
     courierName:       ''
   };
 }
@@ -280,7 +309,7 @@ function orderToPayloadParams(order, warehouse) {
 // ─── FORWARD WAYBILL ─────────────────────────────────────────────────────────
 
 async function createWaybill(token, params) {
-  const payload = buildWaybillPayload(params);
+  const payload = buildForwardPayload(params);
   console.log('[Selloship createWaybill] payload:', JSON.stringify(payload, null, 2));
   return safeCall(async () => {
     const res = await axios.post(`${BASE}/waybill`, payload, {
@@ -304,7 +333,7 @@ async function createWaybill(token, params) {
 // ─── REVERSE WAYBILL ─────────────────────────────────────────────────────────
 
 async function createReverseWaybill(token, params) {
-  const payload = buildWaybillPayload(params);
+  const payload = buildRVPPayload(params);
   console.log('[Selloship createReverseWaybill] payload:', JSON.stringify(payload, null, 2));
   return safeCall(async () => {
     const res = await axios.post(`${BASE}/waybillRVP`, payload, {
@@ -336,7 +365,6 @@ async function getWaybillStatus(token, awbNumbers) {
       params:  { waybills: awbNumbers.join(',') },
       timeout: TIMEOUT_TRACK
     });
-    // Selloship tracking response uses capital "Status"
     const status = res.data.Status || res.data.status;
     if (status !== 'SUCCESS') throw new Error(`Track failed: ${JSON.stringify(res.data)}`);
     return res.data.waybillDetails;
@@ -372,11 +400,8 @@ async function generateManifest(token, awbNumbers) {
 }
 
 // ─── SERVICEABILITY STUB ─────────────────────────────────────────────────────
-// Selloship has NO serviceability endpoint — returns [] so callers don't break.
 
-async function getServiceability(token, params = {}) {
-  return [];
-}
+async function getServiceability(token, params = {}) { return []; }
 
 // ─── WEBHOOK HMAC VERIFICATION ───────────────────────────────────────────────
 
@@ -398,7 +423,9 @@ module.exports = {
   getCredentials,
   getToken,
   clearTokenCache,
-  buildWaybillPayload,
+  buildForwardPayload,
+  buildRVPPayload,
+  buildWaybillPayload,  // legacy alias → buildForwardPayload
   orderToPayloadParams,
   createWaybill,
   createReverseWaybill,

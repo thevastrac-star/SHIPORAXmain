@@ -54,6 +54,10 @@ const OrderSchema = new mongoose.Schema({
 
   codReconciliation: { type: mongoose.Schema.Types.ObjectId, ref: 'CodReconciliation' },
 
+  // Selloship-specific shipping options stored at order level
+  invoiceCode:  { type: String },   // FIX-D: passed to Selloship Shipment.invoiceCode
+  serviceType:  { type: String, enum: ['Surface', 'Air'], default: 'Surface' },  // used on RVP
+
   // FIX #16: duplicateCheckKey is now set explicitly in route before create()
   duplicateCheckKey: { type: String },
 

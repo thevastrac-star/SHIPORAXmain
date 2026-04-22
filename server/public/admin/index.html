@@ -916,6 +916,7 @@ textarea{resize:vertical;min-height:80px}
         <div class="tab" onclick="switchTab('settings','courier_api',this)">Courier APIs</div>
         <div class="tab" onclick="switchTab('settings','general',this)">General</div>
         <div class="tab" onclick="switchTab('settings','notifications',this)">Notifications</div>
+        <div class="tab" onclick="switchTab('settings','selloship_api',this);loadSelloshipApiLogs()">🚀 Selloship API</div>
       </div>
       <div class="card" id="settings-tab-payment">
         <div class="card-header"><span class="card-title">Payment Gateway Config</span></div>
@@ -969,6 +970,128 @@ textarea{resize:vertical;min-height:80px}
         <div class="form-group"><label>WhatsApp API (WATI/Interakt) URL</label><input type="text" id="s-wa-url" placeholder="https://..."/></div>
         <div class="form-group"><label>WhatsApp API Key</label><input type="password" id="s-wa-key" placeholder="..."/></div>
         <button class="btn btn-primary" onclick="saveSettings('notifications')">💾 Save Notification Config</button>
+      </div>
+
+      <!-- ─── SELLOSHIP API RESPONSE TAB ─── -->
+      <div class="card" id="settings-tab-selloship_api" style="display:none">
+        <div class="card-header" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="card-title">🚀 Selloship Live API Tester</span>
+          <span id="sello-api-token-badge" style="font-size:.72rem;padding:3px 10px;border-radius:999px;background:#f1f5f9;color:#64748b">Token: unchecked</span>
+          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="selloTestAuth()">🔑 Test Auth</button>
+            <button class="btn btn-outline btn-sm" onclick="selloApiClear()">🗑 Clear Log</button>
+          </div>
+        </div>
+
+        <!-- Endpoint selector -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+          <button class="page-btn active" id="sello-ep-waybill" onclick="selloSelectEp('waybill',this)">Forward Waybill</button>
+          <button class="page-btn" id="sello-ep-rvp" onclick="selloSelectEp('rvp',this)">Reverse (RVP)</button>
+          <button class="page-btn" id="sello-ep-track" onclick="selloSelectEp('track',this)">Track</button>
+          <button class="page-btn" id="sello-ep-cancel" onclick="selloSelectEp('cancel',this)">Cancel</button>
+          <button class="page-btn" id="sello-ep-manifest" onclick="selloSelectEp('manifest',this)">Manifest</button>
+        </div>
+
+        <!-- Waybill / RVP form -->
+        <div id="sello-form-waybill">
+          <div style="background:#eff6ff;border-radius:10px;padding:14px;margin-bottom:14px;font-size:.8rem;color:#1e40af">
+            <b>FIX-A:</b> weight auto-formatted to <code>"500.0000"</code> &nbsp;|&nbsp;
+            <b>FIX-B:</b> serviceType omitted on forward &nbsp;|&nbsp;
+            <b>FIX-C:</b> separate builders per endpoint &nbsp;|&nbsp;
+            <b>FIX-D:</b> invoiceCode sent in Shipment &nbsp;|&nbsp;
+            <b>FIX-E:</b> currencyCode: "INR" added &nbsp;|&nbsp;
+            <b>FIX-F:</b> courierID (uppercase) canonical key
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Order Code</label><input id="sa-orderCode" placeholder="ORD-001" value="TEST-001"/></div>
+            <div class="form-group"><label>Invoice Code <span style="color:#94a3b8;font-weight:400">(optional)</span></label><input id="sa-invoiceCode" placeholder="INV-001"/></div>
+            <div class="form-group"><label>Payment Mode</label>
+              <select id="sa-paymentMode" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px">
+                <option value="PREPAID">PREPAID</option><option value="COD">COD</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Weight (grams)</label><input id="sa-weight" type="number" value="500" placeholder="500"/></div>
+            <div class="form-group"><label>Total Amount (₹)</label><input id="sa-totalAmount" type="number" value="199" placeholder="199"/></div>
+            <div class="form-group"><label>Collectable Amount (₹)</label><input id="sa-collectableAmount" type="number" value="0" placeholder="0"/></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>L (cm)</label><input id="sa-length" type="number" value="15"/></div>
+            <div class="form-group"><label>W (cm)</label><input id="sa-breadth" type="number" value="15"/></div>
+            <div class="form-group"><label>H (cm)</label><input id="sa-height" type="number" value="10"/></div>
+          </div>
+          <div style="font-weight:600;font-size:.85rem;margin:10px 0 6px;color:#374151">📦 Item</div>
+          <div class="form-row">
+            <div class="form-group"><label>Item Name</label><input id="sa-itemName" value="Test Product"/></div>
+            <div class="form-group"><label>SKU Code</label><input id="sa-skuCode" value="SKU-001"/></div>
+            <div class="form-group"><label>Item Price (₹)</label><input id="sa-itemPrice" type="number" value="199"/></div>
+          </div>
+          <div style="font-weight:600;font-size:.85rem;margin:10px 0 6px;color:#374151">🏠 Delivery Address</div>
+          <div class="form-row">
+            <div class="form-group"><label>Name</label><input id="sa-dname" value="Test Customer"/></div>
+            <div class="form-group"><label>Phone</label><input id="sa-dphone" value="9999999999"/></div>
+            <div class="form-group"><label>Pincode</label><input id="sa-dpincode" value="110001"/></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:2"><label>Address 1</label><input id="sa-daddress1" value="123 Test Street, Connaught Place"/></div>
+            <div class="form-group"><label>City</label><input id="sa-dcity" value="New Delhi"/></div>
+            <div class="form-group"><label>State</label><input id="sa-dstate" value="Delhi"/></div>
+          </div>
+          <div style="font-weight:600;font-size:.85rem;margin:10px 0 6px;color:#374151">🏭 Pickup / Return Address</div>
+          <div class="form-row">
+            <div class="form-group"><label>Name</label><input id="sa-pname" value="My Warehouse"/></div>
+            <div class="form-group"><label>Phone</label><input id="sa-pphone" value="9111111111"/></div>
+            <div class="form-group"><label>Pincode</label><input id="sa-ppincode" value="400001"/></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:2"><label>Address 1</label><input id="sa-paddress1" value="456 Warehouse Road, Andheri"/></div>
+            <div class="form-group"><label>City</label><input id="sa-pcity" value="Mumbai"/></div>
+            <div class="form-group"><label>State</label><input id="sa-pstate" value="Maharashtra"/></div>
+          </div>
+          <div id="sello-rvp-fields" style="display:none">
+            <div style="font-weight:600;font-size:.85rem;margin:10px 0 6px;color:#7c3aed">🔄 RVP Options</div>
+            <div class="form-group" style="max-width:220px"><label>Service Type</label>
+              <select id="sa-serviceType" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px">
+                <option value="Surface">Surface</option><option value="Air">Air</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:8px" onclick="selloApiCall()">▶ Send Request</button>
+        </div>
+
+        <!-- Track form -->
+        <div id="sello-form-track" style="display:none">
+          <div class="form-group"><label>AWB Numbers (comma-separated, max 50)</label>
+            <input id="sa-awbs" placeholder="AWB001,AWB002"/>
+          </div>
+          <button class="btn btn-primary" onclick="selloApiCall()">▶ Track</button>
+        </div>
+
+        <!-- Cancel form -->
+        <div id="sello-form-cancel" style="display:none">
+          <div class="form-group"><label>AWB Number</label><input id="sa-cancel-awb" placeholder="AWB001"/></div>
+          <button class="btn btn-danger" onclick="selloApiCall()">▶ Cancel Waybill</button>
+        </div>
+
+        <!-- Manifest form -->
+        <div id="sello-form-manifest" style="display:none">
+          <div class="form-group"><label>AWB Numbers (comma-separated)</label>
+            <input id="sa-manifest-awbs" placeholder="AWB001,AWB002"/>
+          </div>
+          <button class="btn btn-primary" onclick="selloApiCall()">▶ Generate Manifest</button>
+        </div>
+
+        <!-- Response log -->
+        <div style="margin-top:20px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-weight:600;font-size:.875rem;color:#374151">📋 API Response Log</span>
+            <span id="sello-log-count" style="font-size:.75rem;color:#64748b"></span>
+          </div>
+          <div id="sello-api-log" style="display:flex;flex-direction:column;gap:10px;max-height:600px;overflow-y:auto">
+            <div style="text-align:center;padding:30px;color:#94a3b8;font-size:.85rem">No requests yet. Use the form above to call Selloship API.</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2194,6 +2317,194 @@ async function testSelloship() {
     const badge = document.getElementById('sello-status-badge');
     if (badge) { badge.textContent = '❌ Failed'; badge.style.background = '#fee2e2'; badge.style.color = '#991b1b'; }
   }
+}
+
+// ─── SELLOSHIP API PANEL ──────────────────────────────────────────────────────
+
+let _selloEp = 'waybill';
+let _selloLog = [];
+
+function selloSelectEp(ep, btn) {
+  _selloEp = ep;
+  document.querySelectorAll('[id^="sello-ep-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ['waybill','track','cancel','manifest'].forEach(f => {
+    const el = document.getElementById('sello-form-' + f);
+    if (el) el.style.display = 'none';
+  });
+  const formKey = (ep === 'rvp') ? 'waybill' : ep;
+  const formEl = document.getElementById('sello-form-' + formKey);
+  if (formEl) formEl.style.display = '';
+  const rvpFields = document.getElementById('sello-rvp-fields');
+  if (rvpFields) rvpFields.style.display = (ep === 'rvp') ? '' : 'none';
+}
+
+function loadSelloshipApiLogs() {
+  selloRenderLog();
+}
+
+function selloApiClear() {
+  _selloLog = [];
+  selloRenderLog();
+}
+
+async function selloTestAuth() {
+  const badge = document.getElementById('sello-api-token-badge');
+  badge.textContent = 'Token: testing…'; badge.style.background = '#fef3c7'; badge.style.color = '#92400e';
+  const t0 = Date.now();
+  const d = await api('GET', '/selloship/ping');
+  const ms = Date.now() - t0;
+  if (d?.success) {
+    badge.textContent = `Token: ✅ valid (${ms}ms)`; badge.style.background = '#d1fae5'; badge.style.color = '#065f46';
+    selloLogEntry('GET', '/selloship/ping (auth test)', null, d, ms, true);
+  } else {
+    badge.textContent = 'Token: ❌ failed'; badge.style.background = '#fee2e2'; badge.style.color = '#991b1b';
+    selloLogEntry('GET', '/selloship/ping (auth test)', null, d, ms, false);
+  }
+}
+
+function selloGatherPayload() {
+  const g = id => document.getElementById(id)?.value?.trim() || '';
+  const gn = id => parseFloat(document.getElementById(id)?.value) || 0;
+
+  if (_selloEp === 'track') {
+    const awbs = g('sa-awbs').split(',').map(a => a.trim()).filter(Boolean);
+    return { _endpoint: 'track', awbs };
+  }
+  if (_selloEp === 'cancel') {
+    return { _endpoint: 'cancel', awb: g('sa-cancel-awb') };
+  }
+  if (_selloEp === 'manifest') {
+    const awbs = g('sa-manifest-awbs').split(',').map(a => a.trim()).filter(Boolean);
+    return { _endpoint: 'manifest', awbNumbers: awbs };
+  }
+
+  // waybill or rvp
+  const payload = {
+    _endpoint: _selloEp,
+    shipment: {
+      orderCode:   g('sa-orderCode'),
+      invoiceCode: g('sa-invoiceCode') || undefined,  // [FIX-D] send when filled
+      weight:      gn('sa-weight'),
+      length:      gn('sa-length'),
+      height:      gn('sa-height'),
+      breadth:     gn('sa-breadth'),
+      items: [{
+        name:      g('sa-itemName'),
+        skuCode:   g('sa-skuCode'),
+        quantity:  1,
+        itemPrice: gn('sa-itemPrice'),
+        category:  ''
+      }]
+    },
+    deliveryAddress: {
+      name: g('sa-dname'), phone: g('sa-dphone'), pincode: g('sa-dpincode'),
+      address1: g('sa-daddress1'), address2: '', city: g('sa-dcity'),
+      state: g('sa-dstate'), country: 'India', email: '', alternatePhone: ''
+    },
+    pickupAddress: {
+      name: g('sa-pname'), phone: g('sa-pphone'), pincode: g('sa-ppincode'),
+      address1: g('sa-paddress1'), address2: '', city: g('sa-pcity'),
+      state: g('sa-pstate'), country: 'India', email: ''
+    },
+    returnAddress: {
+      name: g('sa-pname'), phone: g('sa-pphone'), pincode: g('sa-ppincode'),
+      address1: g('sa-paddress1'), address2: '', city: g('sa-pcity'),
+      state: g('sa-pstate'), country: 'India', email: ''
+    },
+    paymentMode: document.getElementById('sa-paymentMode')?.value || 'PREPAID',
+    totalAmount: gn('sa-totalAmount'),
+    collectableAmount: gn('sa-collectableAmount'),
+    courierID: '', courierName: '', isLablePdf: false  // [FIX-F] uppercase courierID
+  };
+  if (_selloEp === 'rvp') payload.serviceType = document.getElementById('sa-serviceType')?.value || 'Surface';
+  return payload;
+}
+
+async function selloApiCall() {
+  const payload = selloGatherPayload();
+  const ep = payload._endpoint;
+  delete payload._endpoint;
+
+  let method, path, body;
+  if (ep === 'track') {
+    method = 'GET'; path = '/selloship/track?awbs=' + payload.awbs.join(','); body = null;
+  } else if (ep === 'cancel') {
+    method = 'POST'; path = '/selloship/cancel-direct'; body = payload;
+  } else if (ep === 'manifest') {
+    method = 'POST'; path = '/selloship/manifest-direct'; body = payload;
+  } else if (ep === 'rvp') {
+    method = 'POST'; path = '/selloship/test/rvp'; body = payload;
+  } else {
+    method = 'POST'; path = '/selloship/test/waybill'; body = payload;
+  }
+
+  selloLogPending(method, path, body);
+  const t0 = Date.now();
+  let resp, ok;
+  try {
+    resp = await api(method, path, body);
+    ok = resp?.success !== false && resp?.status !== 'FAILED';
+  } catch(e) {
+    resp = { error: e.message };
+    ok = false;
+  }
+  const ms = Date.now() - t0;
+  _selloLog[0].response = resp;
+  _selloLog[0].ms = ms;
+  _selloLog[0].ok = ok;
+  _selloLog[0].pending = false;
+  selloRenderLog();
+}
+
+function selloLogPending(method, path, body) {
+  _selloLog.unshift({ method, path, body, response: null, ms: null, ok: null, pending: true, ts: new Date() });
+  selloRenderLog();
+}
+
+function selloLogEntry(method, path, body, response, ms, ok) {
+  _selloLog.unshift({ method, path, body, response, ms, ok, pending: false, ts: new Date() });
+  selloRenderLog();
+}
+
+function selloRenderLog() {
+  const container = document.getElementById('sello-api-log');
+  const countEl   = document.getElementById('sello-log-count');
+  if (!container) return;
+  if (countEl) countEl.textContent = _selloLog.length ? `${_selloLog.length} request${_selloLog.length > 1 ? 's' : ''}` : '';
+  if (!_selloLog.length) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;font-size:.85rem">No requests yet. Use the form above to call Selloship API.</div>';
+    return;
+  }
+  container.innerHTML = _selloLog.map((entry, idx) => {
+    const statusColor = entry.pending ? '#f59e0b' : (entry.ok ? '#059669' : '#dc2626');
+    const statusBg    = entry.pending ? '#fef3c7' : (entry.ok ? '#d1fae5' : '#fee2e2');
+    const statusLabel = entry.pending ? '⏳ pending' : (entry.ok ? '✅ success' : '❌ failed');
+    const methodBadge = `<span style="font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:4px;background:${entry.method==='GET'?'#dbeafe':'#ede9fe'};color:${entry.method==='GET'?'#1d4ed8':'#5b21b6'}">${entry.method}</span>`;
+    const timeStr = entry.ts.toLocaleTimeString();
+    const msStr   = entry.ms != null ? `${entry.ms}ms` : '';
+
+    const reqJson  = entry.body  ? `<div style="margin-top:8px"><div style="font-size:.72rem;font-weight:600;color:#6b7280;margin-bottom:4px">REQUEST PAYLOAD</div><pre style="background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;font-size:.72rem;overflow-x:auto;margin:0;white-space:pre-wrap;word-break:break-all">${JSON.stringify(entry.body, null, 2)}</pre></div>` : '';
+    const resColor = entry.ok ? '#d1fae5' : (entry.pending ? '#fef3c7' : '#fee2e2');
+    const resJson  = entry.response != null
+      ? `<div style="margin-top:8px"><div style="font-size:.72rem;font-weight:600;color:#6b7280;margin-bottom:4px">RESPONSE</div><pre style="background:#0f172a;color:${entry.ok ? '#86efac' : '#fca5a5'};padding:12px;border-radius:8px;font-size:.72rem;overflow-x:auto;margin:0;white-space:pre-wrap;word-break:break-all">${JSON.stringify(entry.response, null, 2)}</pre></div>`
+      : '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:.8rem">⏳ Waiting for response…</div>';
+
+    return `<div style="border:1.5px solid ${statusColor}30;border-radius:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:${statusBg}20;border-bottom:1px solid ${statusColor}20;flex-wrap:wrap">
+        ${methodBadge}
+        <span style="font-size:.78rem;font-weight:600;color:#374151;font-family:monospace">${entry.path}</span>
+        <span style="margin-left:auto;font-size:.72rem;padding:2px 8px;border-radius:999px;background:${statusBg};color:${statusColor};font-weight:700">${statusLabel}</span>
+        ${msStr ? `<span style="font-size:.72rem;color:#64748b">${msStr}</span>` : ''}
+        <span style="font-size:.7rem;color:#94a3b8">${timeStr}</span>
+        <button onclick="this.closest('[style]').querySelector('.sello-log-body').style.display=this.closest('[style]').querySelector('.sello-log-body').style.display==='none'?'':'none'"
+          style="font-size:.7rem;padding:2px 8px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;cursor:pointer;margin-left:4px">toggle</button>
+      </div>
+      <div class="sello-log-body" style="padding:12px 14px;${idx > 0 ? 'display:none' : ''}">
+        ${reqJson}${resJson}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ─── LOGS ─────────────────────────────────────────────────────────────────────

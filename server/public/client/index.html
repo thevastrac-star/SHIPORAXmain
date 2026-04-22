@@ -717,6 +717,19 @@ td b{color:var(--text)}
             </div>
           </div>
           <div class="form-group"><label>Contents Description</label><input id="co-desc" placeholder="e.g. Clothing, Electronics, Books"/></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+            <div class="form-group" style="margin-bottom:0">
+              <label>Invoice Code <span style="color:var(--muted);font-weight:400;font-size:.75rem">(optional)</span></label>
+              <input id="co-invoice" placeholder="INV-001"/>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>Service Type</label>
+              <select id="co-service-type" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:.875rem">
+                <option value="Surface">Surface</option>
+                <option value="Air">Air</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div style="border-top:1px solid var(--border);margin:10px 0 16px;padding-top:16px">
@@ -1750,14 +1763,17 @@ async function createOrder() {
     },
     paymentMode: document.getElementById('co-payment').value,
     codAmount: parseFloat(document.getElementById('co-cod-amount').value) || 0,
-    pickupWarehouse: document.getElementById('co-warehouse').value || undefined
+    pickupWarehouse: document.getElementById('co-warehouse').value || undefined,
+    invoiceCode: document.getElementById('co-invoice')?.value?.trim() || undefined,
+    serviceType: document.getElementById('co-service-type')?.value || 'Surface'
   });
   btn.disabled = false; btn.textContent = '🚀  Place Order & Deduct from Wallet';
   if (d?.success) {
     toast(`✅ Order ${d.order.orderId} placed! AWB: ${d.order.awbNumber}`, 'success');
     loadWalletBalance();
     navigate('orders');
-    ['co-name','co-phone','co-address','co-pincode','co-city','co-state','co-landmark','co-weight','co-value','co-l','co-b','co-h','co-desc','co-cod-amount'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['co-name','co-phone','co-address','co-pincode','co-city','co-state','co-landmark','co-weight','co-value','co-l','co-b','co-h','co-desc','co-cod-amount','co-invoice'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const svcEl = document.getElementById('co-service-type'); if (svcEl) svcEl.value = 'Surface';
     selectedCourierId = null;
     document.getElementById('selected-cost').style.display = 'none';
   } else toast(d?.message || 'Failed to create order', 'error');
