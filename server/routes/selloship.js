@@ -35,90 +35,13 @@ router.get('/ping', protect, adminOnly, (req, res) =>
   res.json({ success: true, message: 'Selloship credentials are valid ✅' })
 );
 
-// ─── DEBUG: probe multiple possible serviceability URLs ──────────────────────
-router.get('/debug-couriers', protect, adminOnly, async (req, res) => {
-  const axios = require('axios');
-  const BASE = 'https://selloship.com/api/lock_actvs/channels';
-  const BASE2 = 'https://selloship.com/api/lock_actvs';
-  const BASE3 = 'https://selloship.com/api';
-  const { pincode = '110001', weight = '0.5', paymentMode = 'PREPAID' } = req.query;
-  const wg = String(Math.round((parseFloat(weight) || 0.5) * 1000));
-  const headers = { 'Content-Type': 'application/json', 'Authorization': req.selloToken };
-  const body = { pincode, weight: wg, paymentMode: paymentMode.toUpperCase() };
-
-  const probe = async (method, url, opts = {}) => {
-    try {
-      const r = method === 'GET'
-        ? await axios.get(url, { headers, params: body, timeout: 8000 })
-        : await axios.post(url, body, { headers, timeout: 8000 });
-      return { status: r.status, data: typeof r.data === 'string' ? r.data.slice(0, 200) : r.data };
-    } catch (e) {
-      return { status: e?.response?.status, data: typeof e?.response?.data === 'string' ? e.response.data.slice(0,200) : e?.response?.data, err: e.message };
-    }
-  };
-
-  const results = await Promise.all([
-    probe('GET',  BASE  + '/serviceability'),
-    probe('POST', BASE  + '/serviceability'),
-    probe('GET',  BASE  + '/checkServiceability'),
-    probe('POST', BASE  + '/checkServiceability'),
-    probe('GET',  BASE  + '/courierServiceability'),
-    probe('POST', BASE  + '/courierServiceability'),
-    probe('GET',  BASE2 + '/serviceability'),
-    probe('POST', BASE2 + '/serviceability'),
-    probe('GET',  BASE3 + '/serviceability'),
-    probe('POST', BASE3 + '/serviceability'),
-    probe('GET',  BASE  + '/availableCouriers'),
-    probe('POST', BASE  + '/availableCouriers'),
-    probe('GET',  BASE  + '/couriers'),
-    probe('POST', BASE  + '/couriers'),
-    probe('GET',  BASE  + '/getServiceability'),
-    probe('POST', BASE  + '/getServiceability'),
-  ]);
-
-  const labels = [
-    'GET  BASE/serviceability',
-    'POST BASE/serviceability',
-    'GET  BASE/checkServiceability',
-    'POST BASE/checkServiceability',
-    'GET  BASE/courierServiceability',
-    'POST BASE/courierServiceability',
-    'GET  BASE2/serviceability',
-    'POST BASE2/serviceability',
-    'GET  BASE3/serviceability',
-    'POST BASE3/serviceability',
-    'GET  BASE/availableCouriers',
-    'POST BASE/availableCouriers',
-    'GET  BASE/couriers',
-    'POST BASE/couriers',
-    'GET  BASE/getServiceability',
-    'POST BASE/getServiceability',
-  ];
-
-  const summary = results.map((r, i) => ({
-    url: labels[i],
-    status: r.status,
-    looks_good: r.status === 200 && !JSON.stringify(r.data).includes('404') && !JSON.stringify(r.data).includes('Not Found'),
-    data_preview: JSON.stringify(r.data).slice(0, 120)
-  }));
-
-  res.json({
-    success: true,
-    token_ok: !!req.selloToken,
-    token_preview: req.selloToken?.slice(0,20) + '...',
-    working_endpoints: summary.filter(s => s.looks_good),
-    all_results: summary
-  });
-});
-
+// ─── COURIERS (serviceability stub) ──────────────────────────────────────────
+// Selloship has no courier listing API per official docs.
+// Returns empty array — courier selection done via mappings in admin.
 // ─── AVAILABLE COURIERS (serviceability) ─────────────────────────────────────
+// GET /api/selloship/couriers — returns empty (Selloship has no listing API)
 router.get('/couriers', protect, async (req, res) => {
-  try {
-    const couriers = await getServiceability(req.selloToken, req.query);
-    res.json({ success: true, couriers });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
+  res.json({ success: true, couriers: [], note: 'Selloship has no courier listing API. Use courier mappings in admin.' });
 });
 
 // ─── SHIP ORDER (forward) ─────────────────────────────────────────────────────

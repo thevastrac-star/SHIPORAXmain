@@ -661,45 +661,78 @@ textarea{resize:vertical;min-height:80px}
 <div class="page" id="page-courier_manager">
   <!-- TABS -->
   <div class="tabs" style="margin-bottom:0">
-    <div class="tab active" onclick="switchTab('cm','sello_couriers',this)">⚡ Selloship Couriers</div>
+    <div class="tab active" onclick="switchTab('cm','sello_couriers',this)">⚡ How It Works</div>
     <div class="tab" onclick="switchTab('cm','platform_couriers',this)">🚚 Platform Couriers</div>
     <div class="tab" onclick="switchTab('cm','mappings',this)">🔗 Courier Mappings</div>
     <div class="tab" onclick="switchTab('cm','client_rates',this)">💲 Client Rate Manager</div>
   </div>
 
-  <!-- TAB 1: Live Selloship Couriers from API -->
+  <!-- TAB 1: How Selloship Courier Routing Works -->
   <div class="card" id="cm-tab-sello_couriers">
     <div class="card-header">
-      <span class="card-title">⚡ Live Selloship Couriers</span>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="loadSelloCouriers()">🔄 Refresh</button>
-        <button class="btn btn-outline btn-sm" onclick="debugSelloCouriers()" title="See raw API response">🔬 Debug API</button>
+      <span class="card-title">⚡ Selloship Courier Routing</span>
+      <button class="btn btn-primary btn-sm" onclick="testSelloshipPing()">🔌 Test Connection</button>
+    </div>
+
+    <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;padding:18px;margin-bottom:16px">
+      <div style="font-weight:700;font-size:.95rem;margin-bottom:10px;color:#1e40af">ℹ️ How Selloship Courier Selection Works</div>
+      <p style="font-size:.85rem;color:#1e3a8a;margin-bottom:10px">
+        Selloship does <b>not</b> have a courier listing API. Instead, courier selection works in two ways:
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:.83rem">
+        <div style="background:#fff;border-radius:8px;padding:12px;border:1px solid #bfdbfe">
+          <div style="font-weight:700;color:#1d4ed8;margin-bottom:6px">🤖 Auto Routing (Recommended)</div>
+          <div style="color:#374151">Leave <code>courierName</code> and <code>courierID</code> blank in the waybill payload. Selloship automatically picks the best courier for the pincode.</div>
+        </div>
+        <div style="background:#fff;border-radius:8px;padding:12px;border:1px solid #bfdbfe">
+          <div style="font-weight:700;color:#1d4ed8;margin-bottom:6px">🎯 Manual Override</div>
+          <div style="color:#374151">Set <code>courierName</code> (e.g. <b>Delhivery Fr</b>) and <code>courierID</code> in the Mappings tab. These are sent in the waybill payload to force a specific courier.</div>
+        </div>
       </div>
     </div>
-    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
-      <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px">
-        <label style="font-size:.75rem;font-weight:700">Pincode</label>
-        <input id="sc-pincode" placeholder="e.g. 110001" maxlength="6" style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none"/>
+
+    <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:18px;margin-bottom:16px">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:10px;color:#166534">✅ Setup Checklist</div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:.85rem">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="chk1" style="width:16px;height:16px;accent-color:#16a34a"/> 
+          <span>Selloship username & password saved in <b>Settings → Courier APIs</b></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="chk2" style="width:16px;height:16px;accent-color:#16a34a"/>
+          <span>At least one Platform Courier created in <b>Platform Couriers</b> tab</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="chk3" style="width:16px;height:16px;accent-color:#16a34a"/>
+          <span>Courier mapped in <b>Courier Mappings</b> tab (or left as Auto Route)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="chk4" style="width:16px;height:16px;accent-color:#16a34a"/>
+          <span>Client has a pickup Warehouse configured</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="chk5" style="width:16px;height:16px;accent-color:#16a34a"/>
+          <span>Shipping rate set for client in <b>Client Rate Manager</b> tab</span>
+        </label>
       </div>
-      <div class="form-group" style="margin-bottom:0;flex:1;min-width:120px">
-        <label style="font-size:.75rem;font-weight:700">Weight (kg)</label>
-        <input id="sc-weight" type="number" value="0.5" step="0.1" min="0.1" style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none"/>
-      </div>
-      <div class="form-group" style="margin-bottom:0;flex:1;min-width:120px">
-        <label style="font-size:.75rem;font-weight:700">Payment</label>
-        <select id="sc-pay" style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none">
-          <option value="PREPAID">Prepaid</option>
-          <option value="COD">COD</option>
-        </select>
-      </div>
-      <button class="btn btn-primary btn-sm" onclick="loadSelloCouriers()" style="margin-bottom:0;height:40px">🔍 Check</button>
     </div>
-    <div id="sc-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
-      <div style="padding:20px;color:var(--text-muted);font-size:.875rem">Enter a pincode and click Check to see available couriers from Selloship.</div>
+
+    <div style="background:#fefce8;border:1.5px solid #fde047;border-radius:12px;padding:16px">
+      <div style="font-weight:700;font-size:.88rem;margin-bottom:8px;color:#854d0e">💡 To use Delhivery Fr or any specific courier:</div>
+      <ol style="font-size:.83rem;color:#713f12;margin:0;padding-left:18px;line-height:1.8">
+        <li>Go to <b>Platform Couriers</b> → create courier named "Delhivery Fr"</li>
+        <li>Go to <b>Courier Mappings</b> → add mapping for it</li>
+        <li>Set <b>Selloship Courier Name</b> = <code>Delhivery Fr</code> (exact name Selloship uses)</li>
+        <li>Set <b>Selloship Courier ID</b> = the ID from your Selloship account manager</li>
+        <li>When client ships with "Delhivery Fr", that name+ID goes in the waybill payload</li>
+      </ol>
     </div>
+
+    <div id="ping-result" style="margin-top:14px"></div>
   </div>
 
   <!-- TAB 2: Platform Couriers (create/edit) -->
+
   <div class="card" id="cm-tab-platform_couriers" style="display:none">
     <div class="card-header">
       <span class="card-title">🚚 Platform Couriers</span>
@@ -2273,25 +2306,17 @@ async function loadSelloCouriers() {
   }).join('');
 }
 
-async function debugSelloCouriers() {
-  const pincode     = document.getElementById('sc-pincode')?.value?.trim() || '110001';
-  const weight      = document.getElementById('sc-weight')?.value || '0.5';
-  const paymentMode = document.getElementById('sc-pay')?.value || 'PREPAID';
-  const list        = document.getElementById('sc-list');
-  if (list) list.innerHTML = '<div style="padding:16px;color:var(--text-muted)">🔬 Running debug call...</div>';
-  const d = await api('GET', `/selloship/debug-couriers?pincode=${encodeURIComponent(pincode)}&weight=${weight}&paymentMode=${paymentMode}`);
-  if (!list) return;
-  list.innerHTML = `<div style="background:#0f172a;color:#e2e8f0;border-radius:10px;padding:16px;font-family:monospace;font-size:.78rem;white-space:pre-wrap;overflow-x:auto;grid-column:1/-1">
-<b style="color:#f472b6">🔬 DEBUG RESPONSE</b>
-<b style="color:#86efac">Token preview:</b> ${d?.token_preview || 'MISSING'}
-<b style="color:#86efac">Params sent:</b> ${JSON.stringify(d?.params_sent, null, 2)}
-
-<b style="color:#fbbf24">GET /serviceability response:</b>
-${JSON.stringify(d?.get_response, null, 2)}
-
-<b style="color:#60a5fa">POST /serviceability response:</b>
-${JSON.stringify(d?.post_response, null, 2)}
-</div>`;
+async function testSelloshipPing() {
+  const el = document.getElementById('ping-result');
+  if (el) el.innerHTML = '<div style="color:var(--text-muted);font-size:.85rem">⏳ Testing connection...</div>';
+  const d = await api('GET', '/selloship/ping');
+  if (!el) return;
+  if (d?.success) {
+    el.innerHTML = '<div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:12px;color:#166534;font-size:.875rem">✅ <b>Selloship connected!</b> Credentials are valid.</div>';
+  } else {
+    const msg = d?.message || d?.detail || 'Connection failed';
+    el.innerHTML = `<div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px;padding:12px;color:#dc2626;font-size:.875rem">❌ <b>Connection failed:</b> ${msg}</div>`;
+  }
 }
 
 function copyCourierId(id, name) {

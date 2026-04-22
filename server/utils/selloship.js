@@ -1,6 +1,10 @@
 // utils/selloship.js — Selloship API Integration
-// Payload matches official Waybill Generation API spec exactly.
-// Credentials from DB Settings (keys: selloship.username, selloship.password)
+// Based on official Selloship 2.0 API documentation.
+// Endpoints confirmed from docs: authToken, waybill, waybillRVP,
+// waybillDetails, cancel, manifest.
+// NOTE: Selloship has NO serviceability/courier-listing endpoint.
+// Courier selection is done by passing courierName + courierID in the
+// waybill payload, or leaving blank for Selloship auto-routing.
 
 const axios  = require('axios');
 const crypto = require('crypto');
@@ -13,7 +17,7 @@ const TIMEOUT_TRACK    = 15000;
 const TIMEOUT_CANCEL   = 15000;
 const TIMEOUT_MANIFEST = 30000;
 
-// Per-username token cache (FIX #18)
+// Per-username token cache
 const _caches = {};
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
@@ -71,19 +75,11 @@ async function safeCall(fn, username) {
 }
 
 // ─── PAYLOAD BUILDER ──────────────────────────────────────────────────────────
-// Matches official Selloship API spec exactly:
-//   Lv 4     Shipment: orderCode, weight (Float, grams, max 6 digits 4dp),
-//             length/height/breadth (string, mm), items[]
-//   Lv 4.13  items: name, quantity (int), skuCode, itemPrice (float), [category]
-//   Lv 6     deliveryAddressDetails: name, phone, address1, [address2], pincode, city, state, country, [email, alternatePhone]
-//   Lv 8     pickupAddressDetails:   name, phone, address1, [address2], pincode, city, state, country, [email]
-//   Lv 10    returnAddressDetails:   same as pickup
-//   Lv 12    paymentMode: "COD" | "PREPAID"
-//   Lv 13    totalAmount: string "200.00"
-//   Lv 14    collectableAmount: string "0.00" for PREPAID
-//   Lv 15    courierName (opt)
-//   Lv 16    courierId (opt)
-//   Lv 17    isLablePdf: boolean (default true)
+// Exactly matches official Selloship 2.0 API spec:
+//   weight → string e.g. "500.0000" (grams)
+//   courierID (capital ID, not courierId) → maps to doc field "courierID"
+//   courierName → string
+//   isLablePdf → boolean
 
 function buildWaybillPayload(params) {
   const {
@@ -97,7 +93,7 @@ function buildWaybillPayload(params) {
   if (!pickupAddress)   throw new Error('pickupAddress is required');
   if (!returnAddress)   throw new Error('returnAddress is required');
   if (!paymentMode)     throw new Error('paymentMode is required');
-  if (!totalAmount)     throw new Error('totalAmount is required');
+  if (totalAmount === undefined || totalAmount === null) throw new Error('totalAmount is required');
   if (collectableAmount === undefined || collectableAmount === null)
     throw new Error('collectableAmount is required');
 
@@ -107,14 +103,6 @@ function buildWaybillPayload(params) {
   validateFields(shipment, ['orderCode','weight','length','height','breadth','items'], 'shipment');
   if (!Array.isArray(shipment.items) || !shipment.items.length)
     throw new Error('[shipment.items] Must be a non-empty array');
-
-  // Weight: max 6 total digits, 4 decimal places (spec 4.9)
-  const wStr  = String(shipment.weight);
-  const wMatch = wStr.match(/^(\d+)(\.\d+)?$/);
-  if (!wMatch) throw new Error('[shipment.weight] Must be a positive number');
-  const intP = wMatch[1], decP = wMatch[2] ? wMatch[2].slice(1) : '';
-  if (intP.length + decP.length > 6) throw new Error('[shipment.weight] Max 6 total digits');
-  if (decP.length > 4)               throw new Error('[shipment.weight] Max 4 decimal places');
 
   shipment.items.forEach((item, i) => {
     validateFields(item, ['name','quantity','skuCode','itemPrice'], `shipment.items[${i}]`);
@@ -127,38 +115,55 @@ function buildWaybillPayload(params) {
   validateFields(pickupAddress,   addrReq, 'pickupAddress');
   validateFields(returnAddress,   addrReq, 'returnAddress');
 
+  // weight must be a string per official docs e.g. "500.0000"
+  const weightStr = parseFloat(shipment.weight).toFixed(4);
+
   return {
     Shipment: {
-      orderCode: shipment.orderCode,
-      weight:    shipment.weight,
+      orderCode: String(shipment.orderCode),
+      weight:    weightStr,           // string per spec: "500.0000"
       length:    String(shipment.length),
       height:    String(shipment.height),
       breadth:   String(shipment.breadth),
       items: shipment.items.map(item => ({
-        name: item.name, quantity: item.quantity,
-        skuCode: item.skuCode, itemPrice: item.itemPrice,
+        name:      item.name,
+        quantity:  item.quantity,
+        skuCode:   item.skuCode,
+        itemPrice: item.itemPrice,
         ...(item.category && { category: item.category })
       }))
     },
     deliveryAddressDetails: {
-      name: deliveryAddress.name, phone: deliveryAddress.phone,
-      address1: deliveryAddress.address1, pincode: deliveryAddress.pincode,
-      city: deliveryAddress.city, state: deliveryAddress.state, country: deliveryAddress.country,
+      name:     deliveryAddress.name,
+      phone:    deliveryAddress.phone,
+      address1: deliveryAddress.address1,
+      pincode:  deliveryAddress.pincode,
+      city:     deliveryAddress.city,
+      state:    deliveryAddress.state,
+      country:  deliveryAddress.country,
       ...(deliveryAddress.address2       && { address2:       deliveryAddress.address2 }),
       ...(deliveryAddress.email          && { email:          deliveryAddress.email }),
       ...(deliveryAddress.alternatePhone && { alternatePhone: deliveryAddress.alternatePhone })
     },
     pickupAddressDetails: {
-      name: pickupAddress.name, phone: pickupAddress.phone,
-      address1: pickupAddress.address1, pincode: pickupAddress.pincode,
-      city: pickupAddress.city, state: pickupAddress.state, country: pickupAddress.country,
+      name:     pickupAddress.name,
+      phone:    pickupAddress.phone,
+      address1: pickupAddress.address1,
+      pincode:  pickupAddress.pincode,
+      city:     pickupAddress.city,
+      state:    pickupAddress.state,
+      country:  pickupAddress.country,
       ...(pickupAddress.address2 && { address2: pickupAddress.address2 }),
       ...(pickupAddress.email    && { email:    pickupAddress.email })
     },
     returnAddressDetails: {
-      name: returnAddress.name, phone: returnAddress.phone,
-      address1: returnAddress.address1, pincode: returnAddress.pincode,
-      city: returnAddress.city, state: returnAddress.state, country: returnAddress.country,
+      name:     returnAddress.name,
+      phone:    returnAddress.phone,
+      address1: returnAddress.address1,
+      pincode:  returnAddress.pincode,
+      city:     returnAddress.city,
+      state:    returnAddress.state,
+      country:  returnAddress.country,
       ...(returnAddress.address2 && { address2: returnAddress.address2 }),
       ...(returnAddress.email    && { email:    returnAddress.email })
     },
@@ -166,38 +171,37 @@ function buildWaybillPayload(params) {
     totalAmount:       String(totalAmount),
     collectableAmount: String(collectableAmount),
     isLablePdf,
+    // Official doc field is "courierName" + "courierID" (capital ID)
     ...(courierName && { courierName }),
-    ...(courierId   && { courierId })
+    ...(courierId   && { courierID: courierId })   // FIX: was courierId, must be courierID per spec
   };
 }
 
 // ─── ORDER → PAYLOAD PARAMS ADAPTER ──────────────────────────────────────────
-// Converts our internal Order + Warehouse documents into buildWaybillPayload params.
-// Called from routes/orders.js shipViaSelloship().
 
 function orderToPayloadParams(order, warehouse) {
   const pkg = order.package   || {};
   const rec = order.recipient || {};
   const wh  = warehouse       || {};
 
-  const isCOD    = order.paymentMode === 'cod';
+  const isCOD     = order.paymentMode === 'cod';
   const itemValue = Number(pkg.value || order.codAmount || 0);
   const codAmt    = isCOD ? Number(order.codAmount || 0) : 0;
 
-  // weight: kg → grams, as Float with max 4dp
+  // weight: kg → grams as float (string conversion done in buildWaybillPayload)
   const weightGrams = parseFloat(((pkg.weight || 0.5) * 1000).toFixed(4));
 
   return {
     shipment: {
       orderCode: order.orderId,
-      weight:    weightGrams,
-      length:    String(pkg.length  || 150),  // mm defaults
+      weight:    weightGrams,         // numeric grams — buildWaybillPayload converts to string
+      length:    String(pkg.length  || 150),
       height:    String(pkg.height  || 100),
       breadth:   String(pkg.breadth || 100),
       items: [{
         name:      pkg.description || 'Shipment',
         quantity:  1,
-        skuCode:   order.orderId,
+        skuCode:   String(order.orderId),
         itemPrice: itemValue
       }]
     },
@@ -206,7 +210,7 @@ function orderToPayloadParams(order, warehouse) {
       phone:    (rec.phone   || '').replace(/\D/g, '').slice(-10),
       address1: rec.address  || '',
       address2: rec.landmark || undefined,
-      pincode:  rec.pincode  || '',
+      pincode:  String(rec.pincode  || ''),
       city:     rec.city     || '',
       state:    rec.state    || '',
       country:  'India',
@@ -216,7 +220,7 @@ function orderToPayloadParams(order, warehouse) {
       name:     wh.contactName || wh.name || 'Sender',
       phone:    (wh.phone || '').replace(/\D/g, '').slice(-10),
       address1: wh.address || '',
-      pincode:  wh.pincode || '',
+      pincode:  String(wh.pincode || ''),
       city:     wh.city    || '',
       state:    wh.state   || '',
       country:  'India',
@@ -226,7 +230,7 @@ function orderToPayloadParams(order, warehouse) {
       name:     wh.contactName || wh.name || 'Sender',
       phone:    (wh.phone || '').replace(/\D/g, '').slice(-10),
       address1: wh.address || '',
-      pincode:  wh.pincode || '',
+      pincode:  String(wh.pincode || ''),
       city:     wh.city    || '',
       state:    wh.state   || '',
       country:  'India',
@@ -242,17 +246,23 @@ function orderToPayloadParams(order, warehouse) {
 
 async function createWaybill(token, params) {
   const payload = buildWaybillPayload(params);
+  console.log('[Selloship createWaybill] payload:', JSON.stringify(payload).slice(0, 400));
   return safeCall(async () => {
     const res = await axios.post(`${BASE}/waybill`, payload, {
       headers: authHeaders(token), timeout: TIMEOUT_SHIP
     });
+    console.log('[Selloship createWaybill] response:', JSON.stringify(res.data).slice(0, 300));
     if (res.data.status !== 'SUCCESS') {
       const msg    = res.data.message || res.data.msg || JSON.stringify(res.data);
       const reason = res.data.reason  || res.data.errorMessage || '';
-      throw new Error(`Waybill failed: ${msg}${reason ? ' (' + reason + ')' : ''} (Something Went Wrong.)`);
+      throw new Error(`Waybill failed: ${msg}${reason ? ' (' + reason + ')' : ''}`);
     }
-    return { waybill: res.data.waybill, shippingLabel: res.data.shippingLabel,
-      courierName: res.data.courierName, routingCode: res.data.routingCode };
+    return {
+      waybill:       res.data.waybill,
+      shippingLabel: res.data.shippingLabel,
+      courierName:   res.data.courierName,
+      routingCode:   res.data.routingCode
+    };
   });
 }
 
@@ -264,24 +274,33 @@ async function createReverseWaybill(token, params) {
     const res = await axios.post(`${BASE}/waybillRVP`, payload, {
       headers: authHeaders(token), timeout: TIMEOUT_SHIP
     });
-    if (res.data.status !== 'SUCCESS')
-      throw new Error(`RVP failed: ${res.data.message} (${res.data.reason})`);
-    return { waybill: res.data.waybill, shippingLabel: res.data.shippingLabel,
-      courierName: res.data.courierName, routingCode: res.data.routingCode };
+    if (res.data.status !== 'SUCCESS') {
+      const msg    = res.data.message || res.data.msg || JSON.stringify(res.data);
+      const reason = res.data.reason  || res.data.errorMessage || '';
+      throw new Error(`RVP failed: ${msg}${reason ? ' (' + reason + ')' : ''}`);
+    }
+    return {
+      waybill:       res.data.waybill,
+      shippingLabel: res.data.shippingLabel,
+      courierName:   res.data.courierName,
+      routingCode:   res.data.routingCode
+    };
   });
 }
 
 // ─── TRACK ───────────────────────────────────────────────────────────────────
+// Endpoint: GET /waybillDetails?waybills=AWB1,AWB2
 
 async function getWaybillStatus(token, awbNumbers) {
   if (!Array.isArray(awbNumbers) || !awbNumbers.length) throw new Error('awbNumbers must be non-empty array');
   if (awbNumbers.length > 50) throw new Error('Max 50 AWBs per call');
   return safeCall(async () => {
     const query = awbNumbers.join(',');
-    const res   = await axios.post(
-      `${BASE}/waybillDetails?waybills=${encodeURIComponent(query)}`, {},
-      { headers: authHeaders(token), timeout: TIMEOUT_TRACK }
-    );
+    const res   = await axios.get(`${BASE}/waybillDetails`, {
+      headers: authHeaders(token),
+      params:  { waybills: query },
+      timeout: TIMEOUT_TRACK
+    });
     if (res.data.Status !== 'SUCCESS') throw new Error(`Track failed: ${JSON.stringify(res.data)}`);
     return res.data.waybillDetails;
   });
@@ -312,43 +331,16 @@ async function generateManifest(token, awbNumbers) {
 }
 
 // ─── SERVICEABILITY ──────────────────────────────────────────────────────────
+// Selloship has NO serviceability endpoint per official documentation.
+// This stub returns empty array so existing callers don't break.
+// Courier selection = pass courierName+courierID in waybill payload,
+// or leave blank for Selloship auto-routing.
 
-async function getServiceability(token, { pincode, weight, paymentMode } = {}) {
-  const weightGrams = String(Math.round((parseFloat(weight) || 0.5) * 1000));
-  const params = {
-    pincode:     pincode || '',
-    weight:      weightGrams,
-    paymentMode: (paymentMode || 'PREPAID').toUpperCase()
-  };
-  let res;
-  try {
-    res = await axios.get(`${BASE}/serviceability`, {
-      headers: authHeaders(token),
-      params,
-      timeout: TIMEOUT_TRACK
-    });
-  } catch (err) {
-    const msg = err?.response?.data ? JSON.stringify(err.response.data) : err.message;
-    console.error('[Selloship serviceability] HTTP error:', msg);
-    throw new Error('Selloship serviceability failed: ' + msg);
-  }
-
-  console.log('[Selloship serviceability] response:', JSON.stringify(res.data).slice(0, 600));
-
-  const d = res.data;
-  // Handle multiple possible response shapes
-  const isSuccess = d?.status === 'SUCCESS' || d?.Status === 'SUCCESS';
-  if (isSuccess) {
-    const list = d.couriers || d.Couriers || d.data || d.courierList || [];
-    if (Array.isArray(list)) return list;
-    if (typeof list === 'object' && list !== null) return Object.values(list);
-    return [];
-  }
-  const errMsg = d?.message || d?.Message || d?.error || JSON.stringify(d);
-  throw new Error('Selloship serviceability: ' + errMsg);
+async function getServiceability(token, params = {}) {
+  return [];
 }
 
-// ─── WEBHOOK HMAC VERIFICATION (FIX #9) ─────────────────────────────────────
+// ─── WEBHOOK HMAC VERIFICATION ───────────────────────────────────────────────
 
 function verifyWebhookSignature(rawBody, signatureHeader) {
   const secret = process.env.SELLOSHIP_WEBHOOK_SECRET;
@@ -366,8 +358,8 @@ module.exports = {
   BASE,
   getSelloToken,
   getCredentials,
-  buildWaybillPayload,     // for unit tests
-  orderToPayloadParams,    // Order + Warehouse → buildWaybillPayload params
+  buildWaybillPayload,
+  orderToPayloadParams,
   createWaybill,
   createReverseWaybill,
   getWaybillStatus,

@@ -2066,17 +2066,8 @@ async function shipOrder(id) {
      &nbsp;|&nbsp; <span class="status s-${o.paymentMode}">${o.paymentMode==='cod'?'COD ₹'+o.codAmount:'Prepaid'}</span>
      &nbsp;|&nbsp; Weight: ${o.package?.weight||0.5} kg`;
   const cd = await api('GET', '/couriers');
-  // also load selloship couriers
-  const pincode = o.recipient?.pincode || '';
-  const weight = o.package?.weight || 0.5;
-  const paymentMode = o.paymentMode === 'cod' ? 'COD' : 'Prepaid';
-  let selloshipCouriers = [];
-  let selloshipErr = '';
-  try {
-    const sd = await api('GET', `/selloship/couriers?pincode=${pincode}&weight=${weight}&paymentMode=${paymentMode}`);
-    if (sd?.success && sd.couriers?.length) selloshipCouriers = sd.couriers;
-    else if (!sd?.success) selloshipErr = sd?.message || sd?.detail || 'Selloship unavailable';
-  } catch(e) { selloshipErr = e.message; }
+  // Selloship has no courier listing API — courier routing is handled
+  // automatically by the mapping config in admin. Only platform couriers shown here.
 
   const somBox = document.getElementById('som-couriers');
   let html = '';
@@ -2090,19 +2081,7 @@ async function shipOrder(id) {
         <div class="courier-sub">${c.code||''}</div>
       </div>`).join('');
   }
-  // Selloship couriers section
-  if (selloshipCouriers.length) {
-    html += `<div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:12px 0 8px;padding:4px 0 2px;border-bottom:1px solid var(--border)">⚡ Selloship Couriers</div>`;
-    html += selloshipCouriers.map(c => `
-      <div class="courier-card" id="som-cc-ss-${c.courier_id||c.id}" onclick="somSelectSelloshipCourier('${c.courier_id||c.id}','${(c.courier_name||c.name).replace(/'/g,"\'")}',${weight},'${o.paymentMode}',${o.codAmount||0})">
-        <div class="check">✓</div>
-        <div class="courier-name">⚡ ${c.courier_name||c.name}</div>
-        <div class="courier-sub">${c.rate ? '₹'+c.rate : ''} ${c.etd ? '· '+c.etd : ''}</div>
-      </div>`).join('');
-  } else if (selloshipErr) {
-    html += `<div style="font-size:.78rem;color:var(--danger);padding:8px 4px;margin-top:8px;border-top:1px solid var(--border)">⚠️ Selloship error: ${selloshipErr}</div>`;
-  }
-  if (!html) html = `<p style="color:var(--danger);font-size:.875rem">No couriers available. Contact admin.${selloshipErr ? '<br/><small>'+selloshipErr+'</small>' : ''}</p>`;
+  if (!html) html = '<p style="color:var(--danger);font-size:.875rem">No couriers available. Contact admin to add couriers.</p>';
   somBox.innerHTML = html;
   document.getElementById('som-cost-box').style.display = 'none';
   document.getElementById('som-confirm-btn').disabled = true;
@@ -2157,13 +2136,9 @@ async function confirmShipOrder() {
   const btn = document.getElementById('som-confirm-btn');
   btn.disabled = true; btn.textContent = '⏳ Processing...';
 
-  let d;
-  if (somIsSelloship) {
-    // Ship through Selloship API
-    d = await api('POST', `/selloship/ship/${id}`, { courierId: somSelectedCourierId });
-  } else {
-    d = await api('PATCH', `/orders/${id}/ship`, { courierId: somSelectedCourierId });
-  }
+  // Always use PATCH /orders/:id/ship — it handles Selloship routing internally
+  // via courier mappings configured in admin. No separate selloship route needed.
+  const d = await api('PATCH', `/orders/${id}/ship`, { courierId: somSelectedCourierId });
 
   if (d?.success) {
     toast(`✅ Shipped! AWB: ${d.order?.awbNumber || d.awb || 'Assigned'}. Order moved to Shipments.`, 'success');
