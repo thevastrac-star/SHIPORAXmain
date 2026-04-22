@@ -298,7 +298,7 @@ td b{color:var(--text)}
 
 @media(max-width:768px){
   #sidebar{display:none!important}
-  #main{margin-left:0!important}
+  #main{margin-left:0!important;overflow-x:hidden;max-width:100vw}
   #topbar{display:none!important}
 
   #mob-topbar{
@@ -717,6 +717,19 @@ td b{color:var(--text)}
             </div>
           </div>
           <div class="form-group"><label>Contents Description</label><input id="co-desc" placeholder="e.g. Clothing, Electronics, Books"/></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+            <div class="form-group" style="margin-bottom:0">
+              <label>Invoice Code <span style="color:var(--muted);font-weight:400;font-size:.75rem">(optional)</span></label>
+              <input id="co-invoice" placeholder="INV-001"/>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label>Service Type</label>
+              <select id="co-service-type" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:.875rem">
+                <option value="Surface">Surface</option>
+                <option value="Air">Air</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div style="border-top:1px solid var(--border);margin:10px 0 16px;padding-top:16px">
@@ -735,7 +748,7 @@ td b{color:var(--text)}
         </div>
 
         <button class="btn btn-primary btn-lg" style="width:100%;margin-top:6px" onclick="createOrder()">
-          🚀 &nbsp;Place Order &amp; Deduct from Wallet
+          🚀 &nbsp;Place Order
         </button>
       </div>
     </div>
@@ -796,7 +809,9 @@ td b{color:var(--text)}
       <div class="card">
         <div class="card-hdr">
           <span class="card-ttl">🚀 Shipments &amp; Tracking</span>
-          <div style="display:flex;gap:10px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabels()" id="bulk-label-btn" style="display:none">📥 Download Labels</button>
+            <button class="btn btn-danger btn-sm" onclick="bulkCancelShipments()" id="bulk-cancel-ship-btn" style="display:none">❌ Bulk Cancel</button>
             <button class="btn btn-outline btn-sm" onclick="exportShipments()">📤 Export CSV</button>
           </div>
         </div>
@@ -821,8 +836,9 @@ td b{color:var(--text)}
         </div>
         <div class="table-wrap"><table>
           <thead><tr>
+            <th><input type="checkbox" id="track-select-all" onchange="toggleTrackSelectAll(this)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--brand)"/></th>
             <th>Order ID</th><th>AWB Number</th><th>Recipient</th><th>Courier</th>
-            <th>Payment</th><th>Charge</th><th>Status</th><th>Shipped On</th><th style="min-width:130px">Action</th>
+            <th>Payment</th><th>Charge</th><th>Status</th><th>Shipped On</th><th style="min-width:150px">Action</th>
           </tr></thead>
           <tbody id="tracking-tbody"></tbody>
         </table></div>
@@ -1327,12 +1343,17 @@ td b{color:var(--text)}
     </div>
     <div class="form-row">
       <div class="form-group"><label>Phone</label><input id="wh-phone" placeholder="10-digit mobile"/></div>
-      <div class="form-group"><label>Pincode</label><input id="wh-pincode" placeholder="6-digit pincode" maxlength="6"/></div>
+      <div class="form-group">
+        <label>Pincode</label>
+        <input id="wh-pincode" placeholder="6-digit pincode" maxlength="6" inputmode="numeric" oninput="onWhPincodeInput()"/>
+        <div class="pincode-status loading" id="wh-pincode-loader">🔍 Fetching city &amp; state...</div>
+        <div class="pincode-status ok" id="wh-pincode-ok">✅ City &amp; state auto-filled!</div>
+      </div>
     </div>
     <div class="form-group"><label>Address</label><input id="wh-address" placeholder="Full address"/></div>
     <div class="form-row">
-      <div class="form-group"><label>City</label><input id="wh-city"/></div>
-      <div class="form-group"><label>State</label><input id="wh-state"/></div>
+      <div class="form-group"><label>City</label><input id="wh-city" placeholder="Auto-filled from pincode"/></div>
+      <div class="form-group"><label>State</label><input id="wh-state" placeholder="Auto-filled from pincode"/></div>
     </div>
     <div class="form-group"><label><input type="checkbox" id="wh-default" style="width:auto;margin-right:8px;accent-color:var(--brand)"/>Set as Default Pickup</label></div>
     <button class="btn btn-primary" style="width:100%;padding:14px" onclick="saveWarehouse()">💾 Save Warehouse</button>
@@ -1710,6 +1731,29 @@ function onPincodeInput() {
   }, 600);
 }
 
+let whPincodeTimer;
+function onWhPincodeInput() {
+  const val = document.getElementById('wh-pincode').value;
+  const loader = document.getElementById('wh-pincode-loader');
+  const ok = document.getElementById('wh-pincode-ok');
+  if (loader) loader.style.display = 'none';
+  if (ok) ok.style.display = 'none';
+  if (val.length !== 6) return;
+  clearTimeout(whPincodeTimer);
+  whPincodeTimer = setTimeout(async () => {
+    if (loader) loader.style.display = 'block';
+    const d = await api('GET', `/orders/pincode/${val}`);
+    if (loader) loader.style.display = 'none';
+    if (d?.success) {
+      document.getElementById('wh-city').value = d.city || '';
+      document.getElementById('wh-state').value = d.state || '';
+      if (ok) { ok.style.display = 'block'; setTimeout(() => ok.style.display = 'none', 3000); }
+    } else {
+      toast('Pincode not found. Enter city & state manually.', 'info');
+    }
+  }, 600);
+}
+
 function toggleCOD() {
   const isCOD = document.getElementById('co-payment').value === 'cod';
   document.getElementById('cod-group').style.display = isCOD ? 'block' : 'none';
@@ -1728,7 +1772,6 @@ async function createOrder() {
   if (!/^\d{6}$/.test(pincode)) { toast('Invalid pincode (6 digits required)', 'error'); return; }
   if (!document.getElementById('co-name').value.trim()) { toast('Recipient name is required', 'error'); return; }
   if (!document.getElementById('co-address').value.trim()) { toast('Address is required', 'error'); return; }
-  if (!selectedCourierId) { toast('Please select a courier', 'error'); return; }
   const btn = document.querySelector('#page-create-order .btn-primary');
   btn.disabled = true; btn.textContent = '⏳ Placing order...';
   const d = await api('POST', '/orders', {
@@ -1750,14 +1793,17 @@ async function createOrder() {
     },
     paymentMode: document.getElementById('co-payment').value,
     codAmount: parseFloat(document.getElementById('co-cod-amount').value) || 0,
-    pickupWarehouse: document.getElementById('co-warehouse').value || undefined
+    pickupWarehouse: document.getElementById('co-warehouse').value || undefined,
+    invoiceCode: document.getElementById('co-invoice')?.value?.trim() || undefined,
+    serviceType: document.getElementById('co-service-type')?.value || 'Surface'
   });
-  btn.disabled = false; btn.textContent = '🚀  Place Order & Deduct from Wallet';
+  btn.disabled = false; btn.textContent = '🚀  Place Order';
   if (d?.success) {
     toast(`✅ Order ${d.order.orderId} placed! AWB: ${d.order.awbNumber}`, 'success');
     loadWalletBalance();
     navigate('orders');
-    ['co-name','co-phone','co-address','co-pincode','co-city','co-state','co-landmark','co-weight','co-value','co-l','co-b','co-h','co-desc','co-cod-amount'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['co-name','co-phone','co-address','co-pincode','co-city','co-state','co-landmark','co-weight','co-value','co-l','co-b','co-h','co-desc','co-cod-amount','co-invoice'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const svcEl = document.getElementById('co-service-type'); if (svcEl) svcEl.value = 'Surface';
     selectedCourierId = null;
     document.getElementById('selected-cost').style.display = 'none';
   } else toast(d?.message || 'Failed to create order', 'error');
@@ -1834,7 +1880,7 @@ async function saveEditOrder() {
     toast('✅ Order updated successfully', 'success');
     window._editOrderId = null;
     const placeBtn = document.getElementById('place-order-btn');
-    if (placeBtn) { placeBtn.textContent = '🚀  Place Order & Deduct from Wallet'; placeBtn.setAttribute('onclick','createOrder()'); }
+    if (placeBtn) { placeBtn.textContent = '🚀  Place Order'; placeBtn.setAttribute('onclick','createOrder()'); }
     navigate('orders');
   } else {
     toast(d?.message || 'Error updating order', 'error');
@@ -1895,9 +1941,9 @@ function renderOrderRows(orders, total, pages, page) {
       const editBtn = !o.awbNumber
         ? `<button class="btn btn-outline btn-xs" onclick="openEditOrderModal('${o._id}')" title="Edit Order">✏️</button> `
         : '';
-      actionCell = editBtn + `<button class="btn btn-primary btn-xs" onclick="shipOrder('${o._id}')">🚀 Ship</button>`;
+      actionCell = editBtn + `<button class="btn btn-primary btn-xs" onclick="shipOrder('${o._id}')">🚀 Ship</button> <button class="btn btn-outline btn-xs" onclick="cloneOrder('${o._id}')" title="Clone Order">🔁</button>`;
     } else if (isShipped && sello?.labelUrl) {
-      actionCell = `<a href="${sello.labelUrl}" target="_blank" class="btn btn-outline btn-xs">🏷 Label</a>`;
+      actionCell = `<a href="${sello.labelUrl}" target="_blank" class="btn btn-outline btn-xs">🏷 Label</a> <button class="btn btn-outline btn-xs" onclick="cloneOrder('${o._id}')" title="Clone Order">🔁</button>`;
     } else if (isShipped) {
       actionCell = `<span style="font-size:.72rem;color:var(--muted)">${o.status}</span>`;
     } else {
@@ -1981,9 +2027,13 @@ async function loadTracking() {
   if (!d?.success) return;
 
   const tbody = document.getElementById('tracking-tbody');
+  selectedTrackIds.clear();
+  updateTrackBulkBtns();
   tbody.innerHTML = d.orders.map(o => {
     const isCancellable = o.status === 'shipped' || o.status === 'processing';
+    const labelUrl = o.selloship?.labelUrl;
     return `<tr>
+      <td><input type="checkbox" class="track-check" value="${o._id}" data-label="${labelUrl||''}" onchange="toggleTrackSelect('${o._id}',this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--brand)"/></td>
       <td><b style="color:var(--text)">${o.orderId}</b></td>
       <td><b style="color:var(--teal)">${o.awbNumber||'—'}</b></td>
       <td>${o.recipient?.name||'—'}<br/><small style="color:var(--muted)">${o.recipient?.city||''} ${o.recipient?.pincode||''}</small></td>
@@ -1992,12 +2042,14 @@ async function loadTracking() {
       <td>${o.shippingCharge?'₹'+o.shippingCharge:'—'}</td>
       <td><span class="status s-${o.status}">${o.status}</span></td>
       <td>${fmtDate(o.updatedAt)}</td>
-      <td>
-        ${isCancellable
-          ? `<button class="btn btn-danger btn-sm" onclick="openCancelModal('${o._id}','${o.orderId}','${o.awbNumber||''}',${o.shippingCharge||0})">❌ Cancel</button>`
-          : `<span style="color:var(--muted);font-size:.78rem">${o.status}</span>`}
+      <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
+        ${labelUrl ? `<a href="${labelUrl}" target="_blank" class="btn btn-outline btn-xs">🏷 Label</a>` : ''}
+        ${isCancellable ? `<button class="btn btn-danger btn-xs" onclick="openCancelModal('${o._id}','${o.orderId}','${o.awbNumber||''}',${o.shippingCharge||0})">❌ Cancel</button>` : `<span style="color:var(--muted);font-size:.78rem">${o.status}</span>`}
       </td>
     </tr>`;
+  }).join('') || `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--muted)">
+    <div style="font-size:2rem;margin-bottom:8px">🚀</div>No shipments yet. Ship orders from My Orders tab.
+  </td></tr>`;
   }).join('') || `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">
     <div style="font-size:2rem;margin-bottom:8px">🚀</div>No shipments yet. Ship orders from My Orders tab.
   </td></tr>`;
@@ -2230,8 +2282,23 @@ async function recharge() {
   const amount = parseFloat(document.getElementById('recharge-amt').value);
   if (!amount || amount < 100) { toast('Minimum recharge ₹100', 'error'); return; }
   const d = await api('POST', '/wallet/recharge', { amount });
-  if (d?.success) toast('Recharge request submitted. Contact support to confirm.', 'info');
-  else toast(d?.message||'Error', 'error');
+  if (d?.success) {
+    // Fetch QR and show modal
+    const qd = await api('GET', '/wallet/recharge-qr');
+    const msg = qd?.message || 'Please message your POC for recharge after payment done.';
+    const qrHtml = qd?.qrImageUrl
+      ? `<img src="${qd.qrImageUrl}" style="width:200px;height:200px;object-fit:contain;border:1.5px solid var(--border);border-radius:12px;display:block;margin:0 auto 14px"/>`
+      : '<div style="font-size:3rem;text-align:center;margin-bottom:14px">💳</div>';
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    overlay.innerHTML = `<div style="background:var(--card);border-radius:20px;padding:28px;max-width:360px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+      <div style="font-size:1.1rem;font-weight:700;margin-bottom:16px">📲 Recharge ₹${amount}</div>
+      ${qrHtml}
+      <div style="font-size:.88rem;color:var(--text2);line-height:1.6;margin-bottom:20px">${msg}</div>
+      <button class="btn btn-primary" style="width:100%" onclick="this.closest('[style*=fixed]').remove()">✅ Done</button>
+    </div>`;
+    document.body.appendChild(overlay);
+  } else toast(d?.message||'Error', 'error');
 }
 async function exportWallet() {
   const res = await fetch(`${API}/wallet/export/transactions`, { headers: { Authorization: 'Bearer '+token } });
@@ -2838,6 +2905,56 @@ function logout() { localStorage.removeItem('client_token'); localStorage.remove
 
 // Close modals on overlay click
 document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); }));
+
+// ─── TRACKING BULK SELECT ─────────────────────────────────────────────────────
+const selectedTrackIds = new Set();
+function toggleTrackSelect(id, checked) {
+  checked ? selectedTrackIds.add(id) : selectedTrackIds.delete(id);
+  updateTrackBulkBtns();
+}
+function toggleTrackSelectAll(cb) {
+  document.querySelectorAll('.track-check').forEach(el => { el.checked = cb.checked; cb.checked ? selectedTrackIds.add(el.value) : selectedTrackIds.delete(el.value); });
+  updateTrackBulkBtns();
+}
+function updateTrackBulkBtns() {
+  const has = selectedTrackIds.size > 0;
+  const lb = document.getElementById('bulk-label-btn');
+  const cb = document.getElementById('bulk-cancel-ship-btn');
+  if (lb) lb.style.display = has ? 'inline-flex' : 'none';
+  if (cb) cb.style.display = has ? 'inline-flex' : 'none';
+  const sall = document.getElementById('track-select-all');
+  const all = document.querySelectorAll('.track-check');
+  if (sall && all.length) sall.indeterminate = selectedTrackIds.size > 0 && selectedTrackIds.size < all.length;
+}
+async function bulkDownloadLabels() {
+  const checks = [...document.querySelectorAll('.track-check:checked')];
+  const urls = checks.map(c => c.dataset.label).filter(Boolean);
+  if (!urls.length) { toast('No labels available for selected orders', 'error'); return; }
+  urls.forEach((url, i) => setTimeout(() => window.open(url, '_blank'), i * 300));
+  toast(`📥 Opening ${urls.length} label(s)...`, 'success');
+}
+async function bulkCancelShipments() {
+  const ids = [...selectedTrackIds];
+  if (!ids.length) return;
+  if (!confirm(`Cancel ${ids.length} shipment(s)? Refund will only happen if Selloship confirms cancellation.`)) return;
+  const d = await api('POST', '/orders/bulk-cancel', { orderIds: ids });
+  if (d?.success) {
+    const ok = d.results.filter(r => r.success).length;
+    const refundTotal = d.results.filter(r => r.success).reduce((s, r) => s + (r.refund||0), 0);
+    toast(`✅ Cancelled ${ok}/${ids.length}. Refund: ₹${refundTotal}`, 'success');
+    selectedTrackIds.clear();
+    loadTracking();
+    loadWalletBalance();
+  } else toast(d?.message||'Error', 'error');
+}
+
+// ─── CLONE ORDER ──────────────────────────────────────────────────────────────
+async function cloneOrder(id) {
+  const d = await api('POST', `/orders/clone/${id}`);
+  if (d?.success) { toast(`✅ Cloned → ${d.order.orderId}`, 'success'); loadOrders(); }
+  else toast(d?.message||'Clone failed', 'error');
+}
+
 </script>
 </body>
 </html>

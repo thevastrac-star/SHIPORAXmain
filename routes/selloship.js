@@ -138,8 +138,12 @@ router.post('/ship/:orderId', protect, async (req, res) => {
     const params = orderToPayloadParams(order, warehouse);
 
     // Apply courier override from request (e.g. "Delhivery Fr" selected in UI)
-    if (req.body.courierId)   params.courierId   = String(req.body.courierId);
+    // [FIX-F] accept both courierID (canonical) and courierId (legacy) from request body
+    const incomingCourierID = req.body.courierID || req.body.courierId || '';
+    if (incomingCourierID)    params.courierID   = String(incomingCourierID);
     if (req.body.courierName) params.courierName = String(req.body.courierName);
+    // Allow serviceType override from request (relevant for admin re-shipping)
+    if (req.body.serviceType) params.serviceType = req.body.serviceType;
 
     const result = await createWaybill(req.selloToken, params);
 

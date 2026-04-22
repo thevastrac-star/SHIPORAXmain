@@ -389,6 +389,25 @@ textarea{resize:vertical;min-height:80px}
 
     <!-- ═══ RECHARGES ═══ -->
     <div class="page" id="page-recharges">
+      <!-- QR Upload Card -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><span class="card-title">📲 Recharge QR Code</span><button class="btn btn-primary btn-sm" onclick="saveRechargeQR()">💾 Save</button></div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start">
+          <div>
+            <div id="admin-qr-preview" style="width:160px;height:160px;border:2px dashed var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:2rem;overflow:hidden;cursor:pointer" onclick="document.getElementById('admin-qr-file').click()">📷</div>
+            <input type="file" id="admin-qr-file" accept="image/*" style="display:none" onchange="handleAdminQRUpload(this)"/>
+            <div style="font-size:.72rem;color:var(--text-muted);margin-top:6px;text-align:center">Click to upload QR</div>
+            <input type="hidden" id="admin-qr-url"/>
+          </div>
+          <div>
+            <div class="form-group" style="margin-bottom:12px">
+              <label style="font-size:.8rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:6px">Message shown to clients after recharge</label>
+              <textarea id="admin-qr-msg" rows="3" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;resize:vertical" placeholder="Please message your POC for recharge after payment done."></textarea>
+            </div>
+            <div style="font-size:.78rem;color:var(--text-muted)">💡 Clients will see this QR + message when they initiate a recharge request.</div>
+          </div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-header">
           <span class="card-title">Recharge Monitor</span>
@@ -963,6 +982,10 @@ textarea{resize:vertical;min-height:80px}
         <div class="form-group"><label>Support Email</label><input type="email" id="s-email" placeholder="support@company.com"/></div>
         <div class="form-group"><label>Support Phone</label><input type="text" id="s-phone" placeholder="+91..."/></div>
         <button class="btn btn-primary" onclick="saveSettings('general')">💾 Save General Settings</button>
+        <!-- Order ID Sequence Note -->
+        <div style="margin-top:20px;padding:14px 16px;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;font-size:.82rem;color:#92400e;line-height:1.7">
+          <b>📌 Note — Order ID Sequence:</b> The order ID counter (e.g. <code style="background:#fef3c7;padding:1px 5px;border-radius:4px">ORD-0001</code>) <b>never resets automatically</b>. Deleting orders does not reset the sequence. If the order prefix is changed (e.g. from <code style="background:#fef3c7;padding:1px 5px;border-radius:4px">ORD</code> to <code style="background:#fef3c7;padding:1px 5px;border-radius:4px">SHX</code>), the new prefix starts from <code style="background:#fef3c7;padding:1px 5px;border-radius:4px">SHX-0001</code>. This is by design to ensure Order IDs are always unique.
+        </div>
       </div>
       <div class="card" id="settings-tab-notifications" style="display:none">
         <div class="card-header"><span class="card-title">Notification Config</span></div>
@@ -997,10 +1020,14 @@ textarea{resize:vertical;min-height:80px}
           <div style="background:#eff6ff;border-radius:10px;padding:14px;margin-bottom:14px;font-size:.8rem;color:#1e40af">
             <b>FIX-A:</b> weight auto-formatted to <code>"500.0000"</code> &nbsp;|&nbsp;
             <b>FIX-B:</b> serviceType omitted on forward &nbsp;|&nbsp;
-            <b>FIX-C:</b> separate builders per endpoint
+            <b>FIX-C:</b> separate builders per endpoint &nbsp;|&nbsp;
+            <b>FIX-D:</b> invoiceCode sent in Shipment &nbsp;|&nbsp;
+            <b>FIX-E:</b> currencyCode: "INR" added &nbsp;|&nbsp;
+            <b>FIX-F:</b> courierID (uppercase) canonical key
           </div>
           <div class="form-row">
             <div class="form-group"><label>Order Code</label><input id="sa-orderCode" placeholder="ORD-001" value="TEST-001"/></div>
+            <div class="form-group"><label>Invoice Code <span style="color:#94a3b8;font-weight:400">(optional)</span></label><input id="sa-invoiceCode" placeholder="INV-001"/></div>
             <div class="form-group"><label>Payment Mode</label>
               <select id="sa-paymentMode" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px">
                 <option value="PREPAID">PREPAID</option><option value="COD">COD</option>
@@ -1664,7 +1691,37 @@ async function loadRecharges() {
     <div class="stat-card" style="border-color:var(--primary)"><div class="label">Count</div><div class="value">${d.total}</div></div>`;
   const tbody = document.getElementById('recharges-tbody');
   tbody.innerHTML = d.recharges.map(r => `<tr><td>${r.user?.name||'—'}<br/><small>${r.user?.email||''}</small></td><td>₹${r.amount}</td><td><span class="status s-${r.status}">${r.status}</span></td><td>${r.paymentGateway||'manual'}</td><td>${fmtDate(r.createdAt)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No recharges</td></tr>';
+  // Load current QR
+  const qd = await api('GET', '/wallet/recharge-qr');
+  if (qd?.qrImageUrl) {
+    const prev = document.getElementById('admin-qr-preview');
+    if (prev) prev.innerHTML = `<img src="${qd.qrImageUrl}" style="width:100%;height:100%;object-fit:cover"/>`;
+    const inp = document.getElementById('admin-qr-url');
+    if (inp) inp.value = qd.qrImageUrl;
+  }
+  const msgEl = document.getElementById('admin-qr-msg');
+  if (msgEl && qd?.message) msgEl.value = qd.message;
 }
+
+function handleAdminQRUpload(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const url = e.target.result;
+    document.getElementById('admin-qr-url').value = url;
+    const prev = document.getElementById('admin-qr-preview');
+    if (prev) prev.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:10px"/>`;
+  };
+  reader.readAsDataURL(file);
+}
+async function saveRechargeQR() {
+  const qrImageUrl = document.getElementById('admin-qr-url')?.value || '';
+  const message = document.getElementById('admin-qr-msg')?.value || 'Please message your POC for recharge after payment done.';
+  const d = await api('POST', '/wallet/admin/recharge-qr', { qrImageUrl, message });
+  if (d?.success) toast('✅ Recharge QR saved', 'success');
+  else toast(d?.message||'Error', 'error');
+}
+
 
 // ─── COD ─────────────────────────────────────────────────────────────────────
 async function loadCOD() {
@@ -2379,11 +2436,12 @@ function selloGatherPayload() {
   const payload = {
     _endpoint: _selloEp,
     shipment: {
-      orderCode: g('sa-orderCode'),
-      weight:    gn('sa-weight'),
-      length:    gn('sa-length'),
-      height:    gn('sa-height'),
-      breadth:   gn('sa-breadth'),
+      orderCode:   g('sa-orderCode'),
+      invoiceCode: g('sa-invoiceCode') || undefined,  // [FIX-D] send when filled
+      weight:      gn('sa-weight'),
+      length:      gn('sa-length'),
+      height:      gn('sa-height'),
+      breadth:     gn('sa-breadth'),
       items: [{
         name:      g('sa-itemName'),
         skuCode:   g('sa-skuCode'),
@@ -2410,7 +2468,7 @@ function selloGatherPayload() {
     paymentMode: document.getElementById('sa-paymentMode')?.value || 'PREPAID',
     totalAmount: gn('sa-totalAmount'),
     collectableAmount: gn('sa-collectableAmount'),
-    courierId: '', courierName: '', isLablePdf: false
+    courierID: '', courierName: '', isLablePdf: false  // [FIX-F] uppercase courierID
   };
   if (_selloEp === 'rvp') payload.serviceType = document.getElementById('sa-serviceType')?.value || 'Surface';
   return payload;
