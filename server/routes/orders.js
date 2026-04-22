@@ -26,6 +26,8 @@ const {
   getSelloToken, orderToPayloadParams, createWaybill
 } = require('../utils/selloship');
 const shippingQueue = require('../utils/shippingQueue');
+const axios    = require('axios');
+const archiver = require('archiver');
 
 const upload = multer({ dest: 'uploads/bulk/' });
 
@@ -192,6 +194,53 @@ router.post('/bulk-labels', protect, async (req, res) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ─── POST /bulk-labels-zip — download all Selloship label PDFs as ZIP ─────────
+// Uses archiver + parallel axios streams so large batches are fast.
+router.post('/bulk-labels-zip', protect, async (req, res) => {
+  try {
+    const { orderIds } = req.body;
+    if (!orderIds || !orderIds.length) return res.status(400).json({ success: false, message: 'No order IDs' });
+
+    const filter = { _id: { $in: orderIds } };
+    if (req.user.role !== 'admin') filter.user = req.user._id;
+
+    const orders = await Order.find(filter).select('orderId awbNumber selloship').lean();
+    if (!orders.length) return res.status(404).json({ success: false, message: 'No orders found' });
+
+    // Collect orders that actually have a label URL
+    const labeled = orders.filter(o => o.selloship && o.selloship.labelUrl);
+    if (!labeled.length) return res.status(400).json({ success: false, message: 'No labels available for selected orders' });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="labels_${Date.now()}.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 5 } });
+    archive.on('error', err => { if (!res.headersSent) res.status(500).end(); });
+    archive.pipe(res);
+
+    // Fetch all label PDFs in parallel (max 5 concurrent)
+    const CONCURRENCY = 5;
+    for (let i = 0; i < labeled.length; i += CONCURRENCY) {
+      const batch = labeled.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map(async (o) => {
+        try {
+          const resp = await axios.get(o.selloship.labelUrl, {
+            responseType: 'stream',
+            timeout: 20000,
+            headers: { 'Accept': 'application/pdf,*/*' }
+          });
+          const filename = `${o.orderId || o._id}_${o.awbNumber || 'label'}.pdf`;
+          archive.append(resp.data, { name: filename });
+        } catch (_) {
+          // Skip labels that fail to fetch — don't abort whole ZIP
+        }
+      }));
+    }
+
+    await archive.finalize();
+  } catch (err) { if (!res.headersSent) res.status(500).json({ success: false, message: err.message }); }
 });
 
 // ─── [FIX-LABEL-3] GET /:id/label — single label download ─────────────────────
