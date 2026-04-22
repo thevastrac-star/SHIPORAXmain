@@ -185,3 +185,26 @@ router.get('/export/transactions', protect, async (req, res) => {
 });
 
 module.exports = router;
+
+// GET /api/wallet/recharge-qr
+router.get('/recharge-qr', protect, async (req, res) => {
+  try {
+    const { Settings } = require('../models/index');
+    const s = await Settings.findOne({ key: 'recharge_qr' });
+    res.json({ success: true, qrImageUrl: s?.value?.qrImageUrl||null, message: s?.value?.message||'Please message your POC for recharge after payment done.' });
+  } catch(err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// POST /api/wallet/admin/recharge-qr — admin
+router.post('/admin/recharge-qr', protect, adminOnly, async (req, res) => {
+  try {
+    const { Settings } = require('../models/index');
+    const { qrImageUrl, message } = req.body;
+    await Settings.findOneAndUpdate(
+      { key: 'recharge_qr' },
+      { key: 'recharge_qr', value: { qrImageUrl: qrImageUrl||'', message: message||'Please message your POC for recharge after payment done.' }, category: 'general', updatedBy: req.user._id, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true, message: 'Recharge QR updated' });
+  } catch(err) { res.status(500).json({ success: false, message: err.message }); }
+});

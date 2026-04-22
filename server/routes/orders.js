@@ -356,6 +356,27 @@ router.post('/:id/cancel-shipment', protect, async (req, res) => {
     if (!['shipped','processing'].includes(order.status))
       return res.status(400).json({ success: false, message: `Cannot cancel: ${order.status}` });
 
+    let selloshipCancelled = false;
+    // If AWB exists, call Selloship cancel API
+    if (order.awbNumber) {
+      try {
+        const { getSelloToken, cancelWaybill } = require('../utils/selloship');
+        const token = await getSelloToken();
+        const result = await cancelWaybill(token, order.awbNumber);
+        // Only treat as cancelled if API confirms
+        selloshipCancelled = result && (result.status === 'SUCCESS' || !result.status);
+      } catch(e) {
+        return res.status(400).json({ success: false, message: `Selloship cancel failed: ${e.message}. Refund not processed.` });
+      }
+    } else {
+      // No AWB means not yet shipped via Selloship — allow local cancel
+      selloshipCancelled = true;
+    }
+
+    if (!selloshipCancelled) {
+      return res.status(400).json({ success: false, message: 'Selloship did not confirm cancellation. Refund not processed.' });
+    }
+
     const refundAmount = order.shippingCharge || 0;
     if (refundAmount > 0 && order.walletDeducted) {
       const updatedUser = await User.findByIdAndUpdate(
@@ -365,14 +386,13 @@ router.post('/:id/cancel-shipment', protect, async (req, res) => {
         balance: updatedUser.walletBalance, description: `Refund: cancelled ${order.orderId}`, reference: order._id });
     }
 
-    order.status = 'processing'; order.awbNumber = null;
+    order.status = 'cancelled'; order.awbNumber = null;
     order.walletDeducted = false; order.selloship = undefined;
     order.cancelledAt = new Date(); order.cancellationReason = req.body.reason || 'Cancelled by client';
     await order.save();
 
-    await logActivity(req.user._id, 'client', 'CANCEL_SHIPMENT', 'Order', order._id,
-      { refundAmount }, req.ip);
-    res.json({ success: true, message: `Cancelled. ₹${refundAmount} refunded.`, refundAmount, order });
+    await logActivity(req.user._id, 'client', 'CANCEL_SHIPMENT', 'Order', order._id, { refundAmount }, req.ip);
+    res.json({ success: true, message: `Cancelled. ₹${refundAmount} refunded to wallet.`, refundAmount, order });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -496,3 +516,58 @@ router.post('/admin/clear-stale-awbs', protect, async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /api/orders/bulk-cancel
+router.post('/bulk-cancel', protect, async (req, res) => {
+  try {
+    const { orderIds } = req.body;
+    if (!orderIds?.length) return res.status(400).json({ success: false, message: 'No order IDs provided' });
+    const { cancelWaybill } = require('../utils/selloship');
+    const { getSelloToken } = require('../utils/selloship');
+    const results = [];
+    for (const id of orderIds) {
+      const order = await Order.findOne({ _id: id, user: req.user._id });
+      if (!order) { results.push({ id, success: false, message: 'Not found' }); continue; }
+      if (!['shipped','processing'].includes(order.status)) { results.push({ id, success: false, message: 'Not cancellable' }); continue; }
+      try {
+        // Try Selloship cancel if AWB exists
+        if (order.awbNumber) {
+          try {
+            const token = await getSelloToken();
+            await cancelWaybill(token, order.awbNumber);
+          } catch(e) { /* continue even if selloship cancel fails */ }
+        }
+        const refund = order.shippingCharge || 0;
+        if (refund > 0 && order.walletDeducted) {
+          const u = await User.findByIdAndUpdate(req.user._id, { $inc: { walletBalance: refund } }, { new: true });
+          await WalletTransaction.create({ user: req.user._id, type: 'credit', amount: refund, balance: u.walletBalance, description: `Bulk cancel refund: ${order.orderId}` });
+        }
+        order.status = 'cancelled'; order.awbNumber = null; order.walletDeducted = false;
+        order.selloship = undefined; order.cancelledAt = new Date(); order.cancellationReason = 'Bulk cancelled';
+        await order.save();
+        results.push({ id, success: true, orderId: order.orderId, refund });
+      } catch(e) { results.push({ id, success: false, message: e.message }); }
+    }
+    res.json({ success: true, results });
+  } catch(err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// POST /api/orders/clone/:id
+router.post('/clone/:id', protect, async (req, res) => {
+  try {
+    const orig = await Order.findOne({ _id: req.params.id, user: req.user._id });
+    if (!orig) return res.status(404).json({ success: false, message: 'Order not found' });
+    const clone = await Order.create({
+      user: req.user._id, source: 'manual', status: 'draft',
+      pickupWarehouse: orig.pickupWarehouse,
+      recipient: { ...orig.recipient.toObject() },
+      package: { ...orig.package.toObject() },
+      paymentMode: orig.paymentMode, codAmount: orig.codAmount,
+      assignedCourier: orig.assignedCourier,
+      serviceType: orig.serviceType,
+      duplicateCheckKey: orig.recipient.phone + '_' + orig.recipient.pincode + '_clone_' + Date.now()
+    });
+    const populated = await Order.findById(clone._id).populate('assignedCourier', 'name code');
+    res.status(201).json({ success: true, order: populated });
+  } catch(err) { res.status(500).json({ success: false, message: err.message }); }
+});
