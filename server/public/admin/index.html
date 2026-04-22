@@ -1198,7 +1198,7 @@ textarea{resize:vertical;min-height:80px}
   <div class="modal">
     <div class="modal-header"><span class="modal-title">Add / Edit Courier</span><button class="modal-close" onclick="closeModal('courier-modal')">×</button></div>
     <input type="hidden" id="cm-id"/>
-    <div class="form-group"><label>Courier Name *</label><input id="cm-name" placeholder="e.g. Delhivery, DTDC"/></div>
+    <div class="form-group"><label>Courier Name *</label><input id="cm-name" placeholder="e.g. Delhivery, DTDC" oninput="autofillCourierDefaults(this.value)"/></div>
     <div class="form-row">
       <div class="form-group"><label>Code</label><input id="cm-code" placeholder="e.g. DELHIVERY"/></div>
       <div class="form-group"><label>Supports COD</label><select id="cm-cod"><option value="true">Yes</option><option value="false">No</option></select></div>
@@ -2022,6 +2022,20 @@ async function saveCourier() {
   const d = id ? await api('PATCH', `/couriers/${id}`, payload) : await api('POST', '/couriers', payload);
   if (d?.success) { toast('Courier saved','success'); closeModal('courier-modal'); loadCouriers(); document.getElementById('cm-id').value = ''; }
   else toast(d?.message||'Error','error');
+}
+function autofillCourierDefaults(name) {
+  // Only auto-fill on NEW couriers (no id set)
+  if (document.getElementById('cm-id').value) return;
+  const n = name.toLowerCase();
+  const idEl = document.getElementById('cm-selloship-id');
+  const codeEl = document.getElementById('cm-code');
+  if (n.includes('amazon')) {
+    if (!idEl.value) idEl.value = '24';
+    if (!codeEl.value) codeEl.value = 'AMZN';
+  } else if (n.includes('delhivery')) {
+    if (!idEl.value) idEl.value = '30';
+    if (!codeEl.value) codeEl.value = 'DLVRY';
+  }
 }
 function toggleCourierApiFields() {
   const type = document.getElementById('cm-api-type')?.value;

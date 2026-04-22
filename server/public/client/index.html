@@ -1179,44 +1179,6 @@ td b{color:var(--text)}
     </div>
 
     <!-- ═══ LABEL SETTINGS ═══ -->
-    
-      <!-- [FIX-API] API Key Section -->
-      <div class="card" style="margin-top:16px">
-        <div class="card-hdr">
-          <span class="card-ttl">🔑 API Key</span>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-primary btn-sm" onclick="generateApiKey()">⚡ Generate Key</button>
-            <button class="btn btn-outline btn-sm" onclick="revokeApiKey()">🗑 Revoke</button>
-          </div>
-        </div>
-        <div class="card-body">
-          <p style="font-size:.82rem;color:var(--muted);margin-bottom:12px">
-            Use your API key to create and ship orders programmatically.
-            Send as <code style="background:#f0f0f0;padding:1px 4px;border-radius:3px">X-API-Key</code> header.
-          </p>
-          <div style="margin-bottom:10px;font-size:.85rem">
-            Status: <strong id="api-key-status-text">Checking...</strong>
-          </div>
-          <div id="api-key-display" style="display:none">
-            <div style="font-size:.75rem;color:#c00;font-weight:600;margin-bottom:6px">⚠ Copy now — shown only once!</div>
-            <div style="display:flex;gap:8px">
-              <input id="api-key-value" type="text" readonly
-                style="flex:1;font-family:monospace;font-size:.8rem;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:#f9f9f9"/>
-              <button class="btn btn-outline btn-sm" onclick="copyApiKey()">📋 Copy</button>
-            </div>
-          </div>
-          <div style="margin-top:14px;background:#f5f7ff;border-radius:8px;padding:12px;font-size:.78rem">
-            <div style="font-weight:600;margin-bottom:6px">API Endpoints:</div>
-            <div style="font-family:monospace;color:#333;line-height:1.8">
-              POST /api/orders/v1/ship → single order<br/>
-              POST /api/orders/v1/bulk-ship → bulk (up to 100)<br/>
-              GET  /api/orders/v1/job/:jobId → poll status<br/>
-              GET  /api/orders/v1/status/:orderId → order info<br/>
-              GET  /api/orders/v1/label/:orderId → download label
-            </div>
-          </div>
-        </div>
-      </div>
     <div class="page" id="page-label-settings">
       <div style="display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start">
         <!-- Settings Panel -->
