@@ -4,242 +4,111 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>SHIPORAX – Client Login</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{
-  font-family:'DM Sans',sans-serif;min-height:100vh;
+  font-family:'Inter',sans-serif;min-height:100vh;
   display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,#FFF4F0 0%,#F5F6FA 55%,#E6F7F5 100%);
-  overflow:hidden;position:relative;
+  background:#F1F3F8;position:relative;overflow:hidden;
 }
-body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(circle at 1px 1px,rgba(232,64,12,.06) 1px,transparent 0);background-size:36px 36px}
-.deco{position:fixed;border-radius:50%}
-.d1{width:700px;height:700px;background:radial-gradient(#E8400C10,transparent);top:-200px;left:-200px}
-.d2{width:500px;height:500px;background:radial-gradient(#0A9E8910,transparent);bottom:-150px;right:-150px}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:radial-gradient(circle at 1px 1px,rgba(13,27,62,.05) 1px,transparent 0);
+  background-size:36px 36px;
+}
+.deco{position:fixed;border-radius:50%;pointer-events:none}
+.d1{width:500px;height:500px;background:radial-gradient(rgba(240,90,34,.12),transparent);top:-150px;right:-120px}
+.d2{width:400px;height:400px;background:radial-gradient(rgba(13,27,62,.1),transparent);bottom:-100px;left:-80px}
 
-.wrap{position:relative;z-index:10;display:flex;gap:0;max-width:980px;width:100%;padding:24px;align-items:center;justify-content:center}
+.wrap{position:relative;z-index:10;width:100%;max-width:420px;padding:20px}
 
-.hero{flex:1;display:flex;flex-direction:column;justify-content:center;padding:40px;max-width:460px}
-.brand{display:flex;align-items:center;gap:12px;margin-bottom:36px}
-.brand-icon{width:50px;height:50px;border-radius:15px;background:linear-gradient(135deg,#E8400C,#FF6535);display:flex;align-items:center;justify-content:center;font-size:1.5rem;box-shadow:0 8px 24px rgba(232,64,12,.35)}
-.brand-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.45rem;font-weight:900;color:#12172B;letter-spacing:-.04em}
-.brand-name em{color:#E8400C;font-style:normal}
-.hero h1{font-family:'Plus Jakarta Sans',sans-serif;font-size:2.6rem;font-weight:900;color:#12172B;line-height:1.15;letter-spacing:-.05em;margin-bottom:14px}
-.hero h1 em{color:#E8400C;font-style:normal}
-.hero p{font-size:.95rem;color:#7A82A0;line-height:1.7;max-width:360px;margin-bottom:28px}
-.feat{display:flex;align-items:center;gap:13px;margin-bottom:13px}
-.feat-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;background:#FFF0EB;border:1px solid #FFD4C2}
-.feat-text strong{display:block;font-size:.9rem;font-weight:700;color:#12172B}
-.feat-text span{font-size:.8rem;color:#7A82A0}
+.brand{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:32px}
+.brand-icon{width:48px;height:48px;border-radius:14px;background:#F05A22;display:flex;align-items:center;justify-content:center;font-size:1.4rem;box-shadow:0 8px 24px rgba(240,90,34,.3)}
+.brand-name{font-size:1.5rem;font-weight:800;color:#0D1B3E;letter-spacing:-.03em}
+.brand-name em{color:#F05A22;font-style:normal}
 
 .card{
-  width:440px;flex-shrink:0;
-  background:#fff;border:1.5px solid #E4E7EF;border-radius:22px;padding:38px;
-  box-shadow:0 4px 20px rgba(18,23,43,.07),0 16px 56px rgba(18,23,43,.06);
+  background:#fff;border:1.5px solid #E5E7EB;border-radius:20px;padding:36px;
+  box-shadow:0 4px 24px rgba(0,0,0,.07),0 1px 4px rgba(0,0,0,.04);
   position:relative;overflow:hidden;
 }
-.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#E8400C,#FF6535,#FFCC00);border-radius:22px 22px 0 0}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#0D1B3E,#1A2F5E,#F05A22);border-radius:20px 20px 0 0}
 
-/* TABS */
-.tabs{display:flex;background:#F5F6FA;border-radius:12px;padding:4px;margin-bottom:26px;gap:4px}
-.tab{flex:1;padding:12px;border:none;border-radius:9px;font-size:.88rem;font-weight:600;cursor:pointer;transition:.18s;color:#7A82A0;background:transparent;font-family:'DM Sans',sans-serif;text-align:center}
-.tab.active{background:#fff;color:#E8400C;box-shadow:0 1px 4px rgba(18,23,43,.1),0 2px 8px rgba(18,23,43,.06)}
-.tab:hover:not(.active){color:#3D4560;background:rgba(255,255,255,.6)}
+.header{text-align:center;margin-bottom:28px}
+.icon-wrap{width:72px;height:72px;border-radius:18px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:2rem;background:rgba(240,90,34,.08);border:1.5px solid rgba(240,90,34,.2)}
+.header h1{font-size:1.6rem;font-weight:800;color:#0D1B3E;letter-spacing:-.03em}
+.header p{color:#6B7280;font-size:.875rem;margin-top:6px}
+.header .badge{display:inline-flex;align-items:center;gap:5px;background:rgba(240,90,34,.08);color:#F05A22;border:1px solid rgba(240,90,34,.2);padding:4px 14px;border-radius:999px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-top:10px}
 
-.form-panel{display:none}.form-panel.active{display:block}
-.form-group{margin-bottom:15px}
-label{display:block;font-size:.74rem;font-weight:600;color:#3D4560;margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em}
-input{width:100%;padding:13px 15px;border:1.5px solid #D1D5E4;border-radius:12px;font-size:.93rem;outline:none;background:#FAFBFF;color:#12172B;transition:.18s;font-family:'DM Sans',sans-serif}
-input::placeholder{color:#B0B8CC}
-input:focus{background:#fff;border-color:#E8400C;box-shadow:0 0 0 3px rgba(232,64,12,.1)}
+.form-group{margin-bottom:16px}
+label{display:block;font-size:.72rem;font-weight:600;color:#374151;margin-bottom:7px;text-transform:uppercase;letter-spacing:.07em}
+input{width:100%;padding:13px 16px;border:1.5px solid #D1D5DB;border-radius:11px;font-size:.95rem;outline:none;background:#FAFBFF;color:#0D1B3E;transition:.2s;font-family:'Inter',sans-serif}
+input::placeholder{color:#9CA3AF}
+input:focus{background:#fff;border-color:#F05A22;box-shadow:0 0 0 3px rgba(240,90,34,.1)}
 
-.btn{width:100%;padding:15px;border:none;border-radius:13px;font-size:.96rem;font-weight:700;cursor:pointer;transition:.22s;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:6px}
+.btn{width:100%;padding:15px;border:none;border-radius:12px;font-size:.95rem;font-weight:700;cursor:pointer;transition:.2s;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:6px}
 .btn:hover{transform:translateY(-2px)}
 .btn:active{transform:translateY(0)}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
-.btn-main{background:linear-gradient(135deg,#E8400C,#FF6535);color:#fff;box-shadow:0 6px 20px rgba(232,64,12,.35)}
-.btn-main:hover{box-shadow:0 10px 28px rgba(232,64,12,.5)}
+.btn-primary{background:#0D1B3E;color:#fff;box-shadow:0 4px 16px rgba(13,27,62,.3)}
+.btn-primary:hover{background:#1A2F5E}
 
-.error{background:#FDEAEA;color:#C62828;padding:12px 16px;border-radius:10px;font-size:.84rem;margin-bottom:14px;display:none;border-left:3px solid #E03030}
-.admin-link{text-align:center;margin-top:18px;font-size:.8rem;color:#7A82A0}
-.admin-link a{color:#5046E4;font-weight:600;text-decoration:none}
-.admin-link a:hover{text-decoration:underline}
+.err{background:#FEF2F2;border:1px solid #FECACA;color:#EF4444;padding:12px 16px;border-radius:10px;font-size:.85rem;margin-bottom:16px;display:none}
+.err.show{display:block}
 
-@media(max-width:860px){.wrap{flex-direction:column}.hero{padding:20px;text-align:center;align-items:center;max-width:100%}.hero h1{font-size:2rem}.card{width:100%;max-width:480px}}
-@media(max-width:480px){.card{padding:26px 18px}.btn{padding:16px;font-size:1rem}.hero{display:none}}
+.footer-note{text-align:center;margin-top:16px;font-size:.78rem;color:#9CA3AF}
 </style>
 </head>
 <body>
-<div class="orb o2"></div><div class="orb o3"></div></div>
-
-
-
-<div class="deco d1"></div><div class="deco d2"></div>
+<div class="deco d1"></div>
+<div class="deco d2"></div>
 <div class="wrap">
-  <!-- HERO LEFT -->
-  <div class="hero">
-    <div class="brand">
-      <div class="brand-icon">🚀</div>
-      <div class="brand-name">Shipo<em>RAX</em></div>
-    </div>
-    <h1>Ship <em>Faster.</em><br/>Grow <em>Bigger.</em></h1>
-    <p>India's most trusted shipping platform for small businesses and e-commerce sellers. Pan-India delivery at the best rates.</p>
-    <div class="features">
-      <div class="feat">
-        <div class="feat-icon">📦</div>
-        <div class="feat-text"><strong>Pan-India Delivery</strong>Book shipments to 27,000+ pincodes</div>
-      </div>
-      <div class="feat">
-        <div class="feat-icon">💰</div>
-        <div class="feat-text"><strong>Best Courier Rates</strong>Compare & save up to 40% on shipping</div>
-      </div>
-      <div class="feat">
-        <div class="feat-icon">📊</div>
-        <div class="feat-text"><strong>Real-time Tracking</strong>Live updates for you and your customers</div>
-      </div>
-      <div class="feat">
-        <div class="feat-icon">💵</div>
-        <div class="feat-text"><strong>Fast COD Remittance</strong>Get your cash on delivery amounts quickly</div>
-      </div>
-    </div>
+  <div class="brand">
+    <div class="brand-icon">📦</div>
+    <div class="brand-name">SHIP<em>ORAX</em></div>
   </div>
-
-  <!-- FORM RIGHT -->
   <div class="card">
-    <div class="tabs">
-      <button class="tab active" id="tab-login" onclick="switchTab('login')">Login</button>
-      <button class="tab" id="tab-register" onclick="switchTab('register')">Register Free</button>
+    <div class="header">
+      <div class="icon-wrap">🚚</div>
+      <h1>Client Portal</h1>
+      <p>Login to manage your shipments</p>
+      <div class="badge">📦 Shipper Access</div>
     </div>
-
-    <!-- LOGIN -->
-    <div class="form-panel active" id="panel-login">
-      <div class="error" id="login-error"></div>
+    <div class="err" id="login-error"></div>
+    <form onsubmit="doLogin(event)">
       <div class="form-group">
         <label>Email Address</label>
-        <input type="email" id="login-email" placeholder="you@yourcompany.com" autocomplete="username"/>
+        <input type="email" id="email" placeholder="you@company.com" required autocomplete="username"/>
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input type="password" id="login-password" placeholder="Enter your password"
-          autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/>
+        <input type="password" id="password" placeholder="••••••••••" required autocomplete="current-password"/>
       </div>
-      <button class="btn btn-main" id="login-btn" onclick="doLogin()">
-        🚀 &nbsp;Login to My Account
-      </button>
-    </div>
-
-    <!-- REGISTER -->
-    <div class="form-panel" id="panel-register">
-      <div class="error" id="reg-error"></div>
-      <div class="form-group">
-        <label>Full Name *</label>
-        <input type="text" id="reg-name" placeholder="e.g. Ramesh Kumar"/>
-      </div>
-      <div class="form-group">
-        <label>Company / Shop Name *</label>
-        <input type="text" id="reg-company" placeholder="e.g. Kumar Traders"/>
-      </div>
-      <div class="form-group">
-        <label>Email Address *</label>
-        <input type="email" id="reg-email" placeholder="your@email.com"/>
-      </div>
-      <div class="form-group">
-        <label>Mobile Number</label>
-        <input type="tel" id="reg-phone" placeholder="10-digit mobile number" maxlength="10"/>
-      </div>
-      <div class="form-group">
-        <label>Create Password *</label>
-        <input type="password" id="reg-password" placeholder="Minimum 6 characters"/>
-      </div>
-      <button class="btn btn-main" id="reg-btn" onclick="doRegister()">
-        ✅ &nbsp;Create Account — It's Free!
-      </button>
-    </div>
-
-    <div class="admin-link">
-      Are you an admin? <a href="/admin/login">Admin login →</a>
-    </div>
+      <button class="btn btn-primary" id="login-btn" type="submit">🚚 Sign In</button>
+    </form>
   </div>
+  <div class="footer-note">Don't have access? Contact your SHIPORAX administrator.</div>
+  <div class="footer-note" style="margin-top:8px">New shipper? <a href="/client/register" style="color:#F05A22;font-weight:700;text-decoration:none">Create an account →</a></div>
 </div>
-
 <script>
-const API=(window.__API_URL||'')+'/api';
-window.onload=()=>{
-  if(localStorage.getItem('client_token')) window.location.href='/client';
-  spawn();
-  // If URL has ?register, auto-switch
-  if(location.search.includes('register')) switchTab('register');
-};
+function showErr(msg){const e=document.getElementById('login-error');e.textContent=msg;e.classList.add('show')}
+function hideErr(){document.getElementById('login-error').classList.remove('show')}
 
-function spawn(){
-  const c=document.getElementById('pts');
-  const cols=['#FF6B35','#FF8C42','#FFCC00','#00C9A7','#FF4500'];
-  for(let i=0;i<25;i++){
-    const d=document.createElement('div');
-    d.className='particle';
-    d.style.cssText=`left:${Math.random()*100}vw;width:${2+Math.random()*3}px;height:${2+Math.random()*3}px;background:${cols[Math.floor(Math.random()*cols.length)]};animation-delay:${Math.random()*11}s;animation-duration:${8+Math.random()*9}s`;
-    c.appendChild(d);
-  }
-}
-
-function switchTab(tab){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.form-panel').forEach(p=>p.classList.remove('active'));
-  document.getElementById('tab-'+tab).classList.add('active');
-  document.getElementById('panel-'+tab).classList.add('active');
-}
-
-function showErr(id,msg){
-  const e=document.getElementById(id);
-  e.textContent=msg;e.style.display='block';
-  setTimeout(()=>e.style.display='none',5500);
-}
-
-async function doLogin(){
-  const email=document.getElementById('login-email').value.trim();
-  const password=document.getElementById('login-password').value;
-  if(!email||!password){showErr('login-error','⚠️ Please enter your email and password');return;}
+async function doLogin(e){
+  e.preventDefault();hideErr();
   const btn=document.getElementById('login-btn');
-  btn.disabled=true;btn.textContent='⏳  Please wait...';
+  btn.disabled=true;btn.textContent='Signing in...';
   try{
-    const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('email').value.trim(),password:document.getElementById('password').value})});
     const d=await r.json();
-    if(d.success&&d.user.role==='client'){
-      localStorage.setItem('client_token',d.token);
-      localStorage.setItem('client_user',JSON.stringify(d.user));
-      window.location.href='/client';
-    }else if(d.success&&d.user.role!=='client'){
-      showErr('login-error','⚠️ This is an admin account. Please use the Admin Login page.');
-    }else{
-      showErr('login-error','❌ '+(d.message||'Wrong email or password. Please try again.'));
-    }
-  }catch(e){showErr('login-error','🔌 Network error. Please check your connection.');}
-  btn.disabled=false;btn.textContent='🚀  Login to My Account';
-}
-
-async function doRegister(){
-  const name=document.getElementById('reg-name').value.trim();
-  const company=document.getElementById('reg-company').value.trim();
-  const email=document.getElementById('reg-email').value.trim();
-  const phone=document.getElementById('reg-phone').value.trim();
-  const password=document.getElementById('reg-password').value;
-  if(!name||!email||!password){showErr('reg-error','⚠️ Please fill in Name, Email and Password');return;}
-  if(!company){showErr('reg-error','⚠️ Please enter your Company or Shop Name');return;}
-  if(password.length<6){showErr('reg-error','⚠️ Password must be at least 6 characters');return;}
-  const btn=document.getElementById('reg-btn');
-  btn.disabled=true;btn.textContent='⏳  Creating account...';
-  try{
-    const r=await fetch(API+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name,email,password,phone,companyName:company,role:'client'})});
-    const d=await r.json();
-    if(d.success){
-      localStorage.setItem('client_token',d.token);
-      localStorage.setItem('client_user',JSON.stringify(d.user));
-      window.location.href='/client';
-    }else{showErr('reg-error','❌ '+(d.message||'Registration failed. Please try again.'));}
-  }catch(e){showErr('reg-error','🔌 Network error. Please try again.');}
-  btn.disabled=false;btn.textContent='✅  Create Account — It\'s Free!';
+    if(!d.success){showErr(d.message||'Login failed');return;}
+    if(d.user.role==='admin'){showErr('⚠️ This is an admin account. Please use the Admin Portal to sign in.');return;}
+    localStorage.setItem('client_token',d.token);
+    localStorage.setItem('client_user',JSON.stringify(d.user));
+    window.location.href='/client/';
+  }catch(err){showErr('Network error. Please try again.')}
+  finally{btn.disabled=false;btn.innerHTML='🚚 Sign In'}
 }
 </script>
 </body>
