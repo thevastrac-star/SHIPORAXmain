@@ -61,6 +61,9 @@ const UserSchema = new mongoose.Schema({
 
   orderPrefix: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
 
+  // [FIX-API] External API key (SHA-256 hashed) for X-API-Key authentication
+  apiKey: { type: String, unique: true, sparse: true },
+
   tempLoginToken:  { type: String },
   tempLoginExpiry: { type: Date },
 
