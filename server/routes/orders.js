@@ -474,4 +474,18 @@ router.post('/bulk-upload', protect, upload.single('file'), async (req, res) => 
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+// ─── ADMIN: clear stale AWBs from unshipped orders ───────────────────────────
+// POST /api/orders/admin/clear-stale-awbs
+// Clears awbNumber from any order in draft/processing status (shouldn't have AWB)
+router.post('/admin/clear-stale-awbs', protect, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Admin only' });
+    const result = await Order.updateMany(
+      { status: { $in: ['draft', 'processing'] }, awbNumber: { $exists: true, $ne: null, $ne: '' } },
+      { $unset: { awbNumber: '', selloship: '' }, $set: { walletDeducted: false } }
+    );
+    res.json({ success: true, cleared: result.modifiedCount, message: `Cleared stale AWBs from ${result.modifiedCount} orders` });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 module.exports = router;

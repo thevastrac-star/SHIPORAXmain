@@ -185,56 +185,74 @@ function orderToPayloadParams(order, warehouse) {
   const wh  = warehouse       || {};
 
   const isCOD     = order.paymentMode === 'cod';
-  const itemValue = Number(pkg.value || order.codAmount || 0);
+  // totalAmount must never be 0 — use codAmount for COD, or minimum 1
+  const itemValue = Number(pkg.value || order.codAmount || 1);
   const codAmt    = isCOD ? Number(order.codAmount || 0) : 0;
 
-  // weight: kg → grams as float (string conversion done in buildWaybillPayload)
-  const weightGrams = parseFloat(((pkg.weight || 0.5) * 1000).toFixed(4));
+  // weight: kg → grams, minimum 10g
+  const weightGrams = parseFloat((Math.max(pkg.weight || 0.5, 0.01) * 1000).toFixed(4));
+
+  // Clean phone: digits only, last 10
+  const cleanPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
+
+  // Validate critical fields before sending — surface clear errors
+  const errors = [];
+  if (!rec.address && !rec.address1) errors.push('Delivery address1 is empty');
+  if (!rec.pincode)                  errors.push('Delivery pincode is empty');
+  if (!rec.city)                     errors.push('Delivery city is empty');
+  if (!rec.state)                    errors.push('Delivery state is empty');
+  if (!cleanPhone(rec.phone))        errors.push('Delivery phone is empty');
+  if (!wh.address)                   errors.push('Pickup warehouse address is empty');
+  if (!wh.pincode)                   errors.push('Pickup warehouse pincode is empty');
+  if (!wh.city)                      errors.push('Pickup warehouse city is empty');
+  if (!wh.state)                     errors.push('Pickup warehouse state is empty');
+  if (!cleanPhone(wh.phone))         errors.push('Pickup warehouse phone is empty');
+  if (errors.length) throw new Error('Order missing required fields: ' + errors.join('; '));
 
   return {
     shipment: {
       orderCode: order.orderId,
-      weight:    weightGrams,         // numeric grams — buildWaybillPayload converts to string
+      weight:    weightGrams,
       length:    String(pkg.length  || 150),
       height:    String(pkg.height  || 100),
       breadth:   String(pkg.breadth || 100),
       items: [{
-        name:      pkg.description || 'Shipment',
+        name:      (pkg.description || 'Shipment').substring(0, 100),
         quantity:  1,
         skuCode:   String(order.orderId),
         itemPrice: itemValue
       }]
     },
     deliveryAddress: {
-      name:     rec.name     || 'Customer',
-      phone:    (rec.phone   || '').replace(/\D/g, '').slice(-10),
-      address1: rec.address  || '',
+      name:     (rec.name || 'Customer').substring(0, 100),
+      phone:    cleanPhone(rec.phone),
+      address1: (rec.address || rec.address1 || '').substring(0, 200),
       address2: rec.landmark || undefined,
-      pincode:  String(rec.pincode  || ''),
-      city:     rec.city     || '',
-      state:    rec.state    || '',
+      pincode:  String(rec.pincode),
+      city:     rec.city,
+      state:    rec.state,
       country:  'India',
-      email:    rec.email    || undefined
+      ...(rec.email && { email: rec.email })
     },
     pickupAddress: {
-      name:     wh.contactName || wh.name || 'Sender',
-      phone:    (wh.phone || '').replace(/\D/g, '').slice(-10),
-      address1: wh.address || '',
-      pincode:  String(wh.pincode || ''),
-      city:     wh.city    || '',
-      state:    wh.state   || '',
+      name:     (wh.contactName || wh.name || 'Sender').substring(0, 100),
+      phone:    cleanPhone(wh.phone),
+      address1: (wh.address || '').substring(0, 200),
+      pincode:  String(wh.pincode),
+      city:     wh.city,
+      state:    wh.state,
       country:  'India',
-      email:    wh.email   || undefined
+      ...(wh.email && { email: wh.email })
     },
     returnAddress: {
-      name:     wh.contactName || wh.name || 'Sender',
-      phone:    (wh.phone || '').replace(/\D/g, '').slice(-10),
-      address1: wh.address || '',
-      pincode:  String(wh.pincode || ''),
-      city:     wh.city    || '',
-      state:    wh.state   || '',
+      name:     (wh.contactName || wh.name || 'Sender').substring(0, 100),
+      phone:    cleanPhone(wh.phone),
+      address1: (wh.address || '').substring(0, 200),
+      pincode:  String(wh.pincode),
+      city:     wh.city,
+      state:    wh.state,
       country:  'India',
-      email:    wh.email   || undefined
+      ...(wh.email && { email: wh.email })
     },
     paymentMode:       isCOD ? 'COD' : 'PREPAID',
     totalAmount:       itemValue.toFixed(2),

@@ -427,7 +427,10 @@ textarea{resize:vertical;min-height:80px}
       <div class="card">
         <div class="card-header">
           <span class="card-title">All Orders</span>
-          <button class="btn btn-outline btn-sm" onclick="exportData('orders')">📤 Export CSV</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline btn-sm" onclick="exportData('orders')">📤 Export CSV</button>
+            <button class="btn btn-danger btn-sm" onclick="clearStaleAwbs()" title="Remove AWBs from unshipped orders">🧹 Clear Stale AWBs</button>
+          </div>
         </div>
         <div class="search-bar">
           <select id="order-status" onchange="loadOrders()"><option value="">All Status</option><option value="draft">Draft</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="rto">RTO</option><option value="ndr">NDR</option></select>
@@ -1575,6 +1578,13 @@ async function updateCOD() {
 
 // ─── ORDERS ───────────────────────────────────────────────────────────────────
 let orderPage = 1;
+async function clearStaleAwbs() {
+  if (!confirm('This will remove AWB numbers from all draft/processing orders. These orders will need to be re-shipped. Continue?')) return;
+  const d = await api('POST', '/orders/admin/clear-stale-awbs');
+  if (d?.success) { toast(`✅ ${d.message}`, 'success'); loadOrders(); }
+  else toast(d?.message || 'Error', 'error');
+}
+
 async function loadOrders() {
   const status = document.getElementById('order-status').value;
   const search = document.getElementById('order-search-input')?.value || '';
