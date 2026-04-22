@@ -1165,18 +1165,28 @@ textarea{resize:vertical;min-height:80px}
   <div class="modal">
     <div class="modal-header"><span class="modal-title">Add / Edit Courier</span><button class="modal-close" onclick="closeModal('courier-modal')">×</button></div>
     <input type="hidden" id="cm-id"/>
-    <div class="form-group"><label>Name</label><input id="cm-name"/></div>
+    <div class="form-group"><label>Courier Name *</label><input id="cm-name" placeholder="e.g. Delhivery, DTDC"/></div>
     <div class="form-row">
       <div class="form-group"><label>Code</label><input id="cm-code" placeholder="e.g. DELHIVERY"/></div>
       <div class="form-group"><label>Supports COD</label><select id="cm-cod"><option value="true">Yes</option><option value="false">No</option></select></div>
     </div>
-    <div class="form-group"><label>Logo URL</label><input id="cm-logo"/></div>
-    <div style="background:#f8fafc;padding:12px;border-radius:6px;margin-bottom:16px">
-      <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:8px">API Configuration (placeholder – no live integration)</p>
-      <div class="form-group"><label>Base URL</label><input id="cm-url"/></div>
-      <div class="form-row">
-        <div class="form-group"><label>API Key</label><input id="cm-apikey"/></div>
-        <div class="form-group"><label>API Secret</label><input id="cm-apisecret" type="password"/></div>
+    <div class="form-group"><label>Logo URL</label><input id="cm-logo" placeholder="https://..."/></div>
+    <!-- Selloship Integration -->
+    <div style="background:#f0fdf4;border:1.5px solid #6ee7b7;border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-weight:700;font-size:.85rem;color:#065f46;margin-bottom:10px">🚀 Selloship Integration</div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label style="font-size:.8rem">API to use when shipping via this courier</label>
+        <select id="cm-api-type" onchange="toggleCourierApiFields()" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none">
+          <option value="selloship">Selloship (recommended)</option>
+          <option value="none">No API (manual)</option>
+        </select>
+      </div>
+      <div id="cm-selloship-fields">
+        <div class="form-group" style="margin-bottom:0">
+          <label style="font-size:.8rem">Selloship Courier ID <span style="color:var(--text-muted);font-weight:400">(paste from Selloship account manager)</span></label>
+          <input id="cm-selloship-id" placeholder="e.g. 13 or courier_id_from_selloship" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;outline:none;box-sizing:border-box"/>
+          <div style="font-size:.74rem;color:#059669;margin-top:5px">💡 Leave blank to let Selloship auto-route to the best courier for each pincode.</div>
+        </div>
       </div>
     </div>
     <button class="btn btn-primary" onclick="saveCourier()">Save Courier</button>
@@ -1956,22 +1966,34 @@ async function editCourier(id) {
   document.getElementById('cm-code').value = c.code;
   document.getElementById('cm-cod').value = String(c.supportsCOD);
   document.getElementById('cm-logo').value = c.logoUrl || '';
-  document.getElementById('cm-url').value = c.apiConfig?.baseUrl || '';
-  document.getElementById('cm-apikey').value = c.apiConfig?.apiKey || '';
+  document.getElementById('cm-api-type').value = c.apiConfig?.type || 'selloship';
+  document.getElementById('cm-selloship-id').value = c.apiConfig?.selloshipCourierId || '';
+  toggleCourierApiFields();
   openModal('courier-modal');
 }
 async function saveCourier() {
   const id = document.getElementById('cm-id').value;
+  const selloId = document.getElementById('cm-selloship-id').value.trim();
+  const apiType = document.getElementById('cm-api-type').value;
   const payload = {
     name: document.getElementById('cm-name').value,
     code: document.getElementById('cm-code').value,
     supportsCOD: document.getElementById('cm-cod').value === 'true',
     logoUrl: document.getElementById('cm-logo').value,
-    apiConfig: { baseUrl: document.getElementById('cm-url').value, apiKey: document.getElementById('cm-apikey').value, apiSecret: document.getElementById('cm-apisecret').value }
+    apiConfig: {
+      type: apiType,
+      selloshipCourierId: selloId || null,
+      baseUrl: '', apiKey: '', apiSecret: ''
+    }
   };
   const d = id ? await api('PATCH', `/couriers/${id}`, payload) : await api('POST', '/couriers', payload);
   if (d?.success) { toast('Courier saved','success'); closeModal('courier-modal'); loadCouriers(); document.getElementById('cm-id').value = ''; }
   else toast(d?.message||'Error','error');
+}
+function toggleCourierApiFields() {
+  const type = document.getElementById('cm-api-type')?.value;
+  const sf = document.getElementById('cm-selloship-fields');
+  if (sf) sf.style.display = type === 'selloship' ? 'block' : 'none';
 }
 
 // ─── RATES ───────────────────────────────────────────────────────────────────
@@ -2287,9 +2309,10 @@ async function changeTicketStatus() {
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 function switchTab(page, tab, el) {
+  const pageId = page === 'cm' ? 'courier_manager' : page;
   const prefix = page === 'settings' ? 'settings-tab' : `${page}-tab`;
-  document.querySelectorAll(`#page-${page} .tab`).forEach(t => t.classList.remove('active'));
-  document.querySelectorAll(`#page-${page} [id^="${prefix}-"]`).forEach(t => t.style.display = 'none');
+  document.querySelectorAll(`#page-${pageId} .tab`).forEach(t => t.classList.remove('active'));
+  document.querySelectorAll(`#page-${pageId} [id^="${prefix}-"]`).forEach(t => t.style.display = 'none');
   if (el) el.classList.add('active');
   const target = document.getElementById(`${prefix}-${tab}`);
   if (target) target.style.display = 'block';
