@@ -184,7 +184,6 @@ router.get('/export/transactions', protect, async (req, res) => {
   }
 });
 
-module.exports = router;
 
 // GET /api/wallet/recharge-qr
 router.get('/recharge-qr', protect, async (req, res) => {
@@ -208,3 +207,5 @@ router.post('/admin/recharge-qr', protect, adminOnly, async (req, res) => {
     res.json({ success: true, message: 'Recharge QR updated' });
   } catch(err) { res.status(500).json({ success: false, message: err.message }); }
 });
+
+module.exports = router;
