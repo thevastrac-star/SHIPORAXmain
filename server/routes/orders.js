@@ -139,7 +139,7 @@ function buildLabelHtml(o) {
       '<div style="font-size:9pt;font-weight:bold">' + (r.pincode||'') + '</div>' +
     '</div>' +
     '<div style="border:1px solid #000;padding:3mm;text-align:center;margin-bottom:3mm">' +
-      '<div style="font-size:7pt;font-family:monospace;letter-spacing:-0.5px">||||||||||||||||||||||||||||||||||||||||||</div>' +
+      '<svg id="awb-bc-' + (o.awbNumber||o.orderId) + '" style="max-width:100%;height:52px"></svg>' +
       '<div style="font-size:11pt;font-weight:bold;letter-spacing:2px">' + (o.awbNumber||o.orderId) + '</div>' +
       '<div style="font-size:6.5pt;color:#666">Order: ' + new Date(o.createdAt).toLocaleDateString('en-IN') + ' | ' + o.orderId + '</div>' +
     '</div>' +
@@ -176,6 +176,7 @@ router.post('/bulk-labels', protect, async (req, res) => {
     const labelDivs = orders.map(o => buildLabelHtml(o))
       .join('<div style="page-break-after:always;margin:0;padding:0"></div>');
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Shipping Labels</title>' +
+      '<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>' +
       '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;background:#fff}' +
       '.print-bar{position:fixed;top:0;left:0;right:0;background:#0D1B3E;color:#fff;padding:10px 20px;' +
       'display:flex;gap:12px;align-items:center;z-index:999;font-size:14px}' +
@@ -189,7 +190,17 @@ router.post('/bulk-labels', protect, async (req, res) => {
         '<button onclick="window.close()">✕ Close</button>' +
       '</div>' +
       '<div class="labels-wrap">' + labelDivs + '</div>' +
-      '<script>setTimeout(()=>window.print(),600)</script>' +
+      '<script>' +
+      'window.onload=function(){' +
+        'if(typeof JsBarcode!=="undefined"){' +
+          'document.querySelectorAll("svg[id^=\'awb-bc-\']").forEach(function(svg){' +
+            'var awb=svg.id.replace("awb-bc-","");' +
+            'try{JsBarcode(svg,awb,{format:"CODE128",width:1.8,height:52,displayValue:false,margin:0});}catch(e){}' +
+          '});' +
+        '}' +
+        'setTimeout(function(){window.print();},800);' +
+      '};' +
+      '</script>' +
       '</body></html>';
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
@@ -259,7 +270,9 @@ router.get('/:id/label', protect, async (req, res) => {
       '<div class="no-print"><button onclick="window.print()">🖨 Print Label</button>' +
       '<button onclick="window.close()">✕ Close</button></div>' +
       buildLabelHtml(order) +
-      '<script>setTimeout(()=>window.print(),500)</script></body></html>';
+      '<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>' +
+      '<script>window.onload=function(){if(typeof JsBarcode!=="undefined"){document.querySelectorAll("svg[id^=\'awb-bc-\']").forEach(function(svg){var awb=svg.id.replace("awb-bc-","");try{JsBarcode(svg,awb,{format:"CODE128",width:1.8,height:52,displayValue:false,margin:0});}catch(e){}});}setTimeout(function(){window.print();},800);};' +
+      '</script></body></html>';
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
@@ -789,7 +802,9 @@ router.get('/v1/label/:orderId', apiKeyAuth, async (req, res) => {
     if (order.selloship && order.selloship.labelUrl) return res.redirect(302, order.selloship.labelUrl);
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Label ' + order.orderId + '</title>' +
       '<style>body{font-family:Arial;margin:8mm}@media print{body{margin:0}}</style></head>' +
-      '<body>' + buildLabelHtml(order) + '<script>setTimeout(()=>window.print(),500)</script></body></html>';
+      '<body>' + buildLabelHtml(order) + '<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>' +
+      '<script>window.onload=function(){if(typeof JsBarcode!=="undefined"){document.querySelectorAll("svg[id^=\'awb-bc-\']").forEach(function(svg){var awb=svg.id.replace("awb-bc-","");try{JsBarcode(svg,awb,{format:"CODE128",width:1.8,height:52,displayValue:false,margin:0});}catch(e){}});}setTimeout(function(){window.print();},800);};' +
+      '</script></body></html>';
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
