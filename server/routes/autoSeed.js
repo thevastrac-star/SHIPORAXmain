@@ -109,28 +109,28 @@ async function autoSeed() {
       { key: 'selloship.password',  value: '',                        category: 'courier_api',     label: 'Selloship Password' }
     ];
     for (const s of defaultSettings) {
-      await Settings.findOneAndUpdate({ key: s.key }, s, { upsert: true });
+      // Only insert if not exists — never overwrite existing values with defaults
+      await Settings.findOneAndUpdate({ key: s.key }, { $setOnInsert: s }, { upsert: true, new: false });
     }
 
     // ── Auto-configure Selloship from environment variables ───────────────────
-    // If SELLOSHIP_USERNAME and SELLOSHIP_PASSWORD are set in .env, they are
-    // written to the DB automatically on every server start — no manual UI entry needed.
+    // Env vars ALWAYS win — written to DB on every start so Admin UI stays in sync
     const envSelloUser = process.env.SELLOSHIP_USERNAME;
     const envSelloPass = process.env.SELLOSHIP_PASSWORD;
     if (envSelloUser && envSelloPass) {
       await Settings.findOneAndUpdate(
         { key: 'selloship.username' },
-        { key: 'selloship.username', value: envSelloUser, category: 'courier_api', label: 'Selloship Username' },
+        { $set: { key: 'selloship.username', value: envSelloUser, category: 'courier_api', label: 'Selloship Username' } },
         { upsert: true }
       );
       await Settings.findOneAndUpdate(
         { key: 'selloship.password' },
-        { key: 'selloship.password', value: envSelloPass, category: 'courier_api', label: 'Selloship Password' },
+        { $set: { key: 'selloship.password', value: envSelloPass, category: 'courier_api', label: 'Selloship Password' } },
         { upsert: true }
       );
       console.log(`✅ Selloship credentials loaded from environment → ${envSelloUser}`);
     } else {
-      console.warn('⚠️  SELLOSHIP_USERNAME / SELLOSHIP_PASSWORD not set in environment. Configure them in Admin → Settings → Courier APIs, or add to .env');
+      console.warn('⚠️  SELLOSHIP_USERNAME / SELLOSHIP_PASSWORD not set. Add to Render env vars or Admin → Settings → Courier APIs.');
     }
 
     console.log('✅ Default settings ready');

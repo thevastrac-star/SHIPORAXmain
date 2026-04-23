@@ -1,431 +1,443 @@
-// routes/selloship.js — Selloship API routes
-// Mount: app.use('/api/selloship', require('./routes/selloship'))
+// utils/selloship.js — Selloship API Integration v4.0
+//
+// CHANGES vs v3.0 (derived from tester HTML analysis):
+//
+//   [FIX-D] invoiceCode added to Shipment block.
+//           The tester sends invoiceCode inside Shipment{}; Selloship accepts it.
+//           buildShipmentBlock() now includes it when present.
+//           orderToPayloadParams() passes order.invoiceCode (falls back to orderId).
+//
+//   [FIX-E] currencyCode: 'INR' added to both forward and RVP payloads at root level.
+//           The tester always includes it; omitting it causes silent failures on some accounts.
+//
+//   [FIX-F] courierID (uppercase "ID") is the canonical Selloship field name.
+//           Confirmed via the tester's cURL builder which uses 'courierID'.
+//           v3 used lowercase 'courierId'. Both spellings are now accepted in params,
+//           but only the canonical uppercase 'courierID' is sent in the payload.
+//
+//   [KEPT]  All v3 fixes: weight "500.0000" format (FIX-A), serviceType omitted on
+//           /waybill (FIX-B), separate builders for forward vs RVP (FIX-C),
+//           auto-retry on 401, 55-min token caching, HMAC webhook verification.
 
-const express   = require('express');
-const router    = express.Router();
-const Order     = require('../models/Order');
-const { Warehouse } = require('../models/index');
-const { protect, adminOnly, logActivity } = require('../middleware/auth');
-const {
+const axios  = require('axios');
+const crypto = require('crypto');
+
+const BASE = 'https://selloship.com/api/lock_actvs/channels';
+
+const TIMEOUT_AUTH     = 15000;
+const TIMEOUT_SHIP     = 30000;
+const TIMEOUT_TRACK    = 15000;
+const TIMEOUT_CANCEL   = 15000;
+const TIMEOUT_MANIFEST = 30000;
+
+const _caches = {};
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+
+async function getToken(username, password) {
+  const cache = _caches[username] || {};
+  if (cache.token && cache.expiry && Date.now() < cache.expiry) return cache.token;
+  if (!username || !password)
+    throw new Error('Selloship credentials not configured. Set them in Admin → Settings → Courier APIs.');
+  const res = await axios.post(`${BASE}/authToken`, { username, password }, {
+    headers: { 'Content-Type': 'application/json' }, timeout: TIMEOUT_AUTH
+  });
+  if (res.data.status !== 'SUCCESS')
+    throw new Error(`Selloship auth failed: ${JSON.stringify(res.data)}`);
+  _caches[username] = { token: res.data.token, expiry: Date.now() + 55 * 60 * 1000 };
+  return res.data.token;
+}
+
+function clearTokenCache(username) {
+  if (username) delete _caches[username];
+  else Object.keys(_caches).forEach(k => delete _caches[k]);
+}
+
+async function getCredentials() {
+  // Env vars are the primary source — always checked first, no DB needed
+  const envUser = process.env.SELLOSHIP_USERNAME;
+  const envPass = process.env.SELLOSHIP_PASSWORD;
+  if (envUser && envPass) return { username: envUser, password: envPass };
+
+  // Fallback: read from DB (Admin → Settings → Courier APIs)
+  const { Settings } = require('../models/index');
+  const [u, p] = await Promise.all([
+    Settings.findOne({ key: 'selloship.username' }),
+    Settings.findOne({ key: 'selloship.password' })
+  ]);
+  return { username: u?.value, password: p?.value };
+}
+
+async function getSelloToken() {
+  const { username, password } = await getCredentials();
+  return getToken(username, password);
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+
+function authHeaders(token) {
+  return { 'Content-Type': 'application/json', 'Authorization': token };
+}
+
+function validateFields(obj, required, context) {
+  const missing = required.filter(f => obj[f] === undefined || obj[f] === null || obj[f] === '');
+  if (missing.length) throw new Error(`[${context}] Missing required fields: ${missing.join(', ')}`);
+}
+
+async function safeCall(fn, username) {
+  try { return await fn(); }
+  catch (err) {
+    if (err?.response?.status === 401) { clearTokenCache(username); return await fn(); }
+    throw err;
+  }
+}
+
+// [FIX-A] "500.0000" format — Selloship requires 4-decimal float string for weight
+function gramsToStr(grams) {
+  return parseFloat(grams).toFixed(4);
+}
+
+function buildAddr(addr) {
+  return {
+    name:     String(addr.name     || ''),
+    email:    String(addr.email    || ''),
+    phone:    String(addr.phone    || ''),
+    address1: String(addr.address1 || ''),
+    address2: String(addr.address2 || ''),
+    city:     String(addr.city     || ''),
+    state:    String(addr.state    || ''),
+    pincode:  String(addr.pincode  || ''),
+    country:  String(addr.country  || 'India')
+  };
+}
+
+function buildDeliveryAddr(addr) {
+  return { ...buildAddr(addr), alternatePhone: String(addr.alternatePhone || '') };
+}
+
+// [FIX-D] invoiceCode included when provided
+function buildShipmentBlock(shipment) {
+  validateFields(shipment, ['orderCode', 'weight', 'length', 'height', 'breadth', 'items'], 'shipment');
+  if (!Array.isArray(shipment.items) || !shipment.items.length)
+    throw new Error('[shipment.items] Must be a non-empty array');
+  shipment.items.forEach((item, i) => {
+    validateFields(item, ['name', 'quantity', 'skuCode', 'itemPrice'], `shipment.items[${i}]`);
+    if (!Number.isInteger(item.quantity) || item.quantity < 1)
+      throw new Error(`[shipment.items[${i}].quantity] Must be a positive integer`);
+  });
+
+  const block = {
+    orderCode: String(shipment.orderCode),
+    weight:    gramsToStr(shipment.weight),  // [FIX-A]
+    length:    String(shipment.length),
+    height:    String(shipment.height),
+    breadth:   String(shipment.breadth),
+    items: shipment.items.map(item => ({
+      name:      String(item.name),
+      skuCode:   String(item.skuCode),
+      category:  String(item.category || ''),
+      quantity:  item.quantity,
+      itemPrice: String(parseFloat(item.itemPrice).toFixed(2))
+    }))
+  };
+
+  // [FIX-D] Include invoiceCode when present
+  if (shipment.invoiceCode) block.invoiceCode = String(shipment.invoiceCode);
+
+  return block;
+}
+
+function validateCommonParams(params) {
+  const { shipment, deliveryAddress, pickupAddress, returnAddress, paymentMode, totalAmount, collectableAmount } = params;
+  if (!shipment)        throw new Error('shipment is required');
+  if (!deliveryAddress) throw new Error('deliveryAddress is required');
+  if (!pickupAddress)   throw new Error('pickupAddress is required');
+  if (!returnAddress)   throw new Error('returnAddress is required');
+  if (!paymentMode)     throw new Error('paymentMode is required');
+  if (totalAmount === undefined || totalAmount === null) throw new Error('totalAmount is required');
+  if (collectableAmount === undefined || collectableAmount === null) throw new Error('collectableAmount is required');
+  if (!['COD', 'PREPAID'].includes(paymentMode.toUpperCase()))
+    throw new Error('paymentMode must be COD or PREPAID');
+}
+
+function validateAddresses(d, p, r) {
+  const req = ['name', 'phone', 'address1', 'pincode', 'city', 'state', 'country'];
+  validateFields(d, req, 'deliveryAddress');
+  validateFields(p, req, 'pickupAddress');
+  validateFields(r, req, 'returnAddress');
+}
+
+// ─── [FIX-C] FORWARD WAYBILL BUILDER (/waybill) ──────────────────────────────
+// [FIX-B] serviceType NOT sent — invalid on /waybill
+// [FIX-E] currencyCode: 'INR' added
+// [FIX-F] courierID (uppercase) is canonical
+
+function buildForwardPayload(params) {
+  validateCommonParams(params);
+  const {
+    shipment, deliveryAddress, pickupAddress, returnAddress,
+    paymentMode, totalAmount, collectableAmount,
+    courierName = '',
+    courierID = '', courierId = '',   // [FIX-F] accept both spellings
+    isLablePdf = false
+    // serviceType deliberately excluded — [FIX-B]
+  } = params;
+  validateAddresses(deliveryAddress, pickupAddress, returnAddress);
+
+  return {
+    Shipment:               buildShipmentBlock(shipment),
+    isLablePdf,
+    courierID:              String(courierID || courierId || ''),  // [FIX-F]
+    courierName:            String(courierName || ''),
+    currencyCode:           'INR',                                  // [FIX-E]
+    paymentMode:            paymentMode.toUpperCase(),
+    totalAmount:            String(parseFloat(totalAmount).toFixed(2)),
+    collectableAmount:      String(parseFloat(collectableAmount).toFixed(2)),
+    pickupAddressDetails:   buildAddr(pickupAddress),
+    returnAddressDetails:   buildAddr(returnAddress),
+    deliveryAddressDetails: buildDeliveryAddr(deliveryAddress)
+  };
+}
+
+// ─── [FIX-C] REVERSE WAYBILL BUILDER (/waybillRVP) ───────────────────────────
+// serviceType IS sent — required on RVP
+// [FIX-E] currencyCode: 'INR' added
+// [FIX-F] courierID (uppercase)
+
+function buildRVPPayload(params) {
+  validateCommonParams(params);
+  const {
+    shipment, deliveryAddress, pickupAddress, returnAddress,
+    paymentMode, totalAmount, collectableAmount,
+    courierName = '',
+    courierID = '', courierId = '',   // [FIX-F]
+    isLablePdf = false,
+    serviceType = 'Surface'
+  } = params;
+  validateAddresses(deliveryAddress, pickupAddress, returnAddress);
+
+  return {
+    Shipment:               buildShipmentBlock(shipment),
+    isLablePdf,
+    courierID:              String(courierID || courierId || ''),  // [FIX-F]
+    courierName:            String(courierName || ''),
+    currencyCode:           'INR',                                  // [FIX-E]
+    paymentMode:            paymentMode.toUpperCase(),
+    serviceType:            serviceType || 'Surface',
+    totalAmount:            String(parseFloat(totalAmount).toFixed(2)),
+    collectableAmount:      String(parseFloat(collectableAmount).toFixed(2)),
+    pickupAddressDetails:   buildAddr(pickupAddress),
+    returnAddressDetails:   buildAddr(returnAddress),
+    deliveryAddressDetails: buildDeliveryAddr(deliveryAddress)
+  };
+}
+
+// Legacy alias — maps to forward builder
+function buildWaybillPayload(params) { return buildForwardPayload(params); }
+
+// ─── ORDER → PAYLOAD ADAPTER ─────────────────────────────────────────────────
+
+function orderToPayloadParams(order, warehouse) {
+  const pkg = order.package   || {};
+  const rec = order.recipient || {};
+  const wh  = warehouse       || {};
+
+  const isCOD     = order.paymentMode === 'cod';
+  const itemValue = Number(pkg.value || order.codAmount || 1);
+  const codAmt    = isCOD ? Number(order.codAmount || 0) : 0;
+  const weightGrams = Math.round(Math.max(parseFloat(pkg.weight) || 0.5, 0.01) * 1000);
+  const cleanPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
+
+  const errors = [];
+  if (!rec.address && !rec.address1) errors.push('Delivery address1 is empty');
+  if (!rec.pincode)                  errors.push('Delivery pincode is empty');
+  if (!rec.city)                     errors.push('Delivery city is empty');
+  if (!rec.state)                    errors.push('Delivery state is empty');
+  if (!cleanPhone(rec.phone))        errors.push('Delivery phone is empty');
+  if (!wh.address)                   errors.push('Pickup warehouse address is empty');
+  if (!wh.pincode)                   errors.push('Pickup warehouse pincode is empty');
+  if (!wh.city)                      errors.push('Pickup warehouse city is empty');
+  if (!wh.state)                     errors.push('Pickup warehouse state is empty');
+  if (!cleanPhone(wh.phone))         errors.push('Pickup warehouse phone is empty');
+  if (errors.length) throw new Error('Order missing required fields: ' + errors.join('; '));
+
+  const warehouseAddr = {
+    name:     (wh.contactName || wh.name || 'Sender').substring(0, 100),
+    email:    wh.email    || '',
+    phone:    cleanPhone(wh.phone),
+    address1: (wh.address || '').substring(0, 200),
+    address2: wh.landmark || '',
+    pincode:  String(wh.pincode),
+    city:     wh.city,
+    state:    wh.state,
+    country:  'India'
+  };
+
+  return {
+    shipment: {
+      orderCode:   order.orderId,
+      invoiceCode: order.invoiceCode || order.orderId,   // [FIX-D]
+      weight:      weightGrams,
+      length:      String(pkg.length  || 15),
+      height:      String(pkg.height  || 10),
+      breadth:     String(pkg.breadth || 15),
+      items: [{
+        name:      (pkg.description || 'Shipment').substring(0, 100),
+        quantity:  1,
+        skuCode:   String(order.orderId),
+        itemPrice: itemValue,
+        category:  ''
+      }]
+    },
+    deliveryAddress: {
+      name:           (rec.name || 'Customer').substring(0, 100),
+      email:          rec.email    || '',
+      phone:          cleanPhone(rec.phone),
+      alternatePhone: '',
+      address1:       (rec.address || rec.address1 || '').substring(0, 200),
+      address2:       rec.landmark || '',
+      pincode:        String(rec.pincode),
+      city:           rec.city,
+      state:          rec.state,
+      country:        'India'
+    },
+    pickupAddress:     warehouseAddr,
+    returnAddress:     warehouseAddr,
+    paymentMode:       isCOD ? 'COD' : 'PREPAID',
+    serviceType:       order.serviceType || 'Surface',
+    totalAmount:       itemValue.toFixed(2),
+    collectableAmount: codAmt.toFixed(2),
+    courierID:         '',    // [FIX-F] canonical key
+    courierName:       ''
+  };
+}
+
+// ─── FORWARD WAYBILL ─────────────────────────────────────────────────────────
+
+async function createWaybill(token, params) {
+  const payload = buildForwardPayload(params);
+  console.log('[Selloship createWaybill] payload:', JSON.stringify(payload, null, 2));
+  return safeCall(async () => {
+    const res = await axios.post(`${BASE}/waybill`, payload, {
+      headers: authHeaders(token), timeout: TIMEOUT_SHIP
+    });
+    console.log('[Selloship createWaybill] response:', JSON.stringify(res.data));
+    if (res.data.status !== 'SUCCESS') {
+      const msg    = res.data.message || res.data.msg || JSON.stringify(res.data);
+      const reason = res.data.reason  || res.data.errorMessage || '';
+      throw new Error(`Waybill failed: ${msg}${reason ? ' (' + reason + ')' : ''}`);
+    }
+    return {
+      waybill:       res.data.waybill,
+      shippingLabel: res.data.shippingLabel,
+      courierName:   res.data.courierName,
+      routingCode:   res.data.routingCode
+    };
+  });
+}
+
+// ─── REVERSE WAYBILL ─────────────────────────────────────────────────────────
+
+async function createReverseWaybill(token, params) {
+  const payload = buildRVPPayload(params);
+  console.log('[Selloship createReverseWaybill] payload:', JSON.stringify(payload, null, 2));
+  return safeCall(async () => {
+    const res = await axios.post(`${BASE}/waybillRVP`, payload, {
+      headers: authHeaders(token), timeout: TIMEOUT_SHIP
+    });
+    console.log('[Selloship createReverseWaybill] response:', JSON.stringify(res.data));
+    if (res.data.status !== 'SUCCESS') {
+      const msg    = res.data.message || res.data.msg || JSON.stringify(res.data);
+      const reason = res.data.reason  || res.data.errorMessage || '';
+      throw new Error(`RVP failed: ${msg}${reason ? ' (' + reason + ')' : ''}`);
+    }
+    return {
+      waybill:       res.data.waybill,
+      shippingLabel: res.data.shippingLabel,
+      courierName:   res.data.courierName,
+      routingCode:   res.data.routingCode
+    };
+  });
+}
+
+// ─── TRACK ───────────────────────────────────────────────────────────────────
+
+async function getWaybillStatus(token, awbNumbers) {
+  if (!Array.isArray(awbNumbers) || !awbNumbers.length) throw new Error('awbNumbers must be non-empty array');
+  if (awbNumbers.length > 50) throw new Error('Max 50 AWBs per call');
+  return safeCall(async () => {
+    const res = await axios.get(`${BASE}/waybillDetails`, {
+      headers: authHeaders(token),
+      params:  { waybills: awbNumbers.join(',') },
+      timeout: TIMEOUT_TRACK
+    });
+    const status = res.data.Status || res.data.status;
+    if (status !== 'SUCCESS') throw new Error(`Track failed: ${JSON.stringify(res.data)}`);
+    return res.data.waybillDetails;
+  });
+}
+
+// ─── CANCEL ──────────────────────────────────────────────────────────────────
+
+async function cancelWaybill(token, awb) {
+  if (!awb) throw new Error('AWB number is required');
+  return safeCall(async () => {
+    const res = await axios.post(`${BASE}/cancel`, { waybill: String(awb) }, {
+      headers: authHeaders(token), timeout: TIMEOUT_CANCEL
+    });
+    if (res.data.status !== 'SUCCESS')
+      throw new Error(`Cancel failed: ${res.data.message || JSON.stringify(res.data)}`);
+    return res.data;
+  });
+}
+
+// ─── MANIFEST ────────────────────────────────────────────────────────────────
+
+async function generateManifest(token, awbNumbers) {
+  if (!Array.isArray(awbNumbers) || !awbNumbers.length) throw new Error('awbNumbers must be non-empty array');
+  return safeCall(async () => {
+    const res = await axios.post(`${BASE}/manifest`, { awbNumbers }, {
+      headers: authHeaders(token), timeout: TIMEOUT_MANIFEST
+    });
+    if (res.data.status !== 'SUCCESS')
+      throw new Error(`Manifest failed: ${res.data.message || JSON.stringify(res.data)}`);
+    return res.data;
+  });
+}
+
+// ─── SERVICEABILITY STUB ─────────────────────────────────────────────────────
+
+async function getServiceability(token, params = {}) { return []; }
+
+// ─── WEBHOOK HMAC VERIFICATION ───────────────────────────────────────────────
+
+function verifyWebhookSignature(rawBody, signatureHeader) {
+  const secret = process.env.SELLOSHIP_WEBHOOK_SECRET;
+  if (!secret) {
+    console.warn('[Selloship Webhook] SELLOSHIP_WEBHOOK_SECRET not set — skipping signature check');
+    return true;
+  }
+  if (!signatureHeader) return false;
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+  try { return crypto.timingSafeEqual(Buffer.from(signatureHeader), Buffer.from(expected)); }
+  catch (_) { return false; }
+}
+
+module.exports = {
+  BASE,
   getSelloToken,
-  getServiceability,
+  getCredentials,
+  getToken,
+  clearTokenCache,
+  buildForwardPayload,
+  buildRVPPayload,
+  buildWaybillPayload,  // legacy alias → buildForwardPayload
+  orderToPayloadParams,
   createWaybill,
   createReverseWaybill,
   getWaybillStatus,
   cancelWaybill,
   generateManifest,
-  orderToPayloadParams,
+  getServiceability,
   verifyWebhookSignature
-} = require('../utils/selloship');
-
-// ─── MIDDLEWARE: inject token (skip webhook — it has no auth token) ───────────
-router.use((req, res, next) => {
-  if (req.path === '/webhook') return next(); // webhook verifies via HMAC
-  getSelloToken()
-    .then(token => { req.selloToken = token; next(); })
-    .catch(err  => res.status(503).json({
-      success: false,
-      message: 'Selloship credentials not configured or auth failed. Go to Admin → Settings → Courier APIs.',
-      detail:  err.message
-    }));
-});
-
-// ─── TEST ENDPOINTS (admin API panel — fires real Selloship calls with raw params) ──
-// POST /api/selloship/test/waybill  — fires buildForwardPayload + /waybill
-// POST /api/selloship/test/rvp      — fires buildRVPPayload + /waybillRVP
-// POST /api/selloship/cancel-direct — cancel by AWB directly
-// POST /api/selloship/manifest-direct — manifest by AWB list directly
-
-const { buildForwardPayload, buildRVPPayload } = require('../utils/selloship');
-
-router.post('/test/waybill', protect, adminOnly, async (req, res) => {
-  try {
-    const payload = buildForwardPayload(req.body);
-    console.log('[Selloship /test/waybill] payload:', JSON.stringify(payload, null, 2));
-    const axios = require('axios');
-    const { BASE } = require('../utils/selloship');
-    const r = await axios.post(`${BASE}/waybill`, payload, {
-      headers: { 'Content-Type': 'application/json', 'Authorization': req.selloToken },
-      timeout: 30000
-    });
-    console.log('[Selloship /test/waybill] response:', JSON.stringify(r.data));
-    res.json({ success: r.data.status === 'SUCCESS', selloshipPayload: payload, selloshipResponse: r.data });
-  } catch (err) {
-    const detail = err?.response?.data || err.message;
-    res.status(400).json({ success: false, message: err.message, detail });
-  }
-});
-
-router.post('/test/rvp', protect, adminOnly, async (req, res) => {
-  try {
-    const payload = buildRVPPayload(req.body);
-    console.log('[Selloship /test/rvp] payload:', JSON.stringify(payload, null, 2));
-    const axios = require('axios');
-    const { BASE } = require('../utils/selloship');
-    const r = await axios.post(`${BASE}/waybillRVP`, payload, {
-      headers: { 'Content-Type': 'application/json', 'Authorization': req.selloToken },
-      timeout: 30000
-    });
-    console.log('[Selloship /test/rvp] response:', JSON.stringify(r.data));
-    res.json({ success: r.data.status === 'SUCCESS', selloshipPayload: payload, selloshipResponse: r.data });
-  } catch (err) {
-    const detail = err?.response?.data || err.message;
-    res.status(400).json({ success: false, message: err.message, detail });
-  }
-});
-
-router.post('/cancel-direct', protect, adminOnly, async (req, res) => {
-  try {
-    const { awb } = req.body;
-    if (!awb) return res.status(400).json({ success: false, message: 'awb required' });
-    const result = await cancelWaybill(req.selloToken, awb);
-    res.json({ success: true, result });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-router.post('/manifest-direct', protect, adminOnly, async (req, res) => {
-  try {
-    const { awbNumbers } = req.body;
-    if (!awbNumbers?.length) return res.status(400).json({ success: false, message: 'awbNumbers required' });
-    const result = await generateManifest(req.selloToken, awbNumbers);
-    res.json({ success: true, result });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-// ─── PING ────────────────────────────────────────────────────────────────────
-router.get('/ping', protect, adminOnly, (req, res) =>
-  res.json({ success: true, message: 'Selloship credentials are valid ✅' })
-);
-
-// ─── COURIERS (serviceability stub) ──────────────────────────────────────────
-// Selloship has no courier listing API per official docs.
-// Returns empty array — courier selection done via mappings in admin.
-// ─── AVAILABLE COURIERS (serviceability) ─────────────────────────────────────
-// GET /api/selloship/couriers — returns empty (Selloship has no listing API)
-router.get('/couriers', protect, async (req, res) => {
-  res.json({ success: true, couriers: [], note: 'Selloship has no courier listing API. Use courier mappings in admin.' });
-});
-
-// ─── SHIP ORDER (forward) ─────────────────────────────────────────────────────
-router.post('/ship/:orderId', protect, async (req, res) => {
-  try {
-    const query = req.user.role === 'admin'
-      ? { _id: req.params.orderId }
-      : { _id: req.params.orderId, user: req.user._id };
-
-    const order = await Order.findOne(query).populate('assignedCourier');
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-    if (!['draft','processing'].includes(order.status))
-      return res.status(400).json({ success: false, message: `Cannot ship order with status: ${order.status}` });
-
-    // GUARD: never re-ship if a real AWB is already assigned
-    if (order.awbNumber && order.awbNumber.trim())
-      return res.status(400).json({ success: false, message: `Order already has AWB: ${order.awbNumber}. Cancel first.` });
-
-    // Resolve warehouse
-    let warehouse = order.pickupWarehouse
-      ? await Warehouse.findById(order.pickupWarehouse)
-      : null;
-    if (!warehouse) warehouse = await Warehouse.findOne({ user: order.user, isDefault: true });
-    if (!warehouse)
-      return res.status(400).json({ success: false, message: 'No pickup warehouse found. Add a warehouse first.' });
-
-    // Build params using adapter (converts Order+Warehouse → buildWaybillPayload params)
-    const params = orderToPayloadParams(order, warehouse);
-
-    // Apply courier override from request (e.g. "Delhivery Fr" selected in UI)
-    // [FIX-F] accept both courierID (canonical) and courierId (legacy) from request body
-    const incomingCourierID = req.body.courierID || req.body.courierId || '';
-    if (incomingCourierID)    params.courierID   = String(incomingCourierID);
-    if (req.body.courierName) params.courierName = String(req.body.courierName);
-    // Allow serviceType override from request (relevant for admin re-shipping)
-    if (req.body.serviceType) params.serviceType = req.body.serviceType;
-
-    const result = await createWaybill(req.selloToken, params);
-
-    order.awbNumber = result.waybill;
-    order.status    = 'shipped';
-    order.selloship = {
-      waybill:     result.waybill,
-      courierName: result.courierName || req.body.courierName || '',
-      routingCode: result.routingCode,
-      labelUrl:    result.shippingLabel,
-      shippedAt:   new Date()
-    };
-    await order.save();
-
-    await logActivity(req.user._id, req.user.role, 'SELLOSHIP_SHIP', 'Order', order._id,
-      { awb: result.waybill, courier: result.courierName }, req.ip);
-
-    res.json({
-      success:     true,
-      waybill:     result.waybill,
-      courierName: result.courierName,
-      labelUrl:    result.shippingLabel,
-      routingCode: result.routingCode,
-      order
-    });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-// ─── REVERSE PICKUP ───────────────────────────────────────────────────────────
-router.post('/reverse/:orderId', protect, async (req, res) => {
-  try {
-    const order = await Order.findOne({ _id: req.params.orderId, user: req.user._id });
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-
-    let warehouse = order.pickupWarehouse ? await Warehouse.findById(order.pickupWarehouse) : null;
-    if (!warehouse) warehouse = await Warehouse.findOne({ user: order.user, isDefault: true });
-    if (!warehouse) return res.status(400).json({ success: false, message: 'No warehouse found for return address' });
-
-    const result = await createReverseWaybill(req.selloToken, orderToPayloadParams(order, warehouse));
-
-    order.selloship = {
-      ...(order.selloship?.toObject?.() || order.selloship || {}),
-      reverseWaybill:  result.waybill,
-      reverseLabelUrl: result.shippingLabel,
-      reversedAt:      new Date()
-    };
-    await order.save();
-
-    res.json({ success: true, waybill: result.waybill, labelUrl: result.shippingLabel, order });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-// ─── TRACK ────────────────────────────────────────────────────────────────────
-router.get('/track', protect, async (req, res) => {
-  try {
-    const awbs = req.query.awbs?.split(',').map(a => a.trim()).filter(Boolean);
-    if (!awbs?.length) return res.status(400).json({ success: false, message: 'awbs query param required' });
-    const result = await getWaybillStatus(req.selloToken, awbs);
-    res.json({ success: true, tracking: result });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-// ─── CANCEL ───────────────────────────────────────────────────────────────────
-router.post('/cancel/:orderId', protect, async (req, res) => {
-  try {
-    const query = req.user.role === 'admin'
-      ? { _id: req.params.orderId }
-      : { _id: req.params.orderId, user: req.user._id };
-
-    const order = await Order.findOne(query);
-    if (!order)           return res.status(404).json({ success: false, message: 'Order not found' });
-    if (!order.awbNumber) return res.status(400).json({ success: false, message: 'No AWB to cancel' });
-
-    const result = await cancelWaybill(req.selloToken, order.awbNumber);
-    order.status             = 'cancelled';
-    order.cancelledAt        = new Date();
-    order.cancellationReason = req.body.reason || 'Cancelled via Selloship';
-    await order.save();
-
-    await logActivity(req.user._id, req.user.role, 'SELLOSHIP_CANCEL', 'Order', order._id,
-      { awb: order.awbNumber }, req.ip);
-
-    res.json({ success: true, message: result.errorMessage || 'Cancelled', order });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-// ─── MANIFEST ────────────────────────────────────────────────────────────────
-router.post('/manifest', protect, async (req, res) => {
-  try {
-    const { orderIds } = req.body;
-    if (!orderIds?.length) return res.status(400).json({ success: false, message: 'orderIds required' });
-
-    const query = req.user.role === 'admin'
-      ? { _id: { $in: orderIds } }
-      : { _id: { $in: orderIds }, user: req.user._id };
-
-    const orders = await Order.find(query);
-    const awbs   = orders.map(o => o.awbNumber).filter(Boolean);
-    if (!awbs.length) return res.status(400).json({ success: false, message: 'No shipped orders with AWB found' });
-
-    const result = await generateManifest(req.selloToken, awbs);
-    res.json({ success: true, manifestNumber: result.manifestNumber, manifestUrl: result.manifestDownloadUrl });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
-});
-
-// ─── WEBHOOK (push from Selloship) ───────────────────────────────────────────
-// FIX #9: HMAC signature verification — register this URL with Selloship team.
-// Set SELLOSHIP_WEBHOOK_SECRET env var to the secret Selloship provides.
-router.post('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
-  try {
-    // Verify HMAC signature
-    const sig = req.headers['x-selloship-signature'] || req.headers['x-signature'];
-    if (!verifyWebhookSignature(req.body, sig)) {
-      console.warn('[Selloship Webhook] Invalid signature — request rejected');
-      return res.status(401).json({ error: 'Invalid signature' });
-    }
-
-    let body;
-    try { body = JSON.parse(req.body.toString()); }
-    catch (e) { return res.status(400).json({ error: 'Invalid JSON' }); }
-
-    const { waybillDetails, Status } = body;
-    if (Status !== 'SUCCESS' || !waybillDetails?.waybill)
-      return res.status(400).json({ error: 'Invalid payload' });
-
-    const { waybill, currentStatus } = waybillDetails;
-    console.log(`[Selloship Webhook] AWB: ${waybill} → ${currentStatus}`);
-
-    const statusMap = {
-      'READY_TO_SHIP':    'processing',
-      'MANIFESTED':       'processing',
-      'PICKUP_SCHEDULED': 'processing',
-      'PICKED_UP':        'in_transit',
-      'IN_TRANSIT':       'in_transit',
-      'OUT_FOR_DELIVERY': 'out_for_delivery',
-      'DELIVERED':        'delivered',
-      'NDR':              'ndr',
-      'RTO':              'rto',
-      'RETURN_RECEIVED':  'rto',
-      'CANCELLED':        'cancelled'
-    };
-    const mappedStatus = statusMap[currentStatus];
-    if (mappedStatus) {
-      await Order.updateOne(
-        { awbNumber: waybill },
-        { $set: {
-            status:                     mappedStatus,
-            'selloship.lastWebhookStatus': currentStatus,
-            'selloship.lastWebhookAt':     new Date()
-          }
-        }
-      );
-    }
-
-    res.json({ received: true });
-  } catch (err) {
-    console.error('[Selloship Webhook Error]', err.message);
-    res.status(500).json({ error: 'Internal error' });
-  }
-});
-
-// ─── ADMIN: COURIER → SELLOSHIP MAPPING ──────────────────────────────────────
-// Admin maps each internal courier to a specific Selloship courierId/name.
-// When client ships with courier X, the system passes that Selloship courier
-// in the waybill payload so Selloship routes via the correct carrier.
-//
-// GET  /api/selloship/mappings          — list all mappings
-// POST /api/selloship/mappings          — create/update mapping for a courier
-// GET  /api/selloship/mappings/:id      — get one mapping
-// PATCH /api/selloship/mappings/:id     — update mapping
-// DELETE /api/selloship/mappings/:id   — remove mapping (reverts to Selloship auto-route)
-
-const { CourierSelloshipMapping, Courier } = require('../models/index');
-
-// GET all mappings (with populated courier name)
-router.get('/mappings', protect, adminOnly, async (req, res) => {
-  try {
-    const mappings = await CourierSelloshipMapping.find()
-      .populate('courier', 'name code isActive')
-      .populate('updatedBy', 'name email')
-      .sort({ updatedAt: -1 });
-    res.json({ success: true, mappings });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// GET one mapping by id
-router.get('/mappings/:id', protect, adminOnly, async (req, res) => {
-  try {
-    const m = await CourierSelloshipMapping.findById(req.params.id)
-      .populate('courier', 'name code');
-    if (!m) return res.status(404).json({ success: false, message: 'Mapping not found' });
-    res.json({ success: true, mapping: m });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// POST create or upsert mapping for a courier
-// Body: { courierId, selloshipCourierId, selloshipCourierName, isAutoRoute, isActive, notes }
-router.post('/mappings', protect, adminOnly, async (req, res) => {
-  try {
-    const { courierId, selloshipCourierId, selloshipCourierName, isAutoRoute, isActive, notes } = req.body;
-    if (!courierId) return res.status(400).json({ success: false, message: 'courierId required' });
-
-    const courier = await Courier.findById(courierId);
-    if (!courier) return res.status(404).json({ success: false, message: 'Courier not found' });
-
-    // Upsert by courier
-    const mapping = await CourierSelloshipMapping.findOneAndUpdate(
-      { courier: courierId },
-      {
-        courier:              courierId,
-        selloshipCourierId:   selloshipCourierId   || '',
-        selloshipCourierName: selloshipCourierName || '',
-        isAutoRoute:          isAutoRoute          ?? false,
-        isActive:             isActive             ?? true,
-        notes:                notes                || '',
-        updatedBy:            req.user._id,
-        updatedAt:            new Date()
-      },
-      { upsert: true, new: true }
-    );
-    await mapping.populate('courier', 'name code');
-
-    await logActivity(req.user._id, 'admin', 'SELLOSHIP_MAPPING_UPSERT', 'CourierSelloshipMapping',
-      mapping._id, { courierId, selloshipCourierId, selloshipCourierName }, req.ip);
-
-    res.status(201).json({ success: true, mapping });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// PATCH update existing mapping
-router.patch('/mappings/:id', protect, adminOnly, async (req, res) => {
-  try {
-    const { selloshipCourierId, selloshipCourierName, isAutoRoute, isActive, notes } = req.body;
-    const mapping = await CourierSelloshipMapping.findById(req.params.id);
-    if (!mapping) return res.status(404).json({ success: false, message: 'Mapping not found' });
-
-    if (selloshipCourierId   !== undefined) mapping.selloshipCourierId   = selloshipCourierId;
-    if (selloshipCourierName !== undefined) mapping.selloshipCourierName = selloshipCourierName;
-    if (isAutoRoute          !== undefined) mapping.isAutoRoute          = isAutoRoute;
-    if (isActive             !== undefined) mapping.isActive             = isActive;
-    if (notes                !== undefined) mapping.notes                = notes;
-    mapping.updatedBy = req.user._id;
-    mapping.updatedAt = new Date();
-    await mapping.save();
-    await mapping.populate('courier', 'name code');
-
-    await logActivity(req.user._id, 'admin', 'SELLOSHIP_MAPPING_UPDATE', 'CourierSelloshipMapping',
-      mapping._id, {}, req.ip);
-
-    res.json({ success: true, mapping });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// DELETE mapping (courier reverts to Selloship auto-route)
-router.delete('/mappings/:id', protect, adminOnly, async (req, res) => {
-  try {
-    const mapping = await CourierSelloshipMapping.findByIdAndDelete(req.params.id);
-    if (!mapping) return res.status(404).json({ success: false, message: 'Mapping not found' });
-    await logActivity(req.user._id, 'admin', 'SELLOSHIP_MAPPING_DELETE', 'CourierSelloshipMapping',
-      mapping._id, {}, req.ip);
-    res.json({ success: true, message: 'Mapping deleted. Courier will use Selloship auto-routing.' });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// GET /api/selloship/unmapped-couriers  — couriers with no mapping yet (for admin setup UI)
-router.get('/unmapped-couriers', protect, adminOnly, async (req, res) => {
-  try {
-    const mapped   = await CourierSelloshipMapping.distinct('courier');
-    const unmapped = await Courier.find({ _id: { $nin: mapped }, isActive: true })
-      .select('name code');
-    res.json({ success: true, unmapped });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-module.exports = router;
+};

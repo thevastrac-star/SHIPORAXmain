@@ -28,6 +28,7 @@ const {
 const shippingQueue = require('../utils/shippingQueue');
 const axios    = require('axios');
 const archiver = require('archiver');
+const { generateBarcodeSVG } = require('../utils/barcode');
 
 const upload = multer({ dest: 'uploads/bulk/' });
 
@@ -110,47 +111,67 @@ async function enqueueShipment(order, courierId, userId) {
 
 // ─── LABEL HTML BUILDER ───────────────────────────────────────────────────────
 function buildLabelHtml(o) {
-  const isCOD = o.paymentMode === 'cod';
-  const wh    = o.pickupWarehouse || {};
-  const c     = o.assignedCourier || {};
-  const r     = o.recipient || {};
-  const pkg   = o.package || {};
-  const bc    = '#0D1B3E';
+  const isCOD  = o.paymentMode === 'cod';
+  const wh     = o.pickupWarehouse || {};
+  const c      = o.assignedCourier || {};
+  const r      = o.recipient || {};
+  const pkg    = o.package || {};
+  const bc     = '#0D1B3E';
+  const awb    = o.awbNumber || o.orderId || '';
 
+  // Real Code128 barcode SVG for the AWB
+  const barcodeSvg = generateBarcodeSVG(awb, { barWidth: 2, height: 55, showText: true, fontSize: 10 });
+  const barcodeB64 = Buffer.from(barcodeSvg).toString('base64');
+  const barcodeImg = `<img src="data:image/svg+xml;base64,${barcodeB64}" style="width:100%;max-width:140px;display:block;margin:0 auto" alt="AWB Barcode"/>`;
+
+  // If Selloship returned its own PDF label URL — show it with barcode overlay header
   if (o.selloship && o.selloship.labelUrl) {
-    return '<div style="font-family:Arial,sans-serif;margin-bottom:8mm">' +
-      '<div style="font-size:7pt;color:#666;margin-bottom:4px">AWB: ' + (o.selloship.waybill || o.awbNumber || '') + ' | ' + o.orderId + '</div>' +
-      '<iframe src="' + o.selloship.labelUrl + '" style="width:100%;height:420px;border:1px solid #ccc" title="Shipping Label"></iframe>' +
-      '<div style="font-size:6pt;color:#999;margin-top:2px"><a href="' + o.selloship.labelUrl + '" target="_blank">Open label in new tab ↗</a></div>' +
-      '</div>';
+    return `<div style="font-family:Arial,sans-serif;margin-bottom:8mm;page-break-inside:avoid">
+      <div style="background:#f8f8f8;border:1px solid #ddd;padding:3mm;margin-bottom:2mm;text-align:center">
+        ${barcodeImg}
+        <div style="font-size:7pt;color:#555;margin-top:1mm">AWB: <b>${awb}</b> | Order: ${o.orderId}</div>
+      </div>
+      <iframe src="${o.selloship.labelUrl}" style="width:100%;height:420px;border:1px solid #ccc" title="Shipping Label"></iframe>
+      <div style="font-size:6pt;color:#999;margin-top:2px"><a href="${o.selloship.labelUrl}" target="_blank">Open label in new tab ↗</a></div>
+    </div>`;
   }
 
-  return '<div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4;max-width:100mm;margin-bottom:4mm">' +
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">' +
-      '<div style="font-weight:bold;font-size:11pt;color:' + bc + '">SHIPORAX</div>' +
-      (isCOD ? '<div style="background:#c00;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">COD ₹' + (o.codAmount||0) + '</div>'
-             : '<div style="background:#059669;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">PREPAID</div>') +
-    '</div>' +
-    '<div style="margin-bottom:3mm">' +
-      '<div style="font-size:6.5pt;color:#666;text-transform:uppercase;font-weight:bold">To:</div>' +
-      '<div style="font-weight:bold;font-size:10pt">' + (r.name||'') + '</div>' +
-      '<div style="font-size:8pt">' + (r.address||r.address1||'') + (r.city?', '+r.city:'') + (r.state?', '+r.state:'') + '</div>' +
-      '<div style="font-size:8pt">Mobile: ' + (r.phone||'') + '</div>' +
-      '<div style="font-size:9pt;font-weight:bold">' + (r.pincode||'') + '</div>' +
-    '</div>' +
-    '<div style="border:1px solid #000;padding:3mm;text-align:center;margin-bottom:3mm">' +
-      '<svg id="awb-bc-' + (o.awbNumber||o.orderId) + '" style="max-width:100%;height:52px"></svg>' +
-      '<div style="font-size:11pt;font-weight:bold;letter-spacing:2px">' + (o.awbNumber||o.orderId) + '</div>' +
-      '<div style="font-size:6.5pt;color:#666">Order: ' + new Date(o.createdAt).toLocaleDateString('en-IN') + ' | ' + o.orderId + '</div>' +
-    '</div>' +
-    '<div style="display:flex;justify-content:space-between;font-size:7.5pt;border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">' +
-      '<div style="font-weight:bold;color:' + bc + '">' + (c.name||'Auto') + '</div>' +
-      '<div>WT: ' + (pkg.weight||'—') + 'kg</div>' +
-    '</div>' +
-    (wh.name ? '<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt"><div style="font-weight:bold;color:#444">Pickup:</div><div>' + (wh.contactName||wh.name||'') + '</div><div>' + (wh.address||'') + ' ' + (wh.pincode||'') + '</div>' + (wh.phone ? '<div>' + wh.phone + '</div>' : '') + '</div>' : '') +
-    (wh.name ? '<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt"><div style="font-weight:bold;color:#444">Return:</div><div>' + (wh.name||'') + '</div><div>' + (wh.address||'') + ' ' + (wh.pincode||'') + '</div></div>' : '') +
-    '<div style="border-top:1px solid #ccc;padding-top:2mm;margin-top:2mm;font-size:6pt;color:#666">This is a computer generated document.</div>' +
-    '</div>';
+  // Fallback: self-generated label with real barcode
+  return `<div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4;width:100mm;margin-bottom:4mm;page-break-inside:avoid">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">
+      <div style="font-weight:bold;font-size:11pt;color:${bc}">SHIPORAX</div>
+      ${isCOD
+        ? `<div style="background:#c00;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">COD ₹${o.codAmount||0}</div>`
+        : `<div style="background:#059669;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">PREPAID</div>`}
+    </div>
+    <div style="margin-bottom:3mm">
+      <div style="font-size:6.5pt;color:#666;text-transform:uppercase;font-weight:bold">To:</div>
+      <div style="font-weight:bold;font-size:10pt">${r.name||''}</div>
+      <div style="font-size:8pt">${r.address||r.address1||''}${r.city?', '+r.city:''}${r.state?', '+r.state:''}</div>
+      <div style="font-size:8pt">Mobile: ${r.phone||''}</div>
+      <div style="font-size:9pt;font-weight:bold">${r.pincode||''}</div>
+    </div>
+    <div style="border:1px solid #000;padding:3mm;text-align:center;margin-bottom:3mm">
+      ${barcodeImg}
+      <div style="font-size:6.5pt;color:#666;margin-top:1mm">Order: ${new Date(o.createdAt||Date.now()).toLocaleDateString('en-IN')} | ${o.orderId}</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:7.5pt;border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">
+      <div style="font-weight:bold;color:${bc}">${c.name||'Auto'}</div>
+      <div>WT: ${pkg.weight||'—'}kg</div>
+    </div>
+    ${wh.name ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt">
+      <div style="font-weight:bold;color:#444">Pickup:</div>
+      <div>${wh.contactName||wh.name||''}</div>
+      <div>${wh.address||''} ${wh.pincode||''}</div>
+      ${wh.phone?`<div>${wh.phone}</div>`:''}
+    </div>` : ''}
+    ${wh.name ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt">
+      <div style="font-weight:bold;color:#444">Return:</div>
+      <div>${wh.name||''}</div>
+      <div>${wh.address||''} ${wh.pincode||''}</div>
+    </div>` : ''}
+    <div style="border-top:1px solid #ccc;padding-top:2mm;margin-top:2mm;font-size:6pt;color:#666">This is a computer generated document.</div>
+  </div>`;
 }
 
 
@@ -164,7 +185,7 @@ router.get('/job-status/:jobId', protect, (req, res) => {
 // ─── [FIX-LABEL-1] POST /bulk-labels — MISSING ENDPOINT NOW ADDED ─────────────
 router.post('/bulk-labels', protect, async (req, res) => {
   try {
-    const { orderIds } = req.body;
+    const { orderIds, labelSize = 'a4' } = req.body;
     if (!orderIds || !orderIds.length) return res.status(400).json({ success: false, message: 'No order IDs' });
     const filter = { _id: { $in: orderIds } };
     if (req.user.role !== 'admin') filter.user = req.user._id;
@@ -173,35 +194,57 @@ router.post('/bulk-labels', protect, async (req, res) => {
       .populate('pickupWarehouse')
       .lean();
     if (!orders.length) return res.status(404).json({ success: false, message: 'No orders found' });
-    const labelDivs = orders.map(o => buildLabelHtml(o))
-      .join('<div style="page-break-after:always;margin:0;padding:0"></div>');
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Shipping Labels</title>' +
-      '<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>' +
-      '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;background:#fff}' +
-      '.print-bar{position:fixed;top:0;left:0;right:0;background:#0D1B3E;color:#fff;padding:10px 20px;' +
-      'display:flex;gap:12px;align-items:center;z-index:999;font-size:14px}' +
-      '.print-bar button{background:#fff;color:#0D1B3E;border:none;padding:6px 18px;border-radius:4px;' +
-      'font-weight:bold;cursor:pointer;font-size:13px}.labels-wrap{padding:60px 20px 20px}' +
-      '@media print{.no-print{display:none!important}}' +
-      '</style></head><body>' +
-      '<div class="print-bar no-print">' +
-        '<span>📦 ' + orders.length + ' Label(s) Ready</span>' +
-        '<button onclick="window.print()">🖨 Print All</button>' +
-        '<button onclick="window.close()">✕ Close</button>' +
-      '</div>' +
-      '<div class="labels-wrap">' + labelDivs + '</div>' +
-      '<script>' +
-      'window.onload=function(){' +
-        'if(typeof JsBarcode!=="undefined"){' +
-          'document.querySelectorAll("svg[id^=\'awb-bc-\']").forEach(function(svg){' +
-            'var awb=svg.id.replace("awb-bc-","");' +
-            'try{JsBarcode(svg,awb,{format:"CODE128",width:1.8,height:52,displayValue:false,margin:0});}catch(e){}' +
-          '});' +
-        '}' +
-        'setTimeout(function(){window.print();},800);' +
-      '};' +
-      '</script>' +
-      '</body></html>';
+
+    const is4x6    = labelSize === '4x6';
+    const is100x150= labelSize === '100x150';
+    const isThermal= is4x6 || is100x150;
+
+    // Thermal: 1 label per page. A4: 4 labels per page (2x2 grid)
+    let bodyHtml = '';
+    if (isThermal) {
+      const w = is4x6 ? '101.6mm' : '100mm';
+      const h = is4x6 ? '152.4mm' : '150mm';
+      bodyHtml = orders.map((o, i) =>
+        `<div class="label-page" style="width:${w};min-height:${h};${i < orders.length-1 ? 'page-break-after:always;' : ''}">${buildLabelHtml(o)}</div>`
+      ).join('');
+    } else {
+      // A4: 4 labels per page in a 2-column grid
+      const rows = [];
+      for (let i = 0; i < orders.length; i += 4) {
+        const chunk = orders.slice(i, i + 4);
+        const cells = chunk.map(o =>
+          `<td style="width:50%;vertical-align:top;padding:2mm;border:1px dashed #ccc">${buildLabelHtml(o)}</td>`
+        ).join('');
+        const isLast = i + 4 >= orders.length;
+        rows.push(`<tr>${cells}</tr>${!isLast ? '<tr><td colspan="2" style="page-break-after:always;height:0;padding:0;border:none"></td></tr>' : ''}`);
+      }
+      bodyHtml = `<table style="width:100%;border-collapse:collapse;table-layout:fixed">${rows.join('')}</table>`;
+    }
+
+    const pageStyle = isThermal
+      ? `@page{size:${is4x6?'4in 6in':'100mm 150mm'};margin:2mm}body{margin:0}`
+      : `@page{size:A4;margin:8mm}body{margin:0}`;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Labels (${orders.length})</title>
+<style>
+*{box-sizing:border-box}
+${pageStyle}
+body{font-family:Arial,sans-serif;background:#fff}
+.print-bar{position:fixed;top:0;left:0;right:0;background:#0D1B3E;color:#fff;padding:8px 16px;display:flex;gap:10px;align-items:center;z-index:999;font-size:13px}
+.print-bar button{background:#fff;color:#0D1B3E;border:none;padding:5px 14px;border-radius:4px;font-weight:bold;cursor:pointer}
+.print-bar select{padding:4px 8px;border-radius:4px;border:none;font-size:12px}
+.labels-wrap{padding:${isThermal?'0':'52px 0 0'}}
+@media print{.print-bar{display:none!important}}
+</style></head><body>
+<div class="print-bar">
+  <span>📦 ${orders.length} Label(s)</span>
+  <button onclick="window.print()">🖨 Print All</button>
+  <button onclick="window.close()">✕ Close</button>
+  <span style="font-size:11px;opacity:.8">Size: ${labelSize.toUpperCase()}</span>
+</div>
+<div class="labels-wrap">${bodyHtml}</div>
+<script>setTimeout(()=>window.print(),700)</script>
+</body></html>`;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
@@ -220,9 +263,13 @@ router.post('/bulk-labels-zip', protect, async (req, res) => {
     const orders = await Order.find(filter).select('orderId awbNumber selloship').lean();
     if (!orders.length) return res.status(404).json({ success: false, message: 'No orders found' });
 
-    // Collect orders that actually have a label URL
-    const labeled = orders.filter(o => o.selloship && o.selloship.labelUrl);
-    if (!labeled.length) return res.status(400).json({ success: false, message: 'No labels available for selected orders' });
+    // Get Selloship token for authenticated label fetches
+    let selloToken = null;
+    try { selloToken = await getSelloToken(); } catch(_) {}
+
+    // All orders — those with URL get PDF fetched, rest get self-generated HTML label
+    const fullOrders = await Order.find(filter)
+      .populate('assignedCourier', 'name code').populate('pickupWarehouse').lean();
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="labels_${Date.now()}.zip"`);
@@ -231,22 +278,25 @@ router.post('/bulk-labels-zip', protect, async (req, res) => {
     archive.on('error', err => { if (!res.headersSent) res.status(500).end(); });
     archive.pipe(res);
 
-    // Fetch all label PDFs in parallel (max 5 concurrent)
     const CONCURRENCY = 5;
-    for (let i = 0; i < labeled.length; i += CONCURRENCY) {
-      const batch = labeled.slice(i, i + CONCURRENCY);
+    for (let i = 0; i < fullOrders.length; i += CONCURRENCY) {
+      const batch = fullOrders.slice(i, i + CONCURRENCY);
       await Promise.all(batch.map(async (o) => {
-        try {
-          const resp = await axios.get(o.selloship.labelUrl, {
-            responseType: 'stream',
-            timeout: 20000,
-            headers: { 'Accept': 'application/pdf,*/*' }
-          });
-          const filename = `${o.orderId || o._id}_${o.awbNumber || 'label'}.pdf`;
-          archive.append(resp.data, { name: filename });
-        } catch (_) {
-          // Skip labels that fail to fetch — don't abort whole ZIP
+        const filename = `${o.orderId || o._id}_${o.awbNumber || 'label'}`;
+        const labelUrl = o.selloship && o.selloship.labelUrl;
+        if (labelUrl) {
+          try {
+            const headers = { 'Accept': 'application/pdf,*/*' };
+            if (selloToken) headers['Authorization'] = selloToken;
+            const resp = await axios.get(labelUrl, { responseType: 'stream', timeout: 25000, headers });
+            archive.append(resp.data, { name: filename + '.pdf' });
+            return;
+          } catch (_) { /* fall through to HTML fallback */ }
         }
+        // Fallback: generate our own label as HTML (works for Amazon + any order without Selloship PDF)
+        const labelHtml = buildLabelHtml(o);
+        const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif}@media print{body{margin:0}}</style></head><body>${labelHtml}</body></html>`;
+        archive.append(Buffer.from(fullHtml, 'utf-8'), { name: filename + '.html' });
       }));
     }
 
@@ -270,9 +320,7 @@ router.get('/:id/label', protect, async (req, res) => {
       '<div class="no-print"><button onclick="window.print()">🖨 Print Label</button>' +
       '<button onclick="window.close()">✕ Close</button></div>' +
       buildLabelHtml(order) +
-      '<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>' +
-      '<script>window.onload=function(){if(typeof JsBarcode!=="undefined"){document.querySelectorAll("svg[id^=\'awb-bc-\']").forEach(function(svg){var awb=svg.id.replace("awb-bc-","");try{JsBarcode(svg,awb,{format:"CODE128",width:1.8,height:52,displayValue:false,margin:0});}catch(e){}});}setTimeout(function(){window.print();},800);};' +
-      '</script></body></html>';
+      '<script>setTimeout(()=>window.print(),500)</script></body></html>';
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
@@ -325,7 +373,7 @@ router.get('/export/csv', protect, async (req, res) => {
 // ─── [FIX-BULK-Q] POST /bulk-ship — queued, fast, 3 concurrent workers ────────
 router.post('/bulk-ship', protect, async (req, res) => {
   try {
-    const { orderIds } = req.body;
+    const { orderIds, courierId: bulkCourierId } = req.body;
     if (!orderIds || !orderIds.length) return res.status(400).json({ success: false, message: 'No order IDs provided' });
     const results = [];
     for (const id of orderIds) {
@@ -334,7 +382,9 @@ router.post('/bulk-ship', protect, async (req, res) => {
       }).populate('pickupWarehouse');
       if (!order) { results.push({ id, success: false, message: 'Not found or already shipped' }); continue; }
       if (order.awbNumber) { results.push({ id, success: false, message: 'Already has AWB' }); continue; }
-      const courierId = order.assignedCourier ? order.assignedCourier.toString() : null;
+      // Use bulk-selected courier if provided, else fall back to order's assigned courier
+      if (bulkCourierId) { order.assignedCourier = bulkCourierId; await order.save(); }
+      const courierId = bulkCourierId || (order.assignedCourier ? order.assignedCourier.toString() : null);
       // Wallet deduction is synchronous — must happen before queue to avoid race conditions
       const user = await User.findById(req.user._id);
       if (!order.walletDeducted && order.shippingCharge > 0) {
@@ -802,9 +852,7 @@ router.get('/v1/label/:orderId', apiKeyAuth, async (req, res) => {
     if (order.selloship && order.selloship.labelUrl) return res.redirect(302, order.selloship.labelUrl);
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Label ' + order.orderId + '</title>' +
       '<style>body{font-family:Arial;margin:8mm}@media print{body{margin:0}}</style></head>' +
-      '<body>' + buildLabelHtml(order) + '<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>' +
-      '<script>window.onload=function(){if(typeof JsBarcode!=="undefined"){document.querySelectorAll("svg[id^=\'awb-bc-\']").forEach(function(svg){var awb=svg.id.replace("awb-bc-","");try{JsBarcode(svg,awb,{format:"CODE128",width:1.8,height:52,displayValue:false,margin:0});}catch(e){}});}setTimeout(function(){window.print();},800);};' +
-      '</script></body></html>';
+      '<body>' + buildLabelHtml(order) + '<script>setTimeout(()=>window.print(),500)</script></body></html>';
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
