@@ -203,33 +203,5 @@ router.patch('/:id/set-password', protect, adminOnly, async (req, res) => {
   }
 });
 
-// ─── [FIX-API] API KEY MANAGEMENT ────────────────────────────────────────────
-// POST /api/users/api-key/generate
-router.post('/api-key/generate', protect, async (req, res) => {
-  try {
-    const crypto = require('crypto');
-    const rawKey = 'shpx_' + crypto.randomBytes(32).toString('hex');
-    const hashed = crypto.createHash('sha256').update(rawKey).digest('hex');
-    await User.findByIdAndUpdate(req.user._id, { apiKey: hashed });
-    res.json({ success: true, apiKey: rawKey,
-      message: 'Copy this key now — it will not be shown again. Use as X-API-Key header.' });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// DELETE /api/users/api-key/revoke
-router.delete('/api-key/revoke', protect, async (req, res) => {
-  try {
-    await User.findByIdAndUpdate(req.user._id, { $unset: { apiKey: '' } });
-    res.json({ success: true, message: 'API key revoked.' });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// GET /api/users/api-key/status
-router.get('/api-key/status', protect, async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id).select('apiKey');
-    res.json({ success: true, hasApiKey: !!user.apiKey });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
+// FIX #5: module.exports is now LAST — all routes above are registered
 module.exports = router;

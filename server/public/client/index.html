@@ -760,7 +760,7 @@ td b{color:var(--text)}
           <span class="card-ttl">📋 My Orders <small style="font-size:.75rem;color:var(--muted);font-weight:500;margin-left:8px">(Ready to Ship)</small></span>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn btn-outline btn-sm" onclick="exportOrders()">📤 Export CSV</button>
-            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabels()" id="bulk-label-btn">🏷️ Download Labels</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabels()" id="bulk-label-btn" style="display:none">🏷️ Download Labels</button>
             <button class="btn btn-primary btn-sm" onclick="navigate('create-order')">➕ New Order</button>
           </div>
         </div>
@@ -810,7 +810,7 @@ td b{color:var(--text)}
         <div class="card-hdr">
           <span class="card-ttl">🚀 Shipments &amp; Tracking</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabels()" id="bulk-label-btn">📥 Download Labels</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabels()" id="bulk-label-btn" style="display:none">📥 Download Labels</button>
             <button class="btn btn-danger btn-sm" onclick="bulkCancelShipments()" id="bulk-cancel-ship-btn" style="display:none">❌ Bulk Cancel</button>
             <button class="btn btn-outline btn-sm" onclick="exportShipments()">📤 Export CSV</button>
           </div>
@@ -1945,7 +1945,7 @@ function renderOrderRows(orders, total, pages, page) {
     } else if (isShipped && sello?.labelUrl) {
       actionCell = `<a href="${sello.labelUrl}" target="_blank" class="btn btn-outline btn-xs">🏷 Label</a> <button class="btn btn-outline btn-xs" onclick="printOrderLabel('${o._id}')" title="Print with label settings">🖨</button> <button class="btn btn-outline btn-xs" onclick="cloneOrder('${o._id}')" title="Clone Order">🔁</button>`;
     } else if (isShipped) {
-      actionCell = `<button class="btn btn-outline btn-xs" onclick="fetchAndDownloadLabel('${o._id}')" title="Fetch label">🏷 Label</button> <button class="btn btn-outline btn-xs" onclick="printOrderLabel('${o._id}')" title="Print label">🖨</button> <button class="btn btn-outline btn-xs" onclick="cloneOrder('${o._id}')" title="Clone Order">🔁</button>`;
+      actionCell = `<button class="btn btn-outline btn-xs" onclick="printOrderLabel('${o._id}')" title="Print label">🖨 Label</button> <button class="btn btn-outline btn-xs" onclick="cloneOrder('${o._id}')" title="Clone Order">🔁</button>`;
     } else {
       actionCell = `<span style="font-size:.72rem;color:var(--muted)">${o.status}</span>`;
     }
@@ -2045,7 +2045,7 @@ async function loadTracking() {
       <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
         ${labelUrl
           ? `<a href="${labelUrl}" target="_blank" class="btn btn-primary btn-xs" title="Download Label">📥 Label</a>`
-          : `<button class="btn btn-outline btn-xs" onclick="fetchAndDownloadLabel('${o._id}')" title="Fetch & Download Label">📥 Label</button>`}
+          : (o.awbNumber ? `<button class="btn btn-outline btn-xs" onclick="fetchAndDownloadLabel('${o._id}')" title="Fetch & Download Label">📥 Label</button>` : '')}
         <button class="btn btn-outline btn-xs" onclick="printOrderLabel('${o._id}')" title="Print Label">🖨</button>
         ${isCancellable ? `<button class="btn btn-danger btn-xs" onclick="openCancelModal('${o._id}','${o.orderId}','${o.awbNumber||''}',${o.shippingCharge||0})">❌ Cancel</button>` : ''}
       </td>
@@ -2731,14 +2731,26 @@ async function bulkShipSelected() {
 }
 
 // ─── BULK LABEL DOWNLOAD ──────────────────────────────────────────────────────
-// (main bulkDownloadLabels defined in tracking section above)
+async function bulkDownloadLabels() {
+  const ids = [...selectedOrders];
+  if (!ids.length) { toast('Select orders first','error'); return; }
+  toast(`Generating ${ids.length} labels...`,'info');
+  const res = await fetch(`${API}/orders/bulk-labels`, { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}, body:JSON.stringify({orderIds:ids}) });
+  if (!res.ok) { toast('Label generation failed','error'); return; }
+  const html = await res.text();
+  const w = window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),800);
+}
 function updateBulkActions() {
   const n = selectedOrders.size;
   const ba = document.getElementById('bulk-actions');
   if (ba) ba.style.display = n>0?'flex':'none';
   const sc = document.getElementById('selected-count');
   if (sc) sc.textContent = n+' selected';
-  // bulk-label-btn is always visible on the tracking page
+  const lb = document.getElementById('bulk-label-btn');
+  if (lb) lb.style.display = n>0?'inline-flex':'none';
 }
 
 // ─── LABEL SETTINGS ───────────────────────────────────────────────────────────
@@ -2922,67 +2934,26 @@ function toggleTrackSelectAll(cb) {
 }
 function updateTrackBulkBtns() {
   const has = selectedTrackIds.size > 0;
-  // bulk-label-btn is always visible; only bulk-cancel-ship-btn toggles
+  const lb = document.getElementById('bulk-label-btn');
   const cb = document.getElementById('bulk-cancel-ship-btn');
+  if (lb) lb.style.display = has ? 'inline-flex' : 'none';
   if (cb) cb.style.display = has ? 'inline-flex' : 'none';
   const sall = document.getElementById('track-select-all');
   const all = document.querySelectorAll('.track-check');
   if (sall && all.length) sall.indeterminate = selectedTrackIds.size > 0 && selectedTrackIds.size < all.length;
 }
 async function bulkDownloadLabels() {
-  // Collect checked rows (or ALL rows if none selected)
-  const allChecks = [...document.querySelectorAll('.track-check')];
-  const checks = selectedTrackIds.size > 0
-    ? allChecks.filter(c => selectedTrackIds.has(c.value))
-    : allChecks;
-
-  if (!checks.length) { toast('No shipments available', 'error'); return; }
-
-  // ── SINGLE ORDER ─────────────────────────────────────────────────────────
-  if (checks.length === 1) {
-    const c = checks[0];
-    const labelUrl = c.dataset.label;
-    if (labelUrl) {
-      window.open(labelUrl, '_blank');
-    } else {
-      await fetchAndDownloadLabel(c.value);
-    }
-    return;
+  const checks = [...document.querySelectorAll('.track-check:checked')];
+  if (!checks.length) { toast('Select orders first', 'error'); return; }
+  const withUrl = checks.filter(c => c.dataset.label);
+  const withoutUrl = checks.filter(c => !c.dataset.label);
+  if (withUrl.length) {
+    withUrl.forEach((c, i) => setTimeout(() => window.open(c.dataset.label, '_blank'), i * 300));
+    toast(`📥 Opening ${withUrl.length} label(s)...`, 'success');
   }
-
-  // ── MULTIPLE ORDERS — stream ZIP from backend ─────────────────────────────
-  const orderIds = checks.map(c => c.value);
-  const btn = document.getElementById('bulk-label-btn');
-  const origText = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Preparing ZIP...'; }
-
-  try {
-    const token = localStorage.getItem('token');
-    const res = await fetch('/api/orders/bulk-labels-zip', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ orderIds })
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast('❌ ' + (err.message || 'Failed to generate ZIP'), 'error');
-      return;
-    }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `labels_${Date.now()}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
-    toast(`📥 Downloaded ${orderIds.length} label(s) as ZIP`, 'success');
-  } catch (err) {
-    toast('❌ Download failed: ' + err.message, 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+  if (withoutUrl.length) {
+    const ids = withoutUrl.map(c => c.value);
+    for (const id of ids) await printOrderLabel(id);
   }
 }
 async function bulkCancelShipments() {
@@ -3008,7 +2979,7 @@ async function printOrderLabel(id) {
   const ls = getLabelSettings();
   const bc = ls.brandColor || '#0D1B3E';
   const isCOD = o.paymentMode === 'cod';
-  const wh = o.pickupWarehouse || o.warehouse || {};  // [FIX-LABEL-2] pickupWarehouse is now populated
+  const wh = o.warehouse || {};
   const html = `<div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4;max-width:${ls.labelSize==='a4'?'190mm':ls.labelSize==='100x150'?'96mm':'96mm'}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">
       <div>
@@ -3048,68 +3019,6 @@ async function cloneOrder(id) {
   const d = await api('POST', `/orders/clone/${id}`);
   if (d?.success) { toast(`✅ Cloned → ${d.order.orderId}`, 'success'); loadOrders(); }
   else toast(d?.message||'Clone failed', 'error');
-}
-
-// ─── [FIX-QUEUE] Poll shipping job status ─────────────────────────────────────
-async function pollJobStatus(jobId, orderId) {
-  let attempts = 0;
-  const maxAttempts = 60; // 2 min timeout
-  const interval = setInterval(async () => {
-    attempts++;
-    if (attempts > maxAttempts) {
-      clearInterval(interval);
-      toast('Shipping timeout. Check order status manually.', 'error');
-      return;
-    }
-    try {
-      const d = await api('GET', '/orders/job-status/' + jobId);
-      if (!d) return;
-      if (d.status === 'done' && d.result) {
-        clearInterval(interval);
-        toast('✅ Shipped! AWB: ' + d.result.awbNumber, 'success');
-        if (typeof loadOrders === 'function') loadOrders();
-        if (typeof loadTracking === 'function') loadTracking();
-        if (typeof loadWalletBalance === 'function') loadWalletBalance();
-      } else if (d.status === 'failed') {
-        clearInterval(interval);
-        toast('❌ Shipping failed: ' + (d.error || 'Unknown error'), 'error');
-        if (typeof loadOrders === 'function') loadOrders();
-      }
-    } catch(e) { /* keep polling */ }
-  }, 2000);
-}
-
-// ─── [FIX-API] API Key management ─────────────────────────────────────────────
-async function generateApiKey() {
-  if (!confirm('Generate a new API key? Any existing key will be replaced.')) return;
-  const d = await api('POST', '/users/api-key/generate');
-  if (d && d.success) {
-    document.getElementById('api-key-display').style.display = 'block';
-    document.getElementById('api-key-value').value = d.apiKey;
-    document.getElementById('api-key-status-text').textContent = 'Active';
-    toast('✅ API key generated! Copy it now.', 'success');
-  } else toast(d && d.message || 'Failed', 'error');
-}
-async function revokeApiKey() {
-  if (!confirm('Revoke API key? All integrations using it will stop working.')) return;
-  const d = await api('DELETE', '/users/api-key/revoke');
-  if (d && d.success) {
-    document.getElementById('api-key-display').style.display = 'none';
-    document.getElementById('api-key-value').value = '';
-    document.getElementById('api-key-status-text').textContent = 'Not active';
-    toast('API key revoked.', 'success');
-  } else toast(d && d.message || 'Failed', 'error');
-}
-async function loadApiKeyStatus() {
-  try {
-    const d = await api('GET', '/users/api-key/status');
-    const st = document.getElementById('api-key-status-text');
-    if (st) st.textContent = (d && d.hasApiKey) ? 'Active' : 'Not active';
-  } catch(e) {}
-}
-function copyApiKey() {
-  const el = document.getElementById('api-key-value');
-  if (el) { el.select(); document.execCommand('copy'); toast('Copied!', 'success'); }
 }
 
 </script>
