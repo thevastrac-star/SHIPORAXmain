@@ -2714,12 +2714,12 @@ async function bulkShipSelected() {
   // Populate courier dropdown before opening
   const bsmSel = document.getElementById('bsm-courier-select');
   if (bsmSel && couriersCache.length) {
-    bsmSel.innerHTML = '<option value="">-- Use each order's assigned courier --</option>' +
+    bsmSel.innerHTML = '<option value="">-- Use each order\'s assigned courier --</option>' +
       couriersCache.map(c => `<option value="${c._id}">${c.name}</option>`).join('');
   } else if (bsmSel) {
     const cd = await api('GET', '/couriers');
     if (cd?.couriers) {
-      bsmSel.innerHTML = '<option value="">-- Use each order's assigned courier --</option>' +
+      bsmSel.innerHTML = '<option value="">-- Use each order\'s assigned courier --</option>' +
         cd.couriers.map(c => `<option value="${c._id}">${c.name}</option>`).join('');
     }
   }
@@ -3085,15 +3085,17 @@ async function printOrderLabel(id) {
     ${!ls.hideRtoAddress && wh.name ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt"><div style="font-weight:bold;color:#444">Return:</div><div>${wh.name}</div><div>${wh.address||''} ${wh.pincode||''}</div></div>` : ''}
     <div style="border-top:1px solid #ccc;padding-top:2mm;margin-top:2mm;font-size:6pt;color:#666">${ls.labelNote||'This is a computer generated document.'}<div>${ls.labelFooter||''}</div></div>
   </div>`;
-  const blob2 = new Blob([`<!DOCTYPE html><html><head><meta charset="utf-8"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
-<style>*{box-sizing:border-box}body{margin:0;padding:${ls.labelSize==='a4'?'8mm':'2mm'};font-family:Arial,sans-serif}
-@page{size:${ls.labelSize==='4x6'?'4in 6in':ls.labelSize==='100x150'?'100mm 150mm':'A4'};margin:${ls.labelSize==='a4'?'8mm':'2mm'}}
-@media print{body{margin:0;padding:0}}</style></head>
-<body>${html}<script>
-JsBarcode("#awb-barcode","${awb}",{format:"CODE128",width:2,height:55,displayValue:true,fontSize:11,margin:2});
-setTimeout(()=>window.print(),600);
-</script></body></html>`], {type:'text/html'});
+  const _jsSrc = 'https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js';
+  const _pgStyle = `*{box-sizing:border-box}body{margin:0;padding:${ls.labelSize==='a4'?'8mm':'2mm'};font-family:Arial,sans-serif}@page{size:${ls.labelSize==='4x6'?'4in 6in':ls.labelSize==='100x150'?'100mm 150mm':'A4'};margin:${ls.labelSize==='a4'?'8mm':'2mm'}}@media print{body{margin:0;padding:0}}`;
+  const _labelDoc = [
+    '<!DOCTYPE html><html><head><meta charset="utf-8"/>',
+    '<scr'+'ipt src="'+_jsSrc+'"><\/scr'+'ipt>',
+    '<style>'+_pgStyle+'<\/style><\/head>',
+    '<body>'+html,
+    '<scr'+'ipt>JsBarcode("#awb-barcode","'+awb+'",{format:"CODE128",width:2,height:55,displayValue:true,fontSize:11,margin:2});setTimeout(()=>window.print(),600);<\/scr'+'ipt>',
+    '<\/body><\/html>'
+  ].join('\n');
+  const blob2 = new Blob([_labelDoc], {type:'text/html'});
   const burl = URL.createObjectURL(blob2);
   const wa = document.createElement('a');
   wa.href = burl; wa.target = '_blank'; wa.rel = 'noopener';
