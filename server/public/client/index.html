@@ -563,7 +563,6 @@ td b{color:var(--text)}
   display:none;gap:12px;align-items:center;flex-wrap:wrap;
 }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
 </head>
 <body>
 
@@ -761,7 +760,7 @@ td b{color:var(--text)}
           <span class="card-ttl">📋 My Orders <small style="font-size:.75rem;color:var(--muted);font-weight:500;margin-left:8px">(Ready to Ship)</small></span>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn btn-outline btn-sm" onclick="exportOrders()">📤 Export CSV</button>
-            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabels()" id="bulk-label-btn">🏷️ Download Labels</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabelsFromOrders()" id="bulk-label-btn">🏷️ Download Labels</button>
             <button class="btn btn-primary btn-sm" onclick="navigate('create-order')">➕ New Order</button>
           </div>
         </div>
@@ -811,7 +810,7 @@ td b{color:var(--text)}
         <div class="card-hdr">
           <span class="card-ttl">🚀 Shipments &amp; Tracking</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabels()" id="bulk-label-btn">📥 Download Labels</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabelsFromOrders()" id="bulk-label-btn">📥 Download Labels</button>
             <button class="btn btn-danger btn-sm" onclick="bulkCancelShipments()" id="bulk-cancel-ship-btn" style="display:none">❌ Bulk Cancel</button>
             <button class="btn btn-outline btn-sm" onclick="exportShipments()">📤 Export CSV</button>
           </div>
@@ -1445,9 +1444,15 @@ td b{color:var(--text)}
 
 <!-- Bulk Ship Progress Modal -->
 <div class="modal" id="bulk-ship-modal">
-  <div class="modal-box" style="max-width:480px">
-    <div class="modal-hdr"><span class="modal-ttl">⚡ Bulk Shipping Progress</span></div>
-    <div id="bsm-status" style="font-size:.88rem;color:var(--muted);margin-bottom:8px">Initializing...</div>
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-hdr"><span class="modal-ttl">⚡ Bulk Shipping</span></div>
+    <div id="bsm-setup" style="margin-bottom:14px">
+      <label style="font-size:.82rem;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">Select Courier (optional — overrides per-order assignment)</label>
+      <select id="bsm-courier-select" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;background:var(--card);color:var(--text)">
+        <option value="">-- Use each order's assigned courier --</option>
+      </select>
+    </div>
+    <div id="bsm-status" style="font-size:.88rem;color:var(--muted);margin-bottom:8px">Ready</div>
     <div class="bs-progress"><div class="bs-progress-bar" id="bsm-bar"></div></div>
     <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:16px">
       <span style="color:var(--success)">✅ Shipped: <b id="bsm-ok">0</b></span>
@@ -1986,14 +1991,9 @@ function renderOrderRows(orders, total, pages, page) {
 async function shipViaSelloship(orderId) {
   const btn = document.querySelector(`button[onclick="shipViaSelloship('${orderId}')"]`);
   if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
-  const d = await api('PATCH', `/orders/${orderId}/ship`, {});
+  const d = await api('POST', `/selloship/ship/${orderId}`);
   if (d?.success) {
-    if (d.queued && d.jobId) {
-      toast('⏳ Queued for shipping. Waiting for AWB...', 'success');
-      pollJobStatus(d.jobId, orderId);
-    } else {
-      toast(`✅ Shipped! AWB: ${d.awbNumber || 'Assigned'}`, 'success');
-    }
+    toast(`✅ Shipped! AWB: ${d.waybill} via ${d.courierName||'courier'}`, 'success');
     loadOrders();
     loadWalletBalance();
   } else {
@@ -2205,14 +2205,10 @@ async function confirmShipOrder() {
   const d = await api('PATCH', `/orders/${id}/ship`, { courierId: somSelectedCourierId });
 
   if (d?.success) {
+    toast(`✅ Shipped! AWB: ${d.order?.awbNumber || d.awb || 'Assigned'}. Order moved to Shipments.`, 'success');
     closeModal('ship-order-modal');
     loadWalletBalance();
-    if (d.queued && d.jobId) {
-      toast('⏳ Order queued for shipping. AWB will be assigned shortly...', 'success');
-      pollJobStatus(d.jobId, id);
-    } else {
-      toast(`✅ Shipped! AWB: ${d.awbNumber || 'Assigned'}.`, 'success');
-    }
+    // ✅ Go to Shipments tab, not Orders
     navigate('tracking');
     loadTracking();
   } else {
@@ -2715,6 +2711,18 @@ async function bulkShipSelected() {
   document.getElementById('bsm-log').textContent='';
   document.getElementById('bsm-done-msg').style.display='none';
   document.getElementById('bsm-close-btn').style.display='none';
+  // Populate courier dropdown before opening
+  const bsmSel = document.getElementById('bsm-courier-select');
+  if (bsmSel && couriersCache.length) {
+    bsmSel.innerHTML = '<option value="">-- Use each order's assigned courier --</option>' +
+      couriersCache.map(c => `<option value="${c._id}">${c.name}</option>`).join('');
+  } else if (bsmSel) {
+    const cd = await api('GET', '/couriers');
+    if (cd?.couriers) {
+      bsmSel.innerHTML = '<option value="">-- Use each order's assigned courier --</option>' +
+        cd.couriers.map(c => `<option value="${c._id}">${c.name}</option>`).join('');
+    }
+  }
   openModal('bulk-ship-modal');
 
   // Chunk into batches of 20
@@ -2722,7 +2730,8 @@ async function bulkShipSelected() {
   const log = document.getElementById('bsm-log');
   for (let i=0;i<ids.length;i+=CHUNK) {
     const chunk=ids.slice(i,i+CHUNK);
-    const d=await api('POST','/orders/bulk-ship',{orderIds:chunk});
+    const bsmCourier = document.getElementById('bsm-courier-select')?.value || '';
+    const d=await api('POST','/orders/bulk-ship',{orderIds:chunk, ...(bsmCourier && {courierId:bsmCourier})});
     if (d?.results) {
       d.results.forEach(r=>{
         if(r.success){ok++;log.innerHTML+=`<div style="color:var(--success)">✅ ${r.orderId} → ${r.awb}</div>`;}
@@ -2744,7 +2753,29 @@ async function bulkShipSelected() {
 }
 
 // ─── BULK LABEL DOWNLOAD ──────────────────────────────────────────────────────
-// (main bulkDownloadLabels defined in tracking section above)
+// Orders-page bulk label download (uses selectedOrders set, not tracking checkboxes)
+async function bulkDownloadLabelsFromOrders() {
+  const ids = [...selectedOrders];
+  if (!ids.length) { toast('Select orders first','error'); return; }
+  const size = labelSize || 'a4';
+  toast(`Generating ${ids.length} label(s) [${size.toUpperCase()}]...`,'info');
+  try {
+    const res = await fetch(`${API}/orders/bulk-labels`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({orderIds:ids, labelSize: size})
+    });
+    if (!res.ok) { const e=await res.json().catch(()=>({})); toast('Label error: '+(e.message||'Failed'),'error'); return; }
+    const html = await res.text();
+    const blob = new Blob([html], { type:'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+    toast(`${ids.length} label(s) ready — ${size==='a4'?'4 per A4 page':size+' thermal'}`, 'success');
+  } catch(e) { toast('Label error: '+e.message,'error'); }
+}
 function updateBulkActions() {
   const n = selectedOrders.size;
   const ba = document.getElementById('bulk-actions');
@@ -2872,9 +2903,8 @@ function updateLabelPreview() {
       <div style="font-size:8pt;font-weight:bold">131028</div>
     </div>
     <div style="border:1px solid #000;padding:3mm;text-align:center;margin-bottom:3mm">
-      <div style="font-size:7pt;font-family:monospace;letter-spacing:-0.5px">||||||||||||||||||||||||||||||||||||||||||</div>
-      <div style="font-size:11pt;font-weight:bold;letter-spacing:2px">1686558180</div>
-      <div style="font-size:6.5pt;color:#666">Order: Jul 27,2023 | Invoice No: 1686558180</div>
+      <canvas id="preview-barcode" style="max-width:100%;display:block;margin:0 auto"></canvas>
+      <div style="font-size:6.5pt;color:#666;margin-top:1mm">Order: Jul 27, 2023 | AWB: 1686558180</div>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:7.5pt;border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">
       <div><div style="font-weight:bold;color:${bc}">Delhivery</div><div style="color:#666">XSE21157413001</div></div>
@@ -2889,7 +2919,12 @@ function updateLabelPreview() {
     </div>
   </div>`;
   const prev = document.getElementById('label-preview-inner');
-  if (prev) prev.innerHTML = html;
+  if (prev) {
+    prev.innerHTML = html;
+    if (window.JsBarcode) {
+      try { JsBarcode('#preview-barcode','1686558180',{format:'CODE128',width:2,height:45,displayValue:false,margin:1}); } catch(_){}
+    }
+  }
 }
 function printLabelPreview() {
   const html = document.getElementById('label-preview-inner')?.innerHTML;
@@ -2963,37 +2998,36 @@ async function bulkDownloadLabels() {
     return;
   }
 
-  // ── MULTIPLE ORDERS — stream ZIP from backend ─────────────────────────────
-  const orderIds = checks.map(c => c.value);
+  // ── MULTIPLE ORDERS — printable HTML (4-per-A4 or thermal) ─────────────────
+  const orderIds = checks.map(ch => ch.value);
   const btn = document.getElementById('bulk-label-btn');
   const origText = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Preparing ZIP...'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Preparing Labels...'; }
 
   try {
-    const token = localStorage.getItem('client_token'); // FIX: was 'token'
-    const res = await fetch('/api/orders/bulk-labels-zip', {
+    const size = labelSize || 'a4';
+    const res = await fetch(`${API}/orders/bulk-labels`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ orderIds })
+      body: JSON.stringify({ orderIds, labelSize: size })
     });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      toast('❌ ' + (err.message || 'Failed to generate ZIP'), 'error');
+      toast('❌ ' + (err.message || 'Failed to generate labels'), 'error');
       return;
     }
 
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `labels_${Date.now()}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
-    toast(`📥 Downloaded ${orderIds.length} label(s) as ZIP`, 'success');
+    const html = await res.text();
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 15000);
+    toast(`📄 ${orderIds.length} label(s) opened — ${size==='a4'?'4 per A4':size+' thermal'}`, 'success');
   } catch (err) {
-    toast('❌ Download failed: ' + err.message, 'error');
+    toast('❌ Labels failed: ' + err.message, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = origText; }
   }
@@ -3021,8 +3055,10 @@ async function printOrderLabel(id) {
   const ls = getLabelSettings();
   const bc = ls.brandColor || '#0D1B3E';
   const isCOD = o.paymentMode === 'cod';
-  const wh = o.pickupWarehouse || o.warehouse || {};  // [FIX-LABEL-2] pickupWarehouse is now populated
-  const html = `<div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4;max-width:${ls.labelSize==='a4'?'190mm':ls.labelSize==='100x150'?'96mm':'96mm'}">
+  const wh = o.pickupWarehouse || o.warehouse || {};
+  const awb = o.awbNumber || o.orderId || '';
+  const labelW = ls.labelSize==='a4'?'190mm':ls.labelSize==='100x150'?'96mm':'96mm';
+  const html = `<div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4;max-width:${labelW}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">
       <div>
         ${ls.showLogo && ls.customLogoUrl ? `<img src="${ls.customLogoUrl}" style="height:32px;object-fit:contain"/>` : `<div style="font-weight:bold;font-size:11pt;color:${bc}">SHIPORAX</div>`}
@@ -3037,10 +3073,9 @@ async function printOrderLabel(id) {
       ${!ls.hideCustomerPhone ? `<div style="font-size:8pt">Mobile: ${o.recipient?.phone||''}</div>` : ''}
       <div style="font-size:8pt;font-weight:bold">${o.recipient?.pincode||''}</div>
     </div>
-    <div style="border:1px solid #000;padding:3mm;text-align:center;margin-bottom:3mm" id="label-bc-wrap-${o._id || o.orderId}">
-      <svg id="bc-${o._id || o.orderId}" style="max-width:100%;height:48px"></svg>
-      <div style="font-size:11pt;font-weight:bold;letter-spacing:2px;margin-top:2px">${o.awbNumber||o.orderId}</div>
-      <div style="font-size:6.5pt;color:#666">Order: ${new Date(o.createdAt).toLocaleDateString('en-IN')} | ${o.orderId}</div>
+    <div style="border:1px solid #000;padding:3mm;text-align:center;margin-bottom:3mm">
+      <canvas id="awb-barcode" style="max-width:100%;display:block;margin:0 auto"></canvas>
+      <div style="font-size:6.5pt;color:#666;margin-top:1mm">Order: ${new Date(o.createdAt).toLocaleDateString('en-IN')} | ${o.orderId}</div>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:7.5pt;border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">
       <div><div style="font-weight:bold;color:${bc}">${o.assignedCourier?.name||'Auto'}</div></div>
@@ -3050,12 +3085,20 @@ async function printOrderLabel(id) {
     ${!ls.hideRtoAddress && wh.name ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt"><div style="font-weight:bold;color:#444">Return:</div><div>${wh.name}</div><div>${wh.address||''} ${wh.pincode||''}</div></div>` : ''}
     <div style="border-top:1px solid #ccc;padding-top:2mm;margin-top:2mm;font-size:6pt;color:#666">${ls.labelNote||'This is a computer generated document.'}<div>${ls.labelFooter||''}</div></div>
   </div>`;
-  const w = window.open('', '_blank');
-  const awbForBc = o.awbNumber || o.orderId;
-  const bcId = 'bc-' + (o._id || o.orderId);
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>body{margin:0;padding:8mm;font-family:Arial,sans-serif}@media print{body{margin:0;padding:0}}</style><script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"><\/script></head><body>${html}<script>window.onload=function(){try{JsBarcode(document.getElementById('${bcId}'),'${awbForBc}',{format:'CODE128',width:1.8,height:48,displayValue:false,margin:0});}catch(e){}};<\/script></body></html>`);
-  w.document.close();
-  setTimeout(() => w.print(), 800);
+  const blob2 = new Blob([`<!DOCTYPE html><html><head><meta charset="utf-8"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+<style>*{box-sizing:border-box}body{margin:0;padding:${ls.labelSize==='a4'?'8mm':'2mm'};font-family:Arial,sans-serif}
+@page{size:${ls.labelSize==='4x6'?'4in 6in':ls.labelSize==='100x150'?'100mm 150mm':'A4'};margin:${ls.labelSize==='a4'?'8mm':'2mm'}}
+@media print{body{margin:0;padding:0}}</style></head>
+<body>${html}<script>
+JsBarcode("#awb-barcode","${awb}",{format:"CODE128",width:2,height:55,displayValue:true,fontSize:11,margin:2});
+setTimeout(()=>window.print(),600);
+</script></body></html>`], {type:'text/html'});
+  const burl = URL.createObjectURL(blob2);
+  const wa = document.createElement('a');
+  wa.href = burl; wa.target = '_blank'; wa.rel = 'noopener';
+  document.body.appendChild(wa); wa.click(); document.body.removeChild(wa);
+  setTimeout(()=>URL.revokeObjectURL(burl), 15000);
 }
 
 // ─── CLONE ORDER ──────────────────────────────────────────────────────────────
