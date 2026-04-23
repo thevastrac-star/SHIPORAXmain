@@ -788,6 +788,8 @@ td b{color:var(--text)}
         <div id="bulk-actions" style="display:none;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
           <span id="selected-count" style="font-size:.875rem;color:var(--muted)">0 selected</span>
           <button class="btn btn-primary btn-sm" onclick="bulkShipSelected()">🚀 Ship Selected</button>
+          <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabelsFromOrders()">🏷️ Labels (Print)</button>
+          <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabelsPDFFromOrders()" title="Merge all selected labels into one PDF">📄 Single PDF</button>
           <button class="btn btn-danger btn-sm" onclick="bulkDeleteSelected()">🗑 Delete Selected</button>
         </div>
 
@@ -810,7 +812,8 @@ td b{color:var(--text)}
         <div class="card-hdr">
           <span class="card-ttl">🚀 Shipments &amp; Tracking</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabelsFromOrders()" id="bulk-label-btn">📥 Download Labels</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabels()" id="bulk-label-btn">📥 Download Labels</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkDownloadLabelsPDF()" id="bulk-label-pdf-btn" title="Merge all selected labels into one PDF">📄 Single PDF</button>
             <button class="btn btn-danger btn-sm" onclick="bulkCancelShipments()" id="bulk-cancel-ship-btn" style="display:none">❌ Bulk Cancel</button>
             <button class="btn btn-outline btn-sm" onclick="exportShipments()">📤 Export CSV</button>
           </div>
@@ -2776,6 +2779,27 @@ async function bulkDownloadLabelsFromOrders() {
     toast(`${ids.length} label(s) ready — ${size==='a4'?'4 per A4 page':size+' thermal'}`, 'success');
   } catch(e) { toast('Label error: '+e.message,'error'); }
 }
+// Orders page: single PDF download for selected orders
+async function bulkDownloadLabelsPDFFromOrders() {
+  const ids = [...selectedOrders];
+  if (!ids.length) { toast('Select orders first', 'error'); return; }
+  const size = labelSize || 'a4';
+  toast(`Building single PDF for ${ids.length} label(s)...`, 'info');
+  try {
+    const res = await fetch(`${API}/orders/bulk-labels`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ orderIds: ids, labelSize: size, pdfMode: true })
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); toast('Label error: ' + (e.message || 'Failed'), 'error'); return; }
+    const html = await res.text();
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    toast(`📄 ${ids.length} label(s) ready — use Ctrl+P → "Save as PDF"`, 'success');
+  } catch (e) { toast('PDF error: ' + e.message, 'error'); }
+}
 function updateBulkActions() {
   const n = selectedOrders.size;
   const ba = document.getElementById('bulk-actions');
@@ -2993,6 +3017,7 @@ async function bulkDownloadLabels() {
     if (labelUrl) {
       window.open(labelUrl, '_blank');
     } else {
+      // For Amazon or any order without stored label URL — fetch from API
       await fetchAndDownloadLabel(c.value);
     }
     return;
@@ -3032,6 +3057,43 @@ async function bulkDownloadLabels() {
     if (btn) { btn.disabled = false; btn.innerHTML = origText; }
   }
 }
+// ── BULK LABELS: SINGLE PDF (print-to-PDF via browser) ───────────────────────
+// Sends all selected order IDs to bulk-labels endpoint (which already handles
+// Amazon orders: fetches their labelUrl inline via iframe). User then presses
+// Ctrl+P → Save as PDF in the opened print window.
+async function bulkDownloadLabelsPDF() {
+  const allChecks = [...document.querySelectorAll('.track-check')];
+  const checks = selectedTrackIds.size > 0
+    ? allChecks.filter(c => selectedTrackIds.has(c.value))
+    : allChecks;
+
+  if (!checks.length) { toast('No shipments available', 'error'); return; }
+  const orderIds = checks.map(ch => ch.value);
+  const btn = document.getElementById('bulk-label-pdf-btn');
+  const origText = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Building PDF...'; }
+  try {
+    const size = labelSize || 'a4';
+    const res = await fetch(`${API}/orders/bulk-labels`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ orderIds, labelSize: size, pdfMode: true })
+    });
+    if (!res.ok) { const e = await res.json().catch(()=>({})); toast('❌ '+(e.message||'Failed'),'error'); return; }
+    const html = await res.text();
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const win  = window.open(url, '_blank');
+    // Instruct user — browser will handle print-to-PDF natively
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    toast(`📄 ${orderIds.length} label(s) ready — use Ctrl+P → "Save as PDF" to download`, 'success');
+  } catch(err) {
+    toast('❌ PDF build failed: ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+  }
+}
+
 async function bulkCancelShipments() {
   const ids = [...selectedTrackIds];
   if (!ids.length) return;
@@ -3052,6 +3114,21 @@ async function printOrderLabel(id) {
   const od = await api('GET', `/orders/${id}`);
   if (!od?.success) { toast('Could not load order', 'error'); return; }
   const o = od.order;
+
+  // Amazon Shipping / any order that has a Selloship-provided label URL:
+  // Never generate a CODE128 barcode — Amazon uses their own label format.
+  // Just open the stored label URL directly.
+  const storedLabelUrl = o.selloship?.labelUrl;
+  const isAmazonAwb = o.awbNumber && /^\d{12}$/.test(o.awbNumber.toString().trim());
+  if (storedLabelUrl) {
+    window.open(storedLabelUrl, '_blank');
+    return;
+  }
+  if (isAmazonAwb) {
+    toast('Amazon label URL not saved yet. Re-ship or check order details.', 'error');
+    return;
+  }
+
   const ls = getLabelSettings();
   const bc = ls.brandColor || '#0D1B3E';
   const isCOD = o.paymentMode === 'cod';
