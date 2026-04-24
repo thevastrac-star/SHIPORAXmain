@@ -331,6 +331,8 @@ async function createWaybill(token, params) {
       courierName:   raw.courierName || raw.courier_name || '',
       routingCode:   raw.routingCode || raw.routing_code || ''
     };
+  });
+}
 
 async function createReverseWaybill(token, params) {
   const payload = buildRVPPayload(params);
@@ -354,6 +356,8 @@ async function createReverseWaybill(token, params) {
       courierName:   raw.courierName || raw.courier_name || '',
       routingCode:   raw.routingCode || raw.routing_code || ''
     };
+  });
+}
 
 async function getWaybillStatus(token, awbNumbers) {
   if (!Array.isArray(awbNumbers) || !awbNumbers.length) throw new Error('awbNumbers must be non-empty array');
