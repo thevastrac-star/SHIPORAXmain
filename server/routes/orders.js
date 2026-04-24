@@ -23,7 +23,7 @@ const { createNotification }               = require('../utils/notifications');
 const { fetchPincodeData }                 = require('../utils/pincode');
 const { toCSV }                            = require('../utils/csv');
 const {
-  getSelloToken, orderToPayloadParams, createWaybill, fetchLabelUrl
+  getSelloToken, orderToPayloadParams, createWaybill, fetchLabelUrl, extractLabelUrl
 } = require('../utils/selloship');
 const shippingQueue = require('../utils/shippingQueue');
 const axios    = require('axios');
@@ -168,7 +168,7 @@ async function enqueueShipment(order, courierId, userId) {
         'Order ' + updatedOrder.orderId + ' shipped. AWB: ' + shipped.awbNumber,
         updatedOrder._id, user && user.whatsappNotifications);
       return { orderId: updatedOrder.orderId, awbNumber: shipped.awbNumber,
-        labelUrl: shipped.labelUrl, courierName: shipped.courierName };
+        labelUrl: labelUrl || '', courierName: shipped.courierName };
     }
   });
   return jobId;
@@ -326,15 +326,35 @@ router.post('/bulk-labels-amazon-urls', protect, async (req, res) => {
     if (!orderIds || !orderIds.length) return res.status(400).json({ success: false, message: 'No order IDs' });
     const filter = { _id: { $in: orderIds } };
     if (req.user.role !== 'admin') filter.user = req.user._id;
-    const orders = await Order.find(filter).select('orderId awbNumber selloship').lean();
-    const results = orders.map(o => ({
-      orderId:    o.orderId,
-      awbNumber:  o.awbNumber,
-      labelUrl:   o.selloship && o.selloship.labelUrl,
-      isAmazon:   /amazon/i.test((o.selloship && o.selloship.courierName) || '') || /^\d{12}$/.test(o.awbNumber || ''),
-      courierName: o.selloship && o.selloship.courierName
+    const orders = await Order.find(filter).lean();
+
+    // For any Amazon order missing a saved labelUrl, try to fetch it live and save it
+    let tok = null;
+    const updatedOrders = await Promise.all(orders.map(async (o) => {
+      const isAmazon = /amazon/i.test((o.selloship && o.selloship.courierName) || '') || /^\d{12}$/.test(o.awbNumber || '');
+      let labelUrl = o.selloship && o.selloship.labelUrl;
+      if (!labelUrl && o.awbNumber) {
+        try {
+          if (!tok) tok = await getSelloToken();
+          labelUrl = await fetchLabelUrl(tok, o.awbNumber);
+          if (labelUrl) {
+            // Persist the fetched label URL so it works next time too
+            await Order.findByIdAndUpdate(o._id, {
+              $set: { 'selloship.labelUrl': labelUrl }
+            });
+          }
+        } catch (_) {}
+      }
+      return {
+        orderId:     o.orderId,
+        awbNumber:   o.awbNumber,
+        labelUrl:    labelUrl || '',
+        isAmazon,
+        courierName: o.selloship && o.selloship.courierName
+      };
     }));
-    res.json({ success: true, results });
+
+    res.json({ success: true, results: updatedOrders });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -442,7 +462,16 @@ router.post('/:id/refetch-label', protect, async (req, res) => {
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
     if (!order.awbNumber) return res.status(400).json({ success: false, message: 'Order not shipped yet' });
     const tok = await getSelloToken();
-    const labelUrl = await fetchLabelUrl(tok, order.awbNumber);
+    // First attempt
+    let labelUrl = await fetchLabelUrl(tok, order.awbNumber);
+    // If Amazon order and still no label, wait 2s and retry once (Amazon label generation is async)
+    if (!labelUrl) {
+      const isAmazon = /amazon/i.test((order.selloship && order.selloship.courierName) || '') || /^\d{12}$/.test(order.awbNumber || '');
+      if (isAmazon) {
+        await new Promise(r => setTimeout(r, 2000));
+        labelUrl = await fetchLabelUrl(tok, order.awbNumber);
+      }
+    }
     if (!labelUrl) return res.status(404).json({ success: false, message: 'Label not available from Selloship yet. Try again in a moment.' });
     if (!order.selloship) order.selloship = {};
     order.selloship.labelUrl = labelUrl;

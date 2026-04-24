@@ -282,7 +282,7 @@ textarea{resize:vertical;min-height:80px}
  <select id="user-kyc" onchange="loadUsers()"><option value="">All KYC</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
  </div>
  <div class="table-wrap"><table>
- <thead><tr><th>Name</th><th>Email</th><th>Wallet</th><th>KYC</th><th>Status</th><th>Orders</th><th>Actions</th></tr></thead>
+ <thead><tr><th>Name</th><th>Email</th><th>Wallet</th><th>KYC</th><th>Status</th><th>Actions</th></tr></thead>
  <tbody id="users-tbody"></tbody>
  </table></div>
  <div class="pagination" id="users-pagination"></div>
@@ -417,12 +417,13 @@ textarea{resize:vertical;min-height:80px}
  </div>
  </div>
  <div class="search-bar">
+ <input type="text" id="order-search-input" placeholder="Search Order ID, AWB, recipient..." oninput="loadOrders()" style="flex:1;min-width:180px"/>
  <select id="order-status" onchange="loadOrders()"><option value="">All Status</option><option value="draft">Draft</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="rto">RTO</option><option value="ndr">NDR</option></select>
  <input type="date" id="order-from" onchange="loadOrders()"/>
  <input type="date" id="order-to" onchange="loadOrders()"/>
  </div>
  <div class="table-wrap"><table>
- <thead><tr><th>Order ID</th><th>User</th><th>Recipient</th><th>Pincode</th><th>COD</th><th>Status</th><th>Courier</th><th>AWB</th><th>Date</th><th>Actions</th></tr></thead>
+ <thead><tr><th>Order ID</th><th>User</th><th>Recipient</th><th>Pincode</th><th>COD</th><th>Status</th><th>AWB / Courier</th><th>Date</th><th>Actions</th></tr></thead>
  <tbody id="orders-tbody"></tbody>
  </table></div>
  <div class="pagination" id="orders-pagination"></div>
@@ -1447,7 +1448,6 @@ async function loadUsers() {
  <td>₹${(u.walletBalance||0).toLocaleString()}</td>
  <td><span class="status s-${u.kyc?.status||'not_submitted'}">${u.kyc?.status||'N/A'}</span></td>
  <td>${u.isBlocked?'<span class="status s-rejected">Blocked</span>':u.isFlagged?'<span class="status s-ndr">Flagged</span>':'<span class="status s-approved">Active</span>'}</td>
- <td>—</td>
  <td>
  <button class="btn btn-outline btn-sm" onclick="openWalletForUser('${u._id}')">💰</button>
  <button class="btn btn-outline btn-sm" onclick="openLimitsModal('${u._id}','${u.limits?.maxOrdersPerDay||100}','${u.limits?.codLimit||50000}')">🔒</button>
@@ -1455,7 +1455,7 @@ async function loadUsers() {
  <button class="btn btn-sm ${u.isBlocked?'btn-success':'btn-danger'}" onclick="toggleBlock('${u._id}','${u.isBlocked}')">${u.isBlocked?'Unblock':'Block'}</button>
  <button class="btn btn-sm ${u.isFlagged?'btn-success':'btn-warning'}" onclick="toggleFlag('${u._id}','${u.isFlagged}')">${u.isFlagged?'Unflag':'Flag'}</button>
  </td>
- </tr>`).join('') || '<tr><td colspan="7" class="empty">No users</td></tr>';
+ </tr>`).join('') || '<tr><td colspan="6" class="empty">No users</td></tr>';
  renderPagination('users-pagination', d.page, Math.ceil(d.total/15), p => { userPage = p; loadUsers(); });
 }
 
