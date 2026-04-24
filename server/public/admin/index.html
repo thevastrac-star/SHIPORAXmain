@@ -385,7 +385,7 @@ textarea{resize:vertical;min-height:80px}
  <button class="btn btn-primary btn-sm" onclick="loadRecharges()">Filter</button>
  </div>
  <div class="table-wrap"><table>
- <thead><tr><th>User</th><th>Amount</th><th>Status</th><th>Gateway</th><th>Date</th></tr></thead>
+ <thead><tr><th>User</th><th>Amount</th><th>Status</th><th>Gateway</th><th>Date</th><th>Actions</th></tr></thead>
  <tbody id="recharges-tbody"></tbody>
  </table></div>
  </div>
@@ -785,9 +785,9 @@ textarea{resize:vertical;min-height:80px}
 <!-- COURIER MANAGER MODALS -->
 
 <!-- Platform Courier Create/Edit Modal -->
-<div class="modal" id="pcm-modal">
- <div class="modal-box" style="max-width:540px">
- <div class="modal-header"><span id="pcm-modal-title">Create Platform Courier</span><button class="close-btn" onclick="closeModal('pcm-modal')"></button></div>
+<div class="modal-overlay" id="pcm-modal">
+ <div class="modal" style="max-width:540px">
+<div class="modal-header"><span id="pcm-modal-title">Create Platform Courier</span><button class="modal-close" onclick="closeModal('pcm-modal')">×</button></div>
  <input type="hidden" id="pcm-id"/>
  <input type="hidden" id="pcm-mapping-id"/>
 
@@ -837,9 +837,9 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- Mapping Modal -->
-<div class="modal" id="mapping-modal">
- <div class="modal-box" style="max-width:520px">
- <div class="modal-header"><span id="mapping-modal-title">Add Courier Mapping</span><button class="close-btn" onclick="closeModal('mapping-modal')"></button></div>
+<div class="modal-overlay" id="mapping-modal">
+ <div class="modal" style="max-width:540px">
+<div class="modal-header"><span id="mapping-modal-title">Add Courier Mapping</span><button class="modal-close" onclick="closeModal('mapping-modal')">×</button></div>
  <input type="hidden" id="map-id"/>
  <div class="form-group">
  <label>Platform Courier *</label>
@@ -868,9 +868,9 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <!-- Client Rate Add/Edit Modal (quick) -->
-<div class="modal" id="cr-modal">
- <div class="modal-box" style="max-width:560px">
- <div class="modal-header"><span id="cr-modal-title">Add Rate</span><button class="close-btn" onclick="closeModal('cr-modal')"></button></div>
+<div class="modal-overlay" id="cr-modal">
+ <div class="modal" style="max-width:540px">
+<div class="modal-header"><span id="cr-modal-title">Add Rate</span><button class="modal-close" onclick="closeModal('cr-modal')">×</button></div>
  <input type="hidden" id="cr-rate-id"/>
  <div class="form-row">
  <div class="form-group">
@@ -1698,7 +1698,18 @@ async function loadRecharges() {
  <div class="stat-card" style="border-color:var(--success)"><div class="label">Total Recharges</div><div class="value">₹${(d.totalAmount||0).toLocaleString()}</div></div>
  <div class="stat-card" style="border-color:var(--primary)"><div class="label">Count</div><div class="value">${d.total}</div></div>`;
  const tbody = document.getElementById('recharges-tbody');
- tbody.innerHTML = d.recharges.map(r => `<tr><td>${r.user?.name||'—'}<br/><small>${r.user?.email||''}</small></td><td>₹${r.amount}</td><td><span class="status s-${r.status}">${r.status}</span></td><td>${r.paymentGateway||'manual'}</td><td>${fmtDate(r.createdAt)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No recharges</td></tr>';
+ tbody.innerHTML = d.recharges.map(r => `<tr>
+      <td>${r.user?.name||'—'}<br/><small style="color:var(--text-muted)">${r.user?.email||''}</small></td>
+      <td><b>₹${r.amount}</b></td>
+      <td><span class="status s-${r.status}">${r.status}</span></td>
+      <td>${r.paymentGateway||'manual'}</td>
+      <td>${fmtDate(r.createdAt)}</td>
+      <td>${r.status==='pending'
+        ? `<button class="btn btn-success btn-sm" onclick="approveRecharge('${r._id}')">✓ Approve</button>
+           <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="rejectRecharge('${r._id}')">✗ Reject</button>`
+        : `<span style="font-size:.75rem;color:var(--text-muted)">${r.status}</span>`
+      }</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="empty">No recharges found</td></tr>';
  // Load current QR
  const qd = await api('GET', '/wallet/recharge-qr');
  if (qd?.qrImageUrl) {
@@ -1730,6 +1741,19 @@ async function saveRechargeQR() {
  else toast(d?.message||'Error', 'error');
 }
 
+
+async function approveRecharge(id) {
+  if (!confirm('Approve this recharge? Wallet will be credited.')) return;
+  const d = await api('POST', `/wallet/admin/recharges/${id}/approve`);
+  if (d?.success) { toast('✅ Recharge approved & wallet credited', 'success'); loadRecharges(); }
+  else toast(d?.message || 'Error approving recharge', 'error');
+}
+async function rejectRecharge(id) {
+  if (!confirm('Reject this recharge request?')) return;
+  const d = await api('POST', `/wallet/admin/recharges/${id}/reject`);
+  if (d?.success) { toast('Recharge rejected', 'success'); loadRecharges(); }
+  else toast(d?.message || 'Error rejecting recharge', 'error');
+}
 
 // ─── COD ─────────────────────────────────────────────────────────────────────
 async function loadCOD() {

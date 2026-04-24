@@ -188,21 +188,25 @@ function buildLabelHtml(o, opts = {}) {
   const labelW = isA4 ? '190mm' : '96mm';
   const fz     = isA4 ? '9pt' : '8pt';
 
-  // Amazon / Selloship label — embed as iframe with info header
+  // Amazon / Selloship label — open label URL directly (iframes blocked by Amazon X-Frame-Options)
   if (o.selloship && o.selloship.labelUrl) {
-    const isAmazon = /^\d{12}$/.test(awb);
+    const isAmazon = /amazon/i.test(o.selloship.courierName || '') || /^\d{12}$/.test(awb);
+    const labelUrl = o.selloship.labelUrl;
     return '<div style="font-family:Arial,sans-serif;margin-bottom:6mm;page-break-inside:avoid;width:' + labelW + ';max-width:' + labelW + '">' +
-      '<div style="background:#f8f8f8;border:1px solid #ddd;padding:3mm;margin-bottom:2mm;border-radius:4px">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2mm">' +
+      '<div style="background:#f8f8f8;border:1px solid #ddd;padding:4mm;border-radius:4px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3mm">' +
           '<b style="color:' + bc + ';font-size:' + (isA4?'10pt':'8.5pt') + '">' + (isAmazon?'Amazon Shipping':'Selloship Label') + '</b>' +
           (isCOD ? '<span style="background:#c00;color:#fff;padding:2px 7px;border-radius:3px;font-weight:bold;font-size:8pt">COD &#8377;' + (o.codAmount||0) + '</span>'
                  : '<span style="background:#059669;color:#fff;padding:2px 7px;border-radius:3px;font-weight:bold;font-size:8pt">PREPAID</span>') +
         '</div>' +
-        '<div style="font-size:7pt;color:#555">AWB: <b>' + awb + '</b> &nbsp;|&nbsp; Order: ' + o.orderId + '</div>' +
-        '<div style="font-size:7pt;color:#555;margin-top:1mm">To: ' + (r.name||'') + ', ' + (r.city||'') + ' - ' + (r.pincode||'') + '</div>' +
+        '<div style="font-size:7pt;color:#555;margin-bottom:1mm">AWB: <b>' + awb + '</b> &nbsp;|&nbsp; Order: ' + o.orderId + '</div>' +
+        '<div style="font-size:7pt;color:#555;margin-bottom:4mm">To: ' + (r.name||'') + ', ' + (r.city||'') + ' - ' + (r.pincode||'') + '</div>' +
+        '<a href="' + labelUrl + '" target="_blank" rel="noopener" ' +
+          'style="display:inline-block;background:' + bc + ';color:#fff;padding:7px 18px;border-radius:5px;text-decoration:none;font-weight:bold;font-size:' + (isA4?'10pt':'8.5pt') + '">' +
+          '&#128229; Open ' + (isAmazon ? 'Amazon' : 'Shipping') + ' Label' +
+        '</a>' +
+        '<div style="font-size:5.5pt;color:#aaa;margin-top:3mm;word-break:break-all">' + labelUrl + '</div>' +
       '</div>' +
-      '<iframe src="' + o.selloship.labelUrl + '" style="width:100%;height:' + (isA4?'420px':'340px') + ';border:1.5px solid #ccc;border-radius:4px" title="Shipping Label"></iframe>' +
-      '<div style="font-size:6pt;color:#999;margin-top:2px"><a href="' + o.selloship.labelUrl + '" target="_blank">Open in new tab</a></div>' +
     '</div>';
   }
 
@@ -313,6 +317,27 @@ body{font-family:Arial,sans-serif;background:#fff}
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+// ─── POST /bulk-labels-amazon-urls — returns label URLs for Amazon orders (opened by frontend) ────
+// Amazon labels cannot be iframed or server-proxied. This endpoint returns the saved labelUrl
+// for each order so the frontend can window.open() each one directly.
+router.post('/bulk-labels-amazon-urls', protect, async (req, res) => {
+  try {
+    const { orderIds } = req.body;
+    if (!orderIds || !orderIds.length) return res.status(400).json({ success: false, message: 'No order IDs' });
+    const filter = { _id: { $in: orderIds } };
+    if (req.user.role !== 'admin') filter.user = req.user._id;
+    const orders = await Order.find(filter).select('orderId awbNumber selloship').lean();
+    const results = orders.map(o => ({
+      orderId:    o.orderId,
+      awbNumber:  o.awbNumber,
+      labelUrl:   o.selloship && o.selloship.labelUrl,
+      isAmazon:   /amazon/i.test((o.selloship && o.selloship.courierName) || '') || /^\d{12}$/.test(o.awbNumber || ''),
+      courierName: o.selloship && o.selloship.courierName
+    }));
+    res.json({ success: true, results });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 // ─── POST /bulk-labels-zip — download all Selloship label PDFs as ZIP ─────────
 // Uses archiver + parallel axios streams so large batches are fast.
 router.post('/bulk-labels-zip', protect, async (req, res) => {
@@ -357,7 +382,7 @@ router.post('/bulk-labels-zip', protect, async (req, res) => {
           } catch (_) { /* fall through to HTML fallback */ }
         }
         // Fallback: generate our own label as HTML (works for Amazon + any order without Selloship PDF)
-        const labelHtml = buildLabelHtml(o, { labelSize: order?.selloship?.labelSize || 'a4' });
+        const labelHtml = buildLabelHtml(o, { labelSize: 'a4' });
         const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif}@media print{body{margin:0}}</style></head><body>${labelHtml}</body></html>`;
         archive.append(Buffer.from(fullHtml, 'utf-8'), { name: filename + '.html' });
       }));
@@ -1013,3 +1038,4 @@ router.post('/v1/bulk-labels', apiKeyAuth, async (req, res) => {
 });
 
 module.exports = router;
+

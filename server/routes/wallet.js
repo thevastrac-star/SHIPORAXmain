@@ -169,6 +169,23 @@ router.post('/admin/recharges/:id/approve', protect, adminOnly, async (req, res)
   }
 });
 
+// POST /api/wallet/admin/recharges/:id/reject
+router.post('/admin/recharges/:id/reject', protect, adminOnly, async (req, res) => {
+  try {
+    const recharge = await WalletRecharge.findById(req.params.id);
+    if (!recharge) return res.status(404).json({ success: false, message: 'Recharge not found' });
+    if (recharge.status !== 'pending')
+      return res.status(400).json({ success: false, message: `Recharge is already ${recharge.status}` });
+    recharge.status = 'failed';
+    await recharge.save();
+    await logActivity(req.user._id, 'admin', 'WALLET_RECHARGE_REJECT', 'WalletRecharge', recharge._id,
+      { amount: recharge.amount }, req.ip);
+    res.json({ success: true, recharge });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/wallet/export/transactions
 router.get('/export/transactions', protect, async (req, res) => {
   try {
