@@ -321,16 +321,16 @@ async function createWaybill(token, params) {
       const reason = res.data.reason  || res.data.errorMessage || '';
       throw new Error(`Waybill failed: ${msg}${reason ? ' (' + reason + ')' : ''}`);
     }
+    const raw = res.data;
+    // Selloship may return label URL under different field names depending on courier
+    const labelUrl = raw.shippingLabel || raw.label_url || raw.labelUrl ||
+      raw.LabelUrl || raw.ShippingLabel || raw.label || raw.pdf || raw.pdfUrl || '';
     return {
-      waybill:       res.data.waybill,
-      shippingLabel: res.data.shippingLabel,
-      courierName:   res.data.courierName,
-      routingCode:   res.data.routingCode
+      waybill:       raw.waybill,
+      shippingLabel: labelUrl,
+      courierName:   raw.courierName || raw.courier_name || '',
+      routingCode:   raw.routingCode || raw.routing_code || ''
     };
-  });
-}
-
-// ─── REVERSE WAYBILL ─────────────────────────────────────────────────────────
 
 async function createReverseWaybill(token, params) {
   const payload = buildRVPPayload(params);
@@ -345,16 +345,15 @@ async function createReverseWaybill(token, params) {
       const reason = res.data.reason  || res.data.errorMessage || '';
       throw new Error(`RVP failed: ${msg}${reason ? ' (' + reason + ')' : ''}`);
     }
+    const raw = res.data;
+    const labelUrl = raw.shippingLabel || raw.label_url || raw.labelUrl ||
+      raw.LabelUrl || raw.ShippingLabel || raw.label || raw.pdf || raw.pdfUrl || '';
     return {
-      waybill:       res.data.waybill,
-      shippingLabel: res.data.shippingLabel,
-      courierName:   res.data.courierName,
-      routingCode:   res.data.routingCode
+      waybill:       raw.waybill,
+      shippingLabel: labelUrl,
+      courierName:   raw.courierName || raw.courier_name || '',
+      routingCode:   raw.routingCode || raw.routing_code || ''
     };
-  });
-}
-
-// ─── TRACK ───────────────────────────────────────────────────────────────────
 
 async function getWaybillStatus(token, awbNumbers) {
   if (!Array.isArray(awbNumbers) || !awbNumbers.length) throw new Error('awbNumbers must be non-empty array');
@@ -417,6 +416,29 @@ function verifyWebhookSignature(rawBody, signatureHeader) {
   catch (_) { return false; }
 }
 
+// ─── FETCH LABEL URL (for orders where shippingLabel was empty in waybill response) ──
+async function fetchLabelUrl(token, awb) {
+  if (!awb) return null;
+  return safeCall(async () => {
+    // Try common Selloship label endpoints
+    const endpoints = [
+      `${BASE}/label?waybill=${awb}`,
+      `${BASE}/getLabel?waybill=${awb}`,
+      `${BASE}/waybillLabel?waybill=${awb}`,
+    ];
+    for (const url of endpoints) {
+      try {
+        const res = await axios.get(url, { headers: authHeaders(token), timeout: 15000 });
+        const d = res.data;
+        const label = d.shippingLabel || d.label_url || d.labelUrl || d.LabelUrl ||
+          d.ShippingLabel || d.label || d.pdf || d.pdfUrl;
+        if (label) return label;
+      } catch (_) { /* try next */ }
+    }
+    return null;
+  });
+}
+
 module.exports = {
   BASE,
   getSelloToken,
@@ -425,10 +447,11 @@ module.exports = {
   clearTokenCache,
   buildForwardPayload,
   buildRVPPayload,
-  buildWaybillPayload,  // legacy alias → buildForwardPayload
+  buildWaybillPayload,
   orderToPayloadParams,
   createWaybill,
   createReverseWaybill,
+  fetchLabelUrl,
   getWaybillStatus,
   cancelWaybill,
   generateManifest,
