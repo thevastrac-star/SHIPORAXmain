@@ -175,7 +175,7 @@ async function enqueueShipment(order, courierId, userId) {
 }
 
 // ─── LABEL HTML BUILDER ───────────────────────────────────────────────────────
-function buildLabelHtml(o) {
+function buildLabelHtml(o, opts = {}) {
   const isCOD  = o.paymentMode === 'cod';
   const wh     = o.pickupWarehouse || {};
   const c      = o.assignedCourier || {};
@@ -183,64 +183,62 @@ function buildLabelHtml(o) {
   const pkg    = o.package || {};
   const bc     = '#0D1B3E';
   const awb    = o.awbNumber || o.orderId || '';
+  const size   = (opts && opts.labelSize) || 'a4';
+  const isA4   = size === 'a4';
+  const labelW = isA4 ? '190mm' : '96mm';
+  const fz     = isA4 ? '9pt' : '8pt';
 
-  // Real Code128 barcode SVG for the AWB
-  const barcodeSvg = generateBarcodeSVG(awb, { barWidth: 2, height: 55, showText: true, fontSize: 10 });
-  const barcodeB64 = Buffer.from(barcodeSvg).toString('base64');
-  const barcodeImg = `<img src="data:image/svg+xml;base64,${barcodeB64}" style="width:100%;max-width:140px;display:block;margin:0 auto" alt="AWB Barcode"/>`;
-
-  // If Selloship returned its own PDF label URL — show it with barcode overlay header
+  // Amazon / Selloship label — embed as iframe with info header
   if (o.selloship && o.selloship.labelUrl) {
-    return `<div style="font-family:Arial,sans-serif;margin-bottom:8mm;page-break-inside:avoid">
-      <div style="background:#f8f8f8;border:1px solid #ddd;padding:3mm;margin-bottom:2mm;text-align:center">
-        ${barcodeImg}
-        <div style="font-size:7pt;color:#555;margin-top:1mm">AWB: <b>${awb}</b> | Order: ${o.orderId}</div>
-      </div>
-      <iframe src="${o.selloship.labelUrl}" style="width:100%;height:420px;border:1px solid #ccc" title="Shipping Label"></iframe>
-      <div style="font-size:6pt;color:#999;margin-top:2px"><a href="${o.selloship.labelUrl}" target="_blank">Open label in new tab ↗</a></div>
-    </div>`;
+    const isAmazon = /^\d{12}$/.test(awb);
+    return '<div style="font-family:Arial,sans-serif;margin-bottom:6mm;page-break-inside:avoid;width:' + labelW + ';max-width:' + labelW + '">' +
+      '<div style="background:#f8f8f8;border:1px solid #ddd;padding:3mm;margin-bottom:2mm;border-radius:4px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2mm">' +
+          '<b style="color:' + bc + ';font-size:' + (isA4?'10pt':'8.5pt') + '">' + (isAmazon?'Amazon Shipping':'Selloship Label') + '</b>' +
+          (isCOD ? '<span style="background:#c00;color:#fff;padding:2px 7px;border-radius:3px;font-weight:bold;font-size:8pt">COD &#8377;' + (o.codAmount||0) + '</span>'
+                 : '<span style="background:#059669;color:#fff;padding:2px 7px;border-radius:3px;font-weight:bold;font-size:8pt">PREPAID</span>') +
+        '</div>' +
+        '<div style="font-size:7pt;color:#555">AWB: <b>' + awb + '</b> &nbsp;|&nbsp; Order: ' + o.orderId + '</div>' +
+        '<div style="font-size:7pt;color:#555;margin-top:1mm">To: ' + (r.name||'') + ', ' + (r.city||'') + ' - ' + (r.pincode||'') + '</div>' +
+      '</div>' +
+      '<iframe src="' + o.selloship.labelUrl + '" style="width:100%;height:' + (isA4?'420px':'340px') + ';border:1.5px solid #ccc;border-radius:4px" title="Shipping Label"></iframe>' +
+      '<div style="font-size:6pt;color:#999;margin-top:2px"><a href="' + o.selloship.labelUrl + '" target="_blank">Open in new tab</a></div>' +
+    '</div>';
   }
 
-  // Fallback: self-generated label with real barcode
-  return `<div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4;width:100mm;margin-bottom:4mm;page-break-inside:avoid">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">
-      <div style="font-weight:bold;font-size:11pt;color:${bc}">SHIPORAX</div>
-      ${isCOD
-        ? `<div style="background:#c00;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">COD ₹${o.codAmount||0}</div>`
-        : `<div style="background:#059669;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">PREPAID</div>`}
-    </div>
-    <div style="margin-bottom:3mm">
-      <div style="font-size:6.5pt;color:#666;text-transform:uppercase;font-weight:bold">To:</div>
-      <div style="font-weight:bold;font-size:10pt">${r.name||''}</div>
-      <div style="font-size:8pt">${r.address||r.address1||''}${r.city?', '+r.city:''}${r.state?', '+r.state:''}</div>
-      <div style="font-size:8pt">Mobile: ${r.phone||''}</div>
-      <div style="font-size:9pt;font-weight:bold">${r.pincode||''}</div>
-    </div>
-    <div style="border:1px solid #000;padding:3mm;text-align:center;margin-bottom:3mm">
-      ${barcodeImg}
-      <div style="font-size:6.5pt;color:#666;margin-top:1mm">Order: ${new Date(o.createdAt||Date.now()).toLocaleDateString('en-IN')} | ${o.orderId}</div>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:7.5pt;border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">
-      <div style="font-weight:bold;color:${bc}">${c.name||'Auto'}</div>
-      <div>WT: ${pkg.weight||'—'}kg</div>
-    </div>
-    ${wh.name ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt">
-      <div style="font-weight:bold;color:#444">Pickup:</div>
-      <div>${wh.contactName||wh.name||''}</div>
-      <div>${wh.address||''} ${wh.pincode||''}</div>
-      ${wh.phone?`<div>${wh.phone}</div>`:''}
-    </div>` : ''}
-    ${wh.name ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt">
-      <div style="font-weight:bold;color:#444">Return:</div>
-      <div>${wh.name||''}</div>
-      <div>${wh.address||''} ${wh.pincode||''}</div>
-    </div>` : ''}
-    <div style="border-top:1px solid #ccc;padding-top:2mm;margin-top:2mm;font-size:6pt;color:#666">This is a computer generated document.</div>
-  </div>`;
+  // Self-generated barcode label
+  const barcodeSvg = generateBarcodeSVG(awb, { barWidth: isA4?2:1.6, height: isA4?55:40, showText: true, fontSize: isA4?10:9 });
+  const barcodeB64 = Buffer.from(barcodeSvg).toString('base64');
+  const barcodeImg = '<img src="data:image/svg+xml;base64,' + barcodeB64 + '" style="width:100%;max-width:' + (isA4?'150px':'120px') + ';display:block;margin:0 auto" alt="AWB"/>';
+
+  return '<div style="font-family:Arial,sans-serif;font-size:' + fz + ';padding:' + (isA4?'4mm':'3mm') + ';border:2px solid #000;background:#fff;line-height:1.45;width:' + labelW + ';max-width:' + labelW + ';box-sizing:border-box;page-break-inside:avoid;margin-bottom:4mm">' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">' +
+      '<div style="font-weight:bold;font-size:' + (isA4?'11pt':'9pt') + ';color:' + bc + '">SHIPORAX</div>' +
+      (isCOD ? '<div style="background:#c00;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">COD &#8377;' + (o.codAmount||0) + '</div>'
+             : '<div style="background:#059669;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">PREPAID</div>') +
+    '</div>' +
+    '<div style="margin-bottom:3mm">' +
+      '<div style="font-size:6pt;color:#666;text-transform:uppercase;font-weight:bold">Ship To:</div>' +
+      '<div style="font-weight:bold;font-size:' + (isA4?'11pt':'9pt') + '">' + (r.name||'') + '</div>' +
+      '<div style="font-size:' + (isA4?'8.5pt':'7.5pt') + '">' + (r.address||'') + (r.city?', '+r.city:'') + (r.state?', '+r.state:'') + '</div>' +
+      '<div style="font-size:' + (isA4?'8pt':'7pt') + '">Ph: ' + (r.phone||'') + '</div>' +
+      '<div style="font-size:' + (isA4?'9pt':'8pt') + ';font-weight:bold;margin-top:1mm">' + (r.pincode||'') + '</div>' +
+    '</div>' +
+    '<div style="border:1.5px solid #000;padding:' + (isA4?'3mm':'2mm') + ';text-align:center;margin-bottom:3mm;background:#fafafa">' +
+      barcodeImg +
+      '<div style="font-size:6pt;color:#555;margin-top:1mm;font-family:monospace">' + awb + '</div>' +
+      '<div style="font-size:5.5pt;color:#888">Order: ' + new Date(o.createdAt||Date.now()).toLocaleDateString('en-IN') + ' | ' + o.orderId + '</div>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:' + (isA4?'7.5pt':'7pt') + ';border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">' +
+      '<div><div style="font-weight:bold;color:' + bc + '">' + (c.name||'Auto-Selected') + '</div>' + (o.selloship&&o.selloship.routingCode?'<div style="font-size:6pt;color:#888">'+o.selloship.routingCode+'</div>':'') + '</div>' +
+      '<div style="text-align:right"><div style="font-weight:600">Wt: ' + (pkg.weight||'—') + ' kg</div>' + (pkg.length?'<div style="font-size:6pt;color:#888">'+pkg.length+'x'+pkg.breadth+'x'+pkg.height+' cm</div>':'') + '</div>' +
+    '</div>' +
+    (wh.name ? '<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:' + (isA4?'7pt':'6.5pt') + '"><div style="font-weight:bold;color:#444">From / Return:</div><div>' + (wh.contactName||wh.name) + '</div><div>' + (wh.address||'') + ' ' + (wh.pincode||'') + '</div>' + (wh.phone?'<div>Ph: '+wh.phone+'</div>':'') + '</div>' : '') +
+    '<div style="border-top:1px solid #eee;padding-top:2mm;margin-top:2mm;font-size:5.5pt;color:#999">This is a computer generated document.</div>' +
+  '</div>';
 }
 
 
-// ─── [FIX-QUEUE] GET /job-status/:jobId — UI polls this after ship ─────────────
 router.get('/job-status/:jobId', protect, (req, res) => {
   const status = shippingQueue.status(req.params.jobId);
   if (!status) return res.status(404).json({ success: false, message: 'Job not found or expired' });
@@ -270,7 +268,7 @@ router.post('/bulk-labels', protect, async (req, res) => {
       const w = is4x6 ? '101.6mm' : '100mm';
       const h = is4x6 ? '152.4mm' : '150mm';
       bodyHtml = orders.map((o, i) =>
-        `<div class="label-page" style="width:${w};min-height:${h};${i < orders.length-1 ? 'page-break-after:always;' : ''}">${buildLabelHtml(o)}</div>`
+        `<div class="label-page" style="width:${w};min-height:${h};${i < orders.length-1 ? 'page-break-after:always;' : ''}">${buildLabelHtml(o,{labelSize})}</div>`
       ).join('');
     } else {
       // A4: 4 labels per page in a 2-column grid
@@ -278,7 +276,7 @@ router.post('/bulk-labels', protect, async (req, res) => {
       for (let i = 0; i < orders.length; i += 4) {
         const chunk = orders.slice(i, i + 4);
         const cells = chunk.map(o =>
-          `<td style="width:50%;vertical-align:top;padding:2mm;border:1px dashed #ccc">${buildLabelHtml(o)}</td>`
+          `<td style="width:50%;vertical-align:top;padding:2mm;border:1px dashed #ccc">${buildLabelHtml(o,{labelSize})}</td>`
         ).join('');
         const isLast = i + 4 >= orders.length;
         rows.push(`<tr>${cells}</tr>${!isLast ? '<tr><td colspan="2" style="page-break-after:always;height:0;padding:0;border:none"></td></tr>' : ''}`);
@@ -359,7 +357,7 @@ router.post('/bulk-labels-zip', protect, async (req, res) => {
           } catch (_) { /* fall through to HTML fallback */ }
         }
         // Fallback: generate our own label as HTML (works for Amazon + any order without Selloship PDF)
-        const labelHtml = buildLabelHtml(o);
+        const labelHtml = buildLabelHtml(o, { labelSize: order?.selloship?.labelSize || 'a4' });
         const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif}@media print{body{margin:0}}</style></head><body>${labelHtml}</body></html>`;
         archive.append(Buffer.from(fullHtml, 'utf-8'), { name: filename + '.html' });
       }));
@@ -952,10 +950,63 @@ router.get('/v1/label/:orderId', apiKeyAuth, async (req, res) => {
     const order = await Order.findOne({ orderId: req.params.orderId, user: req.user._id })
       .populate('assignedCourier', 'name code').populate('pickupWarehouse').lean();
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-    if (order.selloship && order.selloship.labelUrl) return res.redirect(302, order.selloship.labelUrl);
+
+    // Amazon / Selloship label: proxy PDF bytes directly
+    if (order.selloship && order.selloship.labelUrl) {
+      try {
+        const tok = await getSelloToken();
+        const resp = await axios.get(order.selloship.labelUrl, {
+          responseType: 'stream', timeout: 25000,
+          headers: { Authorization: tok, Accept: 'application/pdf,*/*' }
+        });
+        res.setHeader('Content-Type', resp.headers['content-type'] || 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${order.orderId}_label.pdf"`);
+        return resp.data.pipe(res);
+      } catch (_) { /* fall through to HTML label */ }
+    }
+
+    const size = (req.query.size || 'a4').toLowerCase();
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Label ' + order.orderId + '</title>' +
-      '<style>body{font-family:Arial;margin:8mm}@media print{body{margin:0}}</style></head>' +
-      '<body>' + buildLabelHtml(order) + '<script>setTimeout(()=>window.print(),500)</script></body></html>';
+      '<style>*{box-sizing:border-box}body{font-family:Arial;margin:0;padding:8mm;background:#fff}' +
+      `@page{size:${size==='4x6'?'4in 6in':size==='100x150'?'100mm 150mm':'A4'};margin:6mm}` +
+      '@media print{body{padding:0}}</style></head><body>' +
+      buildLabelHtml(order, { labelSize: size }) +
+      '<script>setTimeout(()=>window.print(),500)<\/script></body></html>';
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// ─── POST /v1/bulk-labels — API key bulk label download ───────────────────────
+router.post('/v1/bulk-labels', apiKeyAuth, async (req, res) => {
+  try {
+    const { orderIds, labelSize = 'a4' } = req.body;
+    if (!orderIds || !orderIds.length) return res.status(400).json({ success: false, message: 'No order IDs' });
+    const orders = await Order.find({ orderId: { $in: orderIds }, user: req.user._id })
+      .populate('assignedCourier', 'name code').populate('pickupWarehouse').lean();
+    if (!orders.length) return res.status(404).json({ success: false, message: 'No orders found' });
+    const is4x6 = labelSize === '4x6', is100 = labelSize === '100x150';
+    const isThermal = is4x6 || is100;
+    const w = is4x6 ? '101.6mm' : '100mm', h = is4x6 ? '152.4mm' : '150mm';
+    const pageStyle = isThermal
+      ? `@page{size:${is4x6?'4in 6in':'100mm 150mm'};margin:2mm}body{margin:0}`
+      : `@page{size:A4;margin:8mm}body{margin:0}`;
+    let bodyHtml;
+    if (isThermal) {
+      bodyHtml = orders.map((o, i) => {
+        const pb = i < orders.length - 1 ? 'page-break-after:always;' : '';
+        return '<div style="width:' + w + ';min-height:' + h + ';' + pb + '">' + buildLabelHtml(o, {labelSize}) + '</div>';
+      }).join('');
+    } else {
+      const rows = [];
+      for (let i = 0; i < orders.length; i += 4) {
+        const chunk = orders.slice(i, i + 4);
+        const cells = chunk.map(o => '<td style="width:50%;vertical-align:top;padding:2mm;border:1px dashed #ccc">' + buildLabelHtml(o, {labelSize}) + '</td>').join('');
+        rows.push('<tr>' + cells + '</tr>');
+      }
+      bodyHtml = '<table style="width:100%;border-collapse:collapse;table-layout:fixed">' + rows.join('') + '</table>';
+    }
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Labels</title><style>*{box-sizing:border-box}${pageStyle}</style></head><body>${bodyHtml}</body></html>`;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }

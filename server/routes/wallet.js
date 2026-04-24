@@ -179,9 +179,59 @@ router.get('/export/transactions', protect, async (req, res) => {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=wallet_transactions.csv');
     res.send(csv);
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// GET /api/wallet/export/recharges — admin: all recharges
+router.get('/export/recharges', protect, adminOnly, async (req, res) => {
+  try {
+    const { from, to, status } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to)   filter.createdAt.$lte = new Date(to + 'T23:59:59');
+    }
+    const recharges = await WalletRecharge.find(filter)
+      .populate('user', 'name email phone')
+      .sort({ createdAt: -1 }).limit(10000).lean();
+    const rows = recharges.map(r => ({
+      id: r._id, user_name: r.user?.name, user_email: r.user?.email,
+      amount: r.amount, status: r.status,
+      utr: r.utr || '', reference: r.reference || '',
+      createdAt: r.createdAt
+    }));
+    const fields = ['id','user_name','user_email','amount','status','utr','reference','createdAt'];
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=recharges.csv');
+    res.send(toCSV(rows, fields));
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// GET /api/wallet/export/cod — admin: all COD transactions
+router.get('/export/cod', protect, adminOnly, async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const filter = { type: 'credit', description: /cod/i };
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to)   filter.createdAt.$lte = new Date(to + 'T23:59:59');
+    }
+    const txns = await WalletTransaction.find(filter)
+      .populate('user', 'name email')
+      .sort({ createdAt: -1 }).limit(10000).lean();
+    const rows = txns.map(t => ({
+      id: t._id, user_name: t.user?.name, user_email: t.user?.email,
+      amount: t.amount, balance: t.balance,
+      description: t.description, reference: t.reference || '', createdAt: t.createdAt
+    }));
+    const fields = ['id','user_name','user_email','amount','balance','description','reference','createdAt'];
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=cod_transactions.csv');
+    res.send(toCSV(rows, fields));
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
 

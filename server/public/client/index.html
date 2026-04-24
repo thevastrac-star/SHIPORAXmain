@@ -773,7 +773,85 @@ td b{color:var(--text);font-weight:600}
 .toggle-switch input:checked + .toggle-slider{background:var(--brand)}
 .toggle-switch input:checked + .toggle-slider:before{transform:translateX(21px)}
 
-#bulk-ship-modal .modal-box{max-width:500px}
+/* ══════════════════════════════════════════════
+   STATUS ANIMATIONS
+   ══════════════════════════════════════════════ */
+/* Pickup Scheduled — clock pulse */
+@keyframes clockTick {
+  0%,100%{transform:rotate(0deg)}
+  25%{transform:rotate(15deg)}
+  75%{transform:rotate(-15deg)}
+}
+@keyframes pulse-ring {
+  0%{transform:scale(.9);opacity:.8}
+  50%{transform:scale(1.05);opacity:1}
+  100%{transform:scale(.9);opacity:.8}
+}
+/* In Transit — truck slide */
+@keyframes truckSlide {
+  0%{transform:translateX(-6px)}
+  50%{transform:translateX(6px)}
+  100%{transform:translateX(-6px)}
+}
+@keyframes wheelRoll {
+  to{transform:rotate(360deg)}
+}
+/* Delivered — checkmark draw */
+@keyframes checkDraw {
+  0%{stroke-dashoffset:40}
+  100%{stroke-dashoffset:0}
+}
+@keyframes successPop {
+  0%{transform:scale(0.7);opacity:0}
+  60%{transform:scale(1.15)}
+  100%{transform:scale(1);opacity:1}
+}
+
+.status-anim {
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 10px;border-radius:999px;
+  font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+  white-space:nowrap;
+}
+.status-anim svg { flex-shrink:0 }
+
+/* Scheduled */
+.sa-scheduled {
+  background:#EEF2FF;color:#4338CA;
+  border:1px solid #C7D2FE;
+}
+.sa-scheduled .anim-icon { animation: pulse-ring 1.8s ease-in-out infinite }
+
+/* In Transit */
+.sa-transit {
+  background:#F0F9FF;color:#0369A1;
+  border:1px solid #BAE6FD;
+}
+.sa-transit .anim-truck { animation: truckSlide 1.2s ease-in-out infinite }
+.sa-transit .anim-wheel { animation: wheelRoll .5s linear infinite; transform-origin:center }
+
+/* Delivered */
+.sa-delivered {
+  background:var(--success-light);color:var(--success);
+  border:1px solid #A7F3D0;
+}
+.sa-delivered .anim-check {
+  stroke-dasharray:40;stroke-dashoffset:40;
+  animation: checkDraw .5s ease forwards;
+}
+.sa-delivered .anim-circle { animation: successPop .4s cubic-bezier(.34,1.56,.64,1) forwards }
+
+/* RTO */
+.sa-rto {
+  background:var(--danger-light);color:var(--danger);
+  border:1px solid #FECACA;
+}
+/* NDR */
+.sa-ndr {
+  background:var(--warning-light);color:var(--warning);
+  border:1px solid #FDE68A;
+}
+
 .bs-progress{height:10px;background:var(--border);border-radius:999px;overflow:hidden;margin:10px 0}
 .bs-progress-bar{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));border-radius:999px;width:0%;transition:width .4s ease}
 
@@ -2024,7 +2102,57 @@ function getScorePill(address, pincode, city) {
  return `<span class="score-pill ${cls}">${score}</span>`;
 }
 
-// ─── TRANSIT TRUCK ANIMATION ───────────────────────────────────────────────────
+// ─── ANIMATED STATUS BADGE ─────────────────────────────────────────────────────
+function renderStatusBadge(status) {
+  switch ((status || '').toLowerCase()) {
+    case 'pickup_scheduled':
+    case 'pickup scheduled':
+      return `<span class="status-anim sa-scheduled">
+        <svg class="anim-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>
+        </svg>Pickup Scheduled</span>`;
+
+    case 'shipped':
+    case 'in_transit':
+    case 'intransit':
+      return `<span class="status-anim sa-transit">
+        <svg class="anim-truck" width="17" height="11" viewBox="0 0 34 22" fill="currentColor">
+          <rect x="0" y="2" width="22" height="14" rx="2"/>
+          <rect x="22" y="6" width="10" height="10" rx="1.5"/>
+          <rect x="24" y="8" width="5" height="4" rx="1" fill="#E0F2FE"/>
+          <circle cx="6" cy="18" r="3.5" fill="#0369A1"/><circle cx="6" cy="18" r="1.5" fill="#BAE6FD"/>
+          <circle cx="26" cy="18" r="3.5" fill="#0369A1"/><circle cx="26" cy="18" r="1.5" fill="#BAE6FD"/>
+        </svg>In Transit</span>`;
+
+    case 'delivered':
+      return `<span class="status-anim sa-delivered">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle class="anim-circle" cx="12" cy="12" r="10" fill="var(--success-light)"/>
+          <polyline class="anim-check" points="7,12 10.5,15.5 17,9"/>
+        </svg>Delivered</span>`;
+
+    case 'rto':
+    case 'rto_initiated':
+      return `<span class="status-anim sa-rto">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+        </svg>RTO</span>`;
+
+    case 'ndr':
+      return `<span class="status-anim sa-ndr">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>NDR</span>`;
+
+    case 'cancelled':
+      return `<span class="status s-cancelled">${status}</span>`;
+
+    default:
+      return `<span class="status s-${status}">${status}</span>`;
+  }
+}
+
+
 function renderTruckAnim(label = 'In Transit') {
  return `<div class="truck-anim-wrap">
  <div class="transit-label">${label}</div>
@@ -2513,9 +2641,9 @@ function renderOrderRows(orders, total, pages, page) {
  : '';
  actionCell = editBtn + `<button class="btn btn-primary btn-xs" onclick="shipOrder('${o._id}')">Ship</button> <button class="btn btn-ghost btn-xs" onclick="cloneOrder('${o._id}')" title="Clone">Clone</button>`;
  } else if (isShipped && sello?.labelUrl) {
- actionCell = `<a href="${sello.labelUrl}" target="_blank" class="btn btn-outline btn-xs">Label</a> <button class="btn btn-ghost btn-xs" onclick="printOrderLabel('${o._id}')" title="Print label">Print</button> <button class="btn btn-ghost btn-xs" onclick="cloneOrder('${o._id}')">Clone</button>`;
+ actionCell = `<button class="btn btn-primary btn-xs" onclick="downloadLabel('${o._id}','${sello.labelUrl}')">Download Label</button> <button class="btn btn-ghost btn-xs" onclick="printOrderLabel('${o._id}')" title="Print">Print</button> <button class="btn btn-ghost btn-xs" onclick="cloneOrder('${o._id}')">Clone</button>`;
  } else if (isShipped) {
- actionCell = `<button class="btn btn-outline btn-xs" onclick="fetchAndDownloadLabel('${o._id}')">Get Label</button> <button class="btn btn-ghost btn-xs" onclick="cloneOrder('${o._id}')">Clone</button>`;
+ actionCell = `<button class="btn btn-primary btn-xs" onclick="downloadLabel('${o._id}','')">Download Label</button> <button class="btn btn-ghost btn-xs" onclick="cloneOrder('${o._id}')">Clone</button>`;
  } else {
  actionCell = `<span style="font-size:.72rem;color:var(--muted)">${o.status}</span>`;
  }
@@ -2611,11 +2739,7 @@ async function loadTracking() {
  updateTrackBulkBtns();
  tbody.innerHTML = d.orders.map(o => {
  const isCancellable = o.status === 'shipped' || o.status === 'processing';
- const isInTransit = o.status === 'shipped' || o.status === 'in_transit';
  const labelUrl = o.selloship?.labelUrl;
- const statusCell = isInTransit
- ? `<span class="status s-${o.status}">${o.status}</span>`
- : `<span class="status s-${o.status}">${o.status}</span>`;
  return `<tr>
  <td><input type="checkbox" class="track-check" value="${o._id}" data-label="${labelUrl||''}" onchange="toggleTrackSelect('${o._id}',this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--brand)"/></td>
  <td><b style="color:var(--text)">${o.orderId}</b></td>
@@ -2624,12 +2748,10 @@ async function loadTracking() {
  <td>${o.assignedCourier?.name||'—'}</td>
  <td><span class="status s-${o.paymentMode}">${o.paymentMode==='cod'?'COD ₹'+o.codAmount:'Prepaid'}</span></td>
  <td>${o.shippingCharge?'₹'+o.shippingCharge:'—'}</td>
- <td>${statusCell}</td>
+ <td>${renderStatusBadge(o.status)}</td>
  <td>${fmtDate(o.updatedAt)}</td>
  <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
- ${labelUrl
- ? `<a href="${labelUrl}" target="_blank" class="btn btn-primary btn-xs">Label</a>`
- : `<button class="btn btn-outline btn-xs" onclick="fetchAndDownloadLabel('${o._id}')">Get Label</button>`}
+ <button class="btn btn-primary btn-xs" onclick="downloadLabel('${o._id}','${labelUrl||''}')">Download Label</button>
  <button class="btn btn-ghost btn-xs" onclick="printOrderLabel('${o._id}')" title="Print Label">Print</button>
  ${isCancellable ? `<button class="btn btn-danger btn-xs" onclick="openCancelModal('${o._id}','${o.orderId}','${o.awbNumber||''}',${o.shippingCharge||0})">Cancel</button>` : ''}
  </td>
@@ -2650,12 +2772,22 @@ function clearTrackFilters() {
 
 async function exportShipments() {
  const status = document.getElementById('track-status')?.value || 'shipped,delivered,rto,ndr,cancelled';
+ const search = document.getElementById('track-search')?.value || '';
  const from = document.getElementById('track-from')?.value || '';
  const to = document.getElementById('track-to')?.value || '';
- let q = `?status=${status}`; if(from) q+=`&from=${from}`; if(to) q+=`&to=${to}`;
- const res = await fetch(`${API}/orders/export/csv${q}`, { headers: { Authorization: 'Bearer '+token } });
- const blob = await res.blob();
- const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'shipments.csv'; a.click();
+ let q = `?status=${encodeURIComponent(status)}`;
+ if (search) q += `&search=${encodeURIComponent(search)}`;
+ if (from) q += `&from=${from}`;
+ if (to) q += `&to=${to}`;
+ q += '&limit=10000';
+ try {
+   const res = await fetch(`${API}/orders/export/csv${q}`, { headers: { Authorization: 'Bearer '+token } });
+   if (!res.ok) { toast('Export failed', 'error'); return; }
+   const blob = await res.blob();
+   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+   a.download = `shipments_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+   toast('CSV exported', 'success');
+ } catch(e) { toast('Export error: ' + e.message, 'error'); }
 }
 
 // ─── CANCEL SHIPMENT ───────────────────────────────────────────────────────────
@@ -2793,32 +2925,17 @@ async function confirmShipOrder() {
 }
 
 
-async function fetchAndDownloadLabel(orderId) {
+// ─── UNIFIED DOWNLOAD LABEL ────────────────────────────────────────────────────
+async function downloadLabel(orderId, labelUrl) {
+ if (labelUrl) { window.open(labelUrl, '_blank'); return; }
+ toast('Fetching label...', 'info');
  try {
- const d = await api('GET', `/orders/${orderId}`);
- if (!d?.success) { toast('Could not load order', 'error'); return; }
- let labelUrl = d.order?.selloship?.labelUrl;
-
- // If label URL missing — try refetch from Selloship
- if (!labelUrl && d.order?.awbNumber) {
- toast('Fetching label from Selloship...', 'info');
- const r = await api('POST', `/orders/${orderId}/refetch-label`);
- if (r?.success && r.labelUrl) {
- labelUrl = r.labelUrl;
- toast('Label fetched!', 'success');
- } else {
- toast(r?.message || 'Label not yet available. Please try again in a moment.', 'error');
- return;
- }
- }
-
- if (labelUrl) {
- window.open(labelUrl, '_blank');
- } else {
- toast('Label not available yet. It will appear once the order is shipped.', 'error');
- }
- } catch (e) { toast('Error fetching label: ' + e.message, 'error'); }
+   const r = await api('POST', `/orders/${orderId}/refetch-label`);
+   if (r?.success && r.labelUrl) { window.open(r.labelUrl, '_blank'); toast('Label downloaded', 'success'); }
+   else { toast(r?.message || 'Label not available yet — using generated label.', 'info'); await printOrderLabel(orderId); }
+ } catch (e) { toast('Error: ' + e.message, 'error'); }
 }
+async function fetchAndDownloadLabel(orderId) { await downloadLabel(orderId, ''); }
 
 async function bulkDeleteSelected() {
  if (!selectedOrders.size) return;
@@ -2827,14 +2944,31 @@ async function bulkDeleteSelected() {
  if (d?.success) { toast(`Deleted ${d.deleted} orders`, 'success'); loadOrders(); }
  else toast(d?.message || 'Error', 'error');
 }
+
 async function exportOrders() {
+ const search = document.getElementById('order-search')?.value || '';
+ const pay = document.getElementById('order-pay-filter')?.value || '';
  const from = document.getElementById('order-from')?.value || '';
  const to = document.getElementById('order-to')?.value || '';
- let q = '?status=draft,processing'; if(from) q+=`&from=${from}`; if(to) q+=`&to=${to}`;
- const res = await fetch(`${API}/orders/export/csv${q}`, { headers: { Authorization: 'Bearer '+token } });
- const blob = await res.blob();
- const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'orders.csv'; a.click();
+ const source = currentOrderSource || '';
+ let q = '?status=draft,processing';
+ if (search) q += `&search=${encodeURIComponent(search)}`;
+ if (pay) q += `&paymentMode=${pay}`;
+ if (source) q += `&source=${encodeURIComponent(source)}`;
+ if (from) q += `&from=${from}`;
+ if (to) q += `&to=${to}`;
+ q += '&limit=10000';
+ try {
+   const res = await fetch(`${API}/orders/export/csv${q}`, { headers: { Authorization: 'Bearer '+token } });
+   if (!res.ok) { toast('Export failed', 'error'); return; }
+   const blob = await res.blob();
+   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+   a.download = `orders_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+   toast('CSV exported', 'success');
+ } catch(e) { toast('Export error: ' + e.message, 'error'); }
 }
+
+
 
 // ─── BULK UPLOAD ───────────────────────────────────────────────────────────────
 async function bulkUpload() {
@@ -3608,7 +3742,7 @@ async function bulkDownloadLabels() {
  if (labelUrl) {
  window.open(labelUrl, '_blank');
  } else {
- await fetchAndDownloadLabel(c.value);
+ await downloadLabel(c.value, '');
  }
  return;
  }
@@ -3667,55 +3801,63 @@ async function printOrderLabel(id) {
  const od = await api('GET', `/orders/${id}`);
  if (!od?.success) { toast('Could not load order', 'error'); return; }
  const o = od.order;
+ // Amazon / Selloship label — open directly
+ if (o.selloship?.labelUrl) { window.open(o.selloship.labelUrl, '_blank'); return; }
+ if (/^\d{12}$/.test((o.awbNumber||'').toString().trim())) { toast('Amazon label not saved. Use Download Label.', 'error'); return; }
  const ls = getLabelSettings();
  const bc = ls.brandColor || '#0D1B3E';
  const isCOD = o.paymentMode === 'cod';
  const wh = o.pickupWarehouse || o.warehouse || {};
  const awb = o.awbNumber || o.orderId || '';
- const labelW = ls.labelSize==='a4'?'190mm':ls.labelSize==='100x150'?'96mm':'96mm';
- const html = `<div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4;max-width:${labelW}">
+ const isA4 = ls.labelSize === 'a4';
+ const is4x6 = ls.labelSize === '4x6';
+ const labelW = isA4 ? '190mm' : '96mm';
+ const pageSize = is4x6 ? '4in 6in' : ls.labelSize === '100x150' ? '100mm 150mm' : 'A4';
+ const pageMargin = isA4 ? '8mm' : '2mm';
+ const bodyPad = isA4 ? '8mm' : '3mm';
+ const fz = isA4 ? '9pt' : '8pt';
+ const labelHtml = `<div style="font-family:Arial,sans-serif;font-size:${fz};padding:${bodyPad};border:2px solid #000;background:#fff;line-height:1.45;width:${labelW};max-width:${labelW};box-sizing:border-box">
  <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">
- <div>
- ${ls.showLogo && ls.customLogoUrl ? `<img src="${ls.customLogoUrl}" style="height:32px;object-fit:contain"/>` : `<div style="font-weight:bold;font-size:11pt;color:${bc}">SHIPORAX</div>`}
- ${ls.showSupportEmail && (ls.supportEmail||ls.supportPhone) ? `<div style="font-size:6.5pt;color:#666">${ls.supportEmail||''} ${ls.supportPhone||''}</div>` : ''}
- </div>
- ${isCOD ? `<div style="background:#c00;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">COD ₹${o.codAmount||0}</div>` : '<div style="background:#059669;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">PREPAID</div>'}
+ <div>${ls.showLogo && ls.customLogoUrl ? `<img src="${ls.customLogoUrl}" style="height:${isA4?'34px':'26px'};object-fit:contain"/>` : `<div style="font-weight:bold;font-size:${isA4?'11pt':'9pt'};color:${bc}">SHIPORAX</div>`}${ls.showSupportEmail&&(ls.supportEmail||ls.supportPhone)?`<div style="font-size:6.5pt;color:#666">${ls.supportEmail||""} ${ls.supportPhone||""}</div>`:""}</div>
+ ${isCOD?`<div style="background:#c00;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">COD &#8377;${o.codAmount||0}</div>`:'<div style="background:#059669;color:#fff;padding:3px 8px;border-radius:3px;font-weight:bold;font-size:9pt">PREPAID</div>'}
  </div>
  <div style="margin-bottom:3mm">
- <div style="font-size:6.5pt;color:#666;text-transform:uppercase;font-weight:bold">To:</div>
- <div style="font-weight:bold;font-size:10pt">${o.recipient?.name||''}</div>
- <div style="font-size:8pt">${o.recipient?.address||''}${o.recipient?.city?', '+o.recipient.city:''}${o.recipient?.state?', '+o.recipient.state:''}</div>
- ${!ls.hideCustomerPhone ? `<div style="font-size:8pt">Mobile: ${o.recipient?.phone||''}</div>` : ''}
- <div style="font-size:8pt;font-weight:bold">${o.recipient?.pincode||''}</div>
+ <div style="font-size:6pt;color:#666;text-transform:uppercase;font-weight:bold">Ship To:</div>
+ <div style="font-weight:bold;font-size:${isA4?'11pt':'9pt'}">${o.recipient?.name||''}</div>
+ <div style="font-size:${isA4?'8.5pt':'7.5pt'}">${o.recipient?.address||''}${o.recipient?.city?', '+o.recipient.city:''}${o.recipient?.state?', '+o.recipient.state:''}</div>
+ ${!ls.hideCustomerPhone?`<div style="font-size:${isA4?'8pt':'7pt'}">Ph: ${o.recipient?.phone||''}</div>`:''}
+ <div style="font-size:${isA4?'9pt':'8pt'};font-weight:bold;margin-top:1mm">${o.recipient?.pincode||''}</div>
  </div>
- <div style="border:1px solid #000;padding:3mm;text-align:center;margin-bottom:3mm">
- <canvas id="awb-barcode" style="max-width:100%;display:block;margin:0 auto"></canvas>
- <div style="font-size:6.5pt;color:#666;margin-top:1mm">Order: ${new Date(o.createdAt).toLocaleDateString('en-IN')} | ${o.orderId}</div>
+ <div style="border:1.5px solid #000;padding:${isA4?'3mm':'2mm'};text-align:center;margin-bottom:3mm;background:#fafafa">
+ <canvas id="awb-bc" style="max-width:100%;display:block;margin:0 auto"></canvas>
+ <div style="font-size:6pt;color:#555;margin-top:1mm;font-family:monospace">${awb}</div>
+ <div style="font-size:5.5pt;color:#888">Order: ${new Date(o.createdAt).toLocaleDateString("en-IN")} | ${o.orderId}</div>
  </div>
- <div style="display:flex;justify-content:space-between;font-size:7.5pt;border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">
- <div><div style="font-weight:bold;color:${bc}">${o.assignedCourier?.name||'Auto'}</div></div>
- <div style="text-align:right"><div>WT: ${o.weight||'—'}kg</div></div>
+ <div style="display:flex;justify-content:space-between;font-size:${isA4?'7.5pt':'7pt'};border-top:1px solid #ccc;padding-top:2mm;margin-bottom:2mm">
+ <div><div style="font-weight:bold;color:${bc}">${o.assignedCourier?.name||'Auto-Selected'}</div>${o.selloship?.routingCode?`<div style="font-size:6pt;color:#888">${o.selloship.routingCode}</div>`:''}</div>
+ <div style="text-align:right"><div style="font-weight:600">Wt: ${o.package?.weight||o.weight||'—'} kg</div>${o.package?.length?`<div style="font-size:6pt;color:#888">${o.package.length}x${o.package.breadth}x${o.package.height} cm</div>`:''}</div>
  </div>
- ${!ls.hidePickupAddress && wh.name ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt"><div style="font-weight:bold;color:#444">Pickup:</div><div>${wh.name}</div><div>${wh.address||''} ${wh.pincode||''}</div>${!ls.hidePickupPhone&&wh.phone?`<div>${wh.phone}</div>`:''}</div>` : ''}
- ${!ls.hideRtoAddress && wh.name ? `<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:7pt"><div style="font-weight:bold;color:#444">Return:</div><div>${wh.name}</div><div>${wh.address||''} ${wh.pincode||''}</div></div>` : ''}
- <div style="border-top:1px solid #ccc;padding-top:2mm;margin-top:2mm;font-size:6pt;color:#666">${ls.labelNote||'This is a computer generated document.'}<div>${ls.labelFooter||''}</div></div>
+ ${!ls.hidePickupAddress&&wh.name?`<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:${isA4?'7pt':'6.5pt'}"><div style="font-weight:bold;color:#444">From:</div><div>${wh.name}</div><div>${wh.address||''} ${wh.pincode||''}</div>${!ls.hidePickupPhone&&wh.phone?`<div>Ph: ${wh.phone}</div>`:''}</div>`:''}
+ ${!ls.hideRtoAddress&&wh.name?`<div style="border-top:1px solid #ccc;padding-top:2mm;font-size:${isA4?'7pt':'6.5pt'}"><div style="font-weight:bold;color:#444">Return:</div><div>${wh.name}</div><div>${wh.address||''} ${wh.pincode||''}</div></div>`:''}
+ <div style="border-top:1px solid #eee;padding-top:2mm;margin-top:2mm;font-size:5.5pt;color:#999">${ls.labelNote||'This is a computer generated document.'} ${ls.labelFooter||''}</div>
  </div>`;
- const _jsSrc = 'https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js';
- const _pgStyle = `*{box-sizing:border-box}body{margin:0;padding:${ls.labelSize==='a4'?'8mm':'2mm'};font-family:Arial,sans-serif}@page{size:${ls.labelSize==='4x6'?'4in 6in':ls.labelSize==='100x150'?'100mm 150mm':'A4'};margin:${ls.labelSize==='a4'?'8mm':'2mm'}}@media print{body{margin:0;padding:0}}`;
- const _labelDoc = [
- '<!DOCTYPE html><html><head><meta charset="utf-8"/>',
- '<scr'+'ipt src="'+_jsSrc+'"><\/scr'+'ipt>',
- '<style>'+_pgStyle+'<\/style><\/head>',
- '<body>'+html,
- '<scr'+'ipt>JsBarcode("#awb-barcode","'+awb+'",{format:"CODE128",width:2,height:55,displayValue:true,fontSize:11,margin:2});setTimeout(()=>window.print(),600);<\/scr'+'ipt>',
- '<\/body><\/html>'
- ].join('\n');
- const blob2 = new Blob([_labelDoc], {type:'text/html'});
- const burl = URL.createObjectURL(blob2);
- const wa = document.createElement('a');
- wa.href = burl; wa.target = '_blank'; wa.rel = 'noopener';
+ const jsSrc = 'https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js';
+ const pgCss = `*{box-sizing:border-box}body{margin:0;padding:${bodyPad};font-family:Arial,sans-serif;background:#fff}@page{size:${pageSize};margin:${pageMargin}}@media print{body{margin:0;padding:0}.nop{display:none!important}}`;
+ const doc = ['<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Label — '+o.orderId+'<\/title>',
+  '<scr'+'ipt src="'+jsSrc+'"><\/scr'+'ipt>',
+  '<style>'+pgCss+'<\/style><\/head><body>',
+  '<div class="nop" style="position:fixed;top:0;left:0;right:0;background:#0F172A;color:#fff;padding:8px 16px;display:flex;gap:10px;align-items:center;font-family:Arial;z-index:999">',
+  '<span style="font-weight:700;flex:1">Label — '+o.orderId+'<\/span>',
+  '<button onclick="window.print()" style="background:#3B82F6;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-weight:700;cursor:pointer">Print / Save PDF<\/button>',
+  '<button onclick="window.close()" style="background:rgba(255,255,255,.15);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer">Close<\/button>',
+  '<\/div><div style="margin-top:50px;padding:'+bodyPad+'">'+labelHtml+'<\/div>',
+  '<scr'+'ipt>JsBarcode("#awb-bc","'+awb+'",{format:"CODE128",width:'+(isA4?2:1.6)+',height:'+(isA4?55:40)+',displayValue:true,fontSize:'+(isA4?11:9)+',margin:2});setTimeout(()=>window.print(),700);<\/scr'+'ipt>',
+  '<\/body><\/html>'].join('\n');
+ const blob = new Blob([doc], {type:'text/html'});
+ const burl = URL.createObjectURL(blob);
+ const wa = document.createElement('a'); wa.href=burl; wa.target='_blank'; wa.rel='noopener';
  document.body.appendChild(wa); wa.click(); document.body.removeChild(wa);
- setTimeout(()=>URL.revokeObjectURL(burl), 15000);
+ setTimeout(()=>URL.revokeObjectURL(burl),20000);
 }
 
 // ─── CLONE ORDER ──────────────────────────────────────────────────────────────
