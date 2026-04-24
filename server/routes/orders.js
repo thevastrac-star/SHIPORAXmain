@@ -23,7 +23,7 @@ const { createNotification }               = require('../utils/notifications');
 const { fetchPincodeData }                 = require('../utils/pincode');
 const { toCSV }                            = require('../utils/csv');
 const {
-  getSelloToken, orderToPayloadParams, createWaybill, fetchLabelUrl
+  getSelloToken, orderToPayloadParams, createWaybill
 } = require('../utils/selloship');
 const shippingQueue = require('../utils/shippingQueue');
 const axios    = require('axios');
@@ -129,11 +129,7 @@ async function shipViaSelloship(order, courierId) {
     }
   }
   const result = await createWaybill(token, params);
-  let labelUrl = result.shippingLabel;
-  if (!labelUrl && result.waybill) {
-    try { labelUrl = await fetchLabelUrl(token, result.waybill); } catch (_) {}
-  }
-  return { awbNumber: result.waybill, labelUrl: labelUrl || '',
+  return { awbNumber: result.waybill, labelUrl: result.shippingLabel,
     courierName: result.courierName, routingCode: result.routingCode };
 }
 
@@ -147,19 +143,8 @@ async function enqueueShipment(order, courierId, userId) {
       const updatedOrder = await Order.findById(order._id);
       updatedOrder.awbNumber = shipped.awbNumber;
       updatedOrder.status    = 'shipped';
-
-      // If label URL was not in waybill response (common with Amazon Shipping),
-      // try to fetch it from Selloship label endpoint
-      let labelUrl = shipped.labelUrl;
-      if (!labelUrl && shipped.awbNumber) {
-        try {
-          const tok = await getSelloToken();
-          labelUrl = await fetchLabelUrl(tok, shipped.awbNumber);
-        } catch (_) {}
-      }
-
       updatedOrder.selloship = { waybill: shipped.awbNumber, courierName: shipped.courierName,
-        routingCode: shipped.routingCode, labelUrl: labelUrl || '', shippedAt: new Date() };
+        routingCode: shipped.routingCode, labelUrl: shipped.labelUrl, shippedAt: new Date() };
       await updatedOrder.save();
       if (updatedOrder.codReconciliation)
         await CodReconciliation.findByIdAndUpdate(updatedOrder.codReconciliation, { awbNumber: shipped.awbNumber });
@@ -175,6 +160,13 @@ async function enqueueShipment(order, courierId, userId) {
 }
 
 // ─── LABEL HTML BUILDER ───────────────────────────────────────────────────────
+// Amazon Shipping AWBs are 12-digit numeric (e.g. 123456789012).
+// Amazon provides its own PDF label via selloship.labelUrl — never generate
+// a Code128 barcode for these because it is incorrect for their format.
+function isAmazonAwb(awb) {
+  return /^\d{12}$/.test((awb || '').trim());
+}
+
 function buildLabelHtml(o) {
   const isCOD  = o.paymentMode === 'cod';
   const wh     = o.pickupWarehouse || {};
@@ -184,16 +176,18 @@ function buildLabelHtml(o) {
   const bc     = '#0D1B3E';
   const awb    = o.awbNumber || o.orderId || '';
 
-  // Real Code128 barcode SVG for the AWB
-  const barcodeSvg = generateBarcodeSVG(awb, { barWidth: 2, height: 55, showText: true, fontSize: 10 });
-  const barcodeB64 = Buffer.from(barcodeSvg).toString('base64');
-  const barcodeImg = `<img src="data:image/svg+xml;base64,${barcodeB64}" style="width:100%;max-width:140px;display:block;margin:0 auto" alt="AWB Barcode"/>`;
-
-  // If Selloship returned its own PDF label URL — show it with barcode overlay header
+  // If Selloship returned its own PDF label URL — always use it (especially for Amazon which has its own barcode format)
   if (o.selloship && o.selloship.labelUrl) {
+    // Amazon 12-digit AWB: display plain text AWB only (no Code128 barcode — Amazon's label already has the correct barcode)
+    const awbDisplay = isAmazonAwb(awb)
+      ? `<div style="font-size:13pt;font-weight:bold;letter-spacing:2px;font-family:monospace;padding:4mm 0">${awb}</div><div style="font-size:6.5pt;color:#888;margin-top:1mm">Amazon Shipping — scan label PDF above</div>`
+      : (() => {
+          const svg = generateBarcodeSVG(awb, { barWidth: 2, height: 55, fontSize: 10 });
+          return `<img src="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}" style="width:100%;max-width:140px;display:block;margin:0 auto" alt="AWB Barcode"/>`;
+        })();
     return `<div style="font-family:Arial,sans-serif;margin-bottom:8mm;page-break-inside:avoid">
       <div style="background:#f8f8f8;border:1px solid #ddd;padding:3mm;margin-bottom:2mm;text-align:center">
-        ${barcodeImg}
+        ${awbDisplay}
         <div style="font-size:7pt;color:#555;margin-top:1mm">AWB: <b>${awb}</b> | Order: ${o.orderId}</div>
       </div>
       <iframe src="${o.selloship.labelUrl}" style="width:100%;height:420px;border:1px solid #ccc" title="Shipping Label"></iframe>
@@ -201,7 +195,11 @@ function buildLabelHtml(o) {
     </div>`;
   }
 
-  // Fallback: self-generated label with real barcode
+  // Fallback: self-generated label with Code128 barcode (only for non-Amazon orders without a carrier label URL)
+  const barcodeSvg = generateBarcodeSVG(awb, { barWidth: 2, height: 55, showText: true, fontSize: 10 });
+  const barcodeB64 = Buffer.from(barcodeSvg).toString('base64');
+  const barcodeImg = `<img src="data:image/svg+xml;base64,${barcodeB64}" style="width:100%;max-width:140px;display:block;margin:0 auto" alt="AWB Barcode"/>`;
+
   return `<div style="font-family:Arial,sans-serif;font-size:9pt;padding:4mm;border:2px solid #000;background:#fff;line-height:1.4;width:100mm;margin-bottom:4mm;page-break-inside:avoid">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #ccc;padding-bottom:3mm;margin-bottom:3mm">
       <div style="font-weight:bold;font-size:11pt;color:${bc}">SHIPORAX</div>
@@ -377,25 +375,6 @@ router.get('/:id/label', protect, async (req, res) => {
     const order = await Order.findOne(filter)
       .populate('assignedCourier', 'name code').populate('pickupWarehouse').lean();
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-
-    // Amazon / Selloship label: proxy PDF bytes so browser downloads it directly
-    if (order.selloship && order.selloship.labelUrl) {
-      try {
-        const tok = await getSelloToken();
-        const resp = await axios.get(order.selloship.labelUrl, {
-          responseType: 'stream', timeout: 25000,
-          headers: { Authorization: tok, Accept: 'application/pdf,*/*' }
-        });
-        const ct = resp.headers['content-type'] || 'application/pdf';
-        res.setHeader('Content-Type', ct);
-        res.setHeader('Content-Disposition', `inline; filename="${order.orderId}_label.pdf"`);
-        return resp.data.pipe(res);
-      } catch (_) {
-        // PDF fetch failed — fall through to HTML label
-      }
-    }
-
-    // Fallback: generated HTML label
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Label ' + order.orderId + '</title>' +
       '<style>*{box-sizing:border-box}body{font-family:Arial;margin:0;padding:16px;background:#f5f5f5}' +
       '.no-print{margin-bottom:12px}.no-print button{background:#0D1B3E;color:#fff;border:none;padding:8px 20px;' +
@@ -404,28 +383,9 @@ router.get('/:id/label', protect, async (req, res) => {
       '<div class="no-print"><button onclick="window.print()">🖨 Print Label</button>' +
       '<button onclick="window.close()">✕ Close</button></div>' +
       buildLabelHtml(order) +
-      '<script>setTimeout(()=>window.print(),500)<\/script></body></html>';
+      '<script>setTimeout(()=>window.print(),500)</script></body></html>';
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// ─── REFETCH LABEL URL from Selloship (for Amazon orders where label was missing) ──
-router.post('/:id/refetch-label', protect, async (req, res) => {
-  try {
-    const filter = { _id: req.params.id };
-    if (req.user.role !== 'admin') filter.user = req.user._id;
-    const order = await Order.findOne(filter);
-    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-    if (!order.awbNumber) return res.status(400).json({ success: false, message: 'Order not shipped yet' });
-    const tok = await getSelloToken();
-    const labelUrl = await fetchLabelUrl(tok, order.awbNumber);
-    if (!labelUrl) return res.status(404).json({ success: false, message: 'Label not available from Selloship yet. Try again in a moment.' });
-    if (!order.selloship) order.selloship = {};
-    order.selloship.labelUrl = labelUrl;
-    order.markModified('selloship');
-    await order.save();
-    res.json({ success: true, labelUrl });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -947,15 +907,98 @@ router.get('/v1/status/:orderId', apiKeyAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+// GET /v1/label/:orderId — single label download via API key
+// ?format=pdf  → proxies the carrier PDF directly (for Amazon & Selloship labels)
+// ?format=html (default) → returns printable HTML label
 router.get('/v1/label/:orderId', apiKeyAuth, async (req, res) => {
   try {
     const order = await Order.findOne({ orderId: req.params.orderId, user: req.user._id })
       .populate('assignedCourier', 'name code').populate('pickupWarehouse').lean();
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-    if (order.selloship && order.selloship.labelUrl) return res.redirect(302, order.selloship.labelUrl);
+
+    const labelUrl = order.selloship && order.selloship.labelUrl;
+    const fmt = req.query.format || 'html';
+
+    // PDF format — proxy the carrier label directly
+    if (fmt === 'pdf' && labelUrl) {
+      try {
+        let selloToken = null;
+        try { selloToken = await getSelloToken(); } catch(_) {}
+        const headers = { 'Accept': 'application/pdf,*/*' };
+        if (selloToken) headers['Authorization'] = selloToken;
+        const resp = await axios.get(labelUrl, { responseType: 'stream', timeout: 25000, headers });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${order.orderId}_${order.awbNumber||'label'}.pdf"`);
+        return resp.data.pipe(res);
+      } catch(e) {
+        return res.status(502).json({ success: false, message: 'Could not fetch carrier PDF: ' + e.message });
+      }
+    }
+
+    // HTML format (default) — also redirect to PDF URL for Amazon/Selloship labels
+    if (labelUrl) return res.redirect(302, labelUrl);
+
+    // Fallback: self-generated HTML label
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Label ' + order.orderId + '</title>' +
       '<style>body{font-family:Arial;margin:8mm}@media print{body{margin:0}}</style></head>' +
       '<body>' + buildLabelHtml(order) + '<script>setTimeout(()=>window.print(),500)</script></body></html>';
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// POST /v1/bulk-labels — bulk label download via API key (returns printable HTML)
+// Body: { orderIds: ["orderId1","orderId2",...], labelSize: "a4"|"4x6"|"100x150" }
+// Supports both internal _id and orderId strings for convenience.
+router.post('/v1/bulk-labels', apiKeyAuth, async (req, res) => {
+  try {
+    const { orderIds, labelSize = 'a4' } = req.body;
+    if (!Array.isArray(orderIds) || !orderIds.length)
+      return res.status(400).json({ success: false, message: 'orderIds[] required' });
+
+    // Accept both MongoDB _id and orderId strings
+    const orders = await Order.find({
+      $or: [ { _id: { $in: orderIds } }, { orderId: { $in: orderIds } } ],
+      user: req.user._id
+    }).populate('assignedCourier', 'name code').populate('pickupWarehouse').lean();
+
+    if (!orders.length) return res.status(404).json({ success: false, message: 'No orders found' });
+
+    const is4x6 = labelSize === '4x6', is100x150 = labelSize === '100x150', isThermal = is4x6 || is100x150;
+    const w = is4x6 ? '101.6mm' : is100x150 ? '100mm' : null;
+    const h = is4x6 ? '152.4mm' : is100x150 ? '150mm' : null;
+
+    let bodyHtml = '';
+    if (isThermal) {
+      bodyHtml = orders.map((o, i) =>
+        `<div style="width:${w};min-height:${h};${i < orders.length-1 ? 'page-break-after:always;' : ''}">${buildLabelHtml(o)}</div>`
+      ).join('');
+    } else {
+      const rows = [];
+      for (let i = 0; i < orders.length; i += 4) {
+        const chunk = orders.slice(i, i + 4);
+        const cells = chunk.map(o => `<td style="width:50%;vertical-align:top;padding:2mm;border:1px dashed #ccc">${buildLabelHtml(o)}</td>`).join('');
+        rows.push(`<tr>${cells}</tr>${i + 4 < orders.length ? '<tr><td colspan="2" style="page-break-after:always;height:0;padding:0;border:none"></td></tr>' : ''}`);
+      }
+      bodyHtml = `<table style="width:100%;border-collapse:collapse;table-layout:fixed">${rows.join('')}</table>`;
+    }
+
+    const pageStyle = isThermal
+      ? `@page{size:${is4x6?'4in 6in':'100mm 150mm'};margin:2mm}body{margin:0}`
+      : `@page{size:A4;margin:8mm}body{margin:0}`;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Labels (${orders.length})</title>
+<style>*{box-sizing:border-box}${pageStyle}body{font-family:Arial,sans-serif;background:#fff}
+.print-bar{position:fixed;top:0;left:0;right:0;background:#0D1B3E;color:#fff;padding:8px 16px;display:flex;gap:10px;align-items:center;z-index:999;font-size:13px}
+.print-bar button{background:#fff;color:#0D1B3E;border:none;padding:5px 14px;border-radius:4px;font-weight:bold;cursor:pointer}
+.labels-wrap{padding:${isThermal?'0':'52px 0 0'}}
+@media print{.print-bar{display:none!important}}</style></head><body>
+<div class="print-bar"><span>📦 ${orders.length} Label(s)</span>
+<button onclick="window.print()">🖨 Print All</button>
+<button onclick="window.close()">✕ Close</button>
+<span style="font-size:11px;opacity:.8">Size: ${labelSize.toUpperCase()}</span></div>
+<div class="labels-wrap">${bodyHtml}</div>
+<script>setTimeout(()=>window.print(),700)</script></body></html>`;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }

@@ -112,10 +112,8 @@
   background:var(--card);border:1.5px solid var(--border);border-radius:var(--r2);
   padding:22px;margin-bottom:18px;box-shadow:var(--sh);
 }
-.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
-.card-title{
-  font-family:'Plus Jakarta Sans',sans-serif;font-size:.96rem;font-weight:700;color:var(--text);
-}
+.card-header,.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.card-title,.card-ttl{font-family:'Plus Jakarta Sans',sans-serif;font-size:.96rem;font-weight:700;color:var(--text)}
 
 /* ── TABLE ── */
 .table-wrap{overflow-x:auto;border-radius:var(--r);border:1.5px solid var(--border)}
@@ -134,7 +132,33 @@ tr:last-child td{border-bottom:none}
 .s-pending{background:var(--warning-light);color:var(--warning);border:1px solid #FDDBA0}
 .s-approved,.s-delivered,.s-completed,.s-settled{background:var(--success-light);color:var(--success);border:1px solid #AEEECF}
 .s-rejected,.s-blocked,.s-rto,.s-failed{background:var(--danger-light);color:var(--danger);border:1px solid #F8C0C0}
-.s-processing,.s-in_progress,.s-shipped{background:var(--info-light);color:var(--info);border:1px solid #BCCFEE}
+.s-processing,.s-in_progress{background:var(--info-light);color:var(--info);border:1px solid #BCCFEE}
+.s-shipped{background:#EDE9FE;color:#7A3EE8;border:1px solid #DDD6FE}
+.s-in_transit{background:#EDE9FE;color:#6D28D9;border:1px solid #DDD6FE}
+.s-pickup_scheduled{background:#FFF7ED;color:#C2410C;border:1px solid #FED7AA}
+
+/* ── STATUS ANIMATIONS ── */
+@keyframes truckMove{0%,100%{transform:translateX(0)}50%{transform:translateX(5px)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+@keyframes checkPop{0%{transform:scale(0) rotate(-20deg);opacity:0}60%{transform:scale(1.2);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.status-anim{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.sa-pickup{background:#FFF7ED;color:#C2410C;border:1px solid #FED7AA}.sa-pickup .sa-icon{animation:pulse 1.4s ease-in-out infinite}
+.sa-transit{background:#EDE9FE;color:#6D28D9;border:1px solid #DDD6FE}.sa-transit .sa-icon{animation:truckMove .7s ease-in-out infinite;display:inline-block}
+.sa-delivered{background:var(--success-light);color:var(--success);border:1px solid #AEEECF}.sa-delivered .sa-icon{animation:checkPop .5s cubic-bezier(.34,1.56,.64,1) both}
+.sa-shipped{background:#EDE9FE;color:#7A3EE8;border:1px solid #DDD6FE}.sa-shipped .sa-icon{animation:float 2s ease-in-out infinite}
+
+/* ── IMPROVED CARD HEADERS ── */
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1.5px solid var(--border)}
+.card-ttl{font-family:'Plus Jakarta Sans',sans-serif;font-size:.96rem;font-weight:700;color:var(--text)}
+
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filter-bar input,.filter-bar select{flex:1;min-width:130px;max-width:200px;padding:9px 12px;font-size:.84rem}
+
+/* ── DOWNLOAD LABEL BUTTON ── */
+.btn-download-label{background:linear-gradient(135deg,#F05A22,#FF8C42);color:#fff;font-weight:700;box-shadow:0 4px 14px rgba(240,90,34,.3)}
+.btn-download-label:hover{opacity:.9;transform:translateY(-1px)}
 .s-open,.s-draft{background:#F0F2F8;color:#6B7490;border:1px solid var(--border2)}
 .s-ndr,.s-flagged{background:#FEE9F0;color:#C2185B;border:1px solid #F8BBD9}
 
@@ -1165,24 +1189,34 @@ textarea{resize:vertical;min-height:80px}
     <!-- ═══ EXPORTS ═══ -->
     <div class="page" id="page-exports">
       <div class="card">
-        <div class="card-header"><span class="card-title">Data Export</span></div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
-          <div class="card" style="border:1px solid var(--border)">
-            <h3 style="margin-bottom:8px">📦 Orders</h3>
-            <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:12px">All orders in system</p>
-            <div class="form-group"><label>User ID (optional)</label><input type="text" id="exp-orders-user" placeholder="Leave blank for all"/></div>
-            <button class="btn btn-primary btn-sm" onclick="exportData('orders')">Download CSV</button>
+        <div class="card-hdr"><span class="card-ttl">📤 Data Export</span><small style="color:var(--muted);font-size:.8rem">All exports include current filters</small></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+          <div style="background:var(--card2);border:1.5px solid var(--border);border-radius:var(--r2);padding:20px">
+            <div style="font-size:1.4rem;margin-bottom:8px">📦</div>
+            <h3 style="margin-bottom:4px;font-size:.95rem;color:var(--text)">Orders Export</h3>
+            <p style="color:var(--muted);font-size:.82rem;margin-bottom:14px">Export all orders with filters</p>
+            <div class="form-group"><label>Status</label>
+              <select id="exp-order-status"><option value="">All Statuses</option><option value="draft">Draft</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="rto">RTO</option><option value="cancelled">Cancelled</option></select>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>From Date</label><input type="date" id="exp-order-from"/></div>
+              <div class="form-group"><label>To Date</label><input type="date" id="exp-order-to"/></div>
+            </div>
+            <div class="form-group"><label>User ID (optional)</label><input type="text" id="exp-order-user" placeholder="Leave blank for all users"/></div>
+            <button class="btn btn-primary btn-sm" style="width:100%" onclick="exportData('orders')">📥 Download Orders CSV</button>
           </div>
-          <div class="card" style="border:1px solid var(--border)">
-            <h3 style="margin-bottom:8px">💰 Wallet History</h3>
-            <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:12px">All wallet transactions</p>
-            <div class="form-group"><label>User ID (optional)</label><input type="text" id="exp-wallet-user" placeholder="Leave blank for all"/></div>
-            <button class="btn btn-primary btn-sm" onclick="exportData('wallet')">Download CSV</button>
+          <div style="background:var(--card2);border:1.5px solid var(--border);border-radius:var(--r2);padding:20px">
+            <div style="font-size:1.4rem;margin-bottom:8px">💰</div>
+            <h3 style="margin-bottom:4px;font-size:.95rem;color:var(--text)">Wallet History</h3>
+            <p style="color:var(--muted);font-size:.82rem;margin-bottom:14px">All wallet transactions</p>
+            <div class="form-group"><label>User ID (optional)</label><input type="text" id="exp-wallet-user" placeholder="Leave blank for all users"/></div>
+            <button class="btn btn-primary btn-sm" style="width:100%;margin-top:10px" onclick="exportData('wallet')">📥 Download Wallet CSV</button>
           </div>
-          <div class="card" style="border:1px solid var(--border)">
-            <h3 style="margin-bottom:8px">👥 Users</h3>
-            <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:12px">All client accounts</p>
-            <button class="btn btn-primary btn-sm" onclick="exportData('users')">Download CSV</button>
+          <div style="background:var(--card2);border:1.5px solid var(--border);border-radius:var(--r2);padding:20px">
+            <div style="font-size:1.4rem;margin-bottom:8px">👥</div>
+            <h3 style="margin-bottom:4px;font-size:.95rem;color:var(--text)">Users Export</h3>
+            <p style="color:var(--muted);font-size:.82rem;margin-bottom:14px">All client accounts & KYC status</p>
+            <button class="btn btn-primary btn-sm" style="width:100%;margin-top:10px" onclick="exportData('users')">📥 Download Users CSV</button>
           </div>
         </div>
       </div>
@@ -1832,7 +1866,7 @@ async function loadOrders() {
       <td>${o.recipient?.name||'—'}<br/><small>${o.recipient?.phone||''}</small></td>
       <td>${o.recipient?.pincode||'—'}</td>
       <td>${o.paymentMode==='cod'?'₹'+o.codAmount:'Prepaid'}</td>
-      <td><span class="status s-${o.status}">${o.status}</span></td>
+      <td>${(()=>{const st=o.status;if(st==='pickup_scheduled')return`<span class="status-anim sa-pickup"><span class="sa-icon">📅</span>Pickup Scheduled</span>`;if(st==='in_transit')return`<span class="status-anim sa-transit"><span class="sa-icon">🚚</span>In Transit</span>`;if(st==='delivered')return`<span class="status-anim sa-delivered"><span class="sa-icon">✅</span>Delivered</span>`;if(st==='shipped')return`<span class="status-anim sa-shipped"><span class="sa-icon">📦</span>Shipped</span>`;return`<span class="status s-${st}">${st.replace(/_/g,' ')}</span>`})()}</td>
       <td>${awbCell}</td>
       <td>${fmtDate(o.createdAt)}</td>
       <td style="white-space:nowrap">
@@ -2627,20 +2661,34 @@ async function loadLogs() {
 // ─── EXPORTS ─────────────────────────────────────────────────────────────────
 async function exportData(type) {
   let url;
-  if (type === 'orders') url = `${API}/orders/export/csv`;
-  else if (type === 'wallet') {
+  if (type === 'orders') {
+    const statusEl = document.getElementById('exp-order-status');
+    const fromEl   = document.getElementById('exp-order-from');
+    const toEl     = document.getElementById('exp-order-to');
+    const uid      = document.getElementById('exp-order-user')?.value || '';
+    let q = '?';
+    if (statusEl?.value) q += `&status=${statusEl.value}`;
+    if (fromEl?.value)   q += `&from=${fromEl.value}`;
+    if (toEl?.value)     q += `&to=${toEl.value}`;
+    if (uid)             q += `&userId=${uid}`;
+    url = `${API}/orders/export/csv${q}`;
+  } else if (type === 'wallet') {
     const uid = document.getElementById('exp-wallet-user')?.value;
     url = `${API}/wallet/export/transactions${uid ? '?userId=' + uid : ''}`;
-  } else if (type === 'users') url = `${API}/users/export/csv`;
+  } else if (type === 'users') {
+    url = `${API}/users/export/csv`;
+  }
   if (!url) return;
-  const a = document.createElement('a');
-  a.href = url + (url.includes('?') ? '&' : '?') + 'token=' + token;
-  // Workaround: fetch and download
-  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
-  const blob = await res.blob();
-  a.href = URL.createObjectURL(blob);
-  a.download = type + '.csv';
-  a.click();
+  try {
+    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) { toast('Export failed: ' + res.status, 'error'); return; }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${type}_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    toast(`${type} CSV exported ✅`, 'success');
+  } catch(e) { toast('Export error: ' + e.message, 'error'); }
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
