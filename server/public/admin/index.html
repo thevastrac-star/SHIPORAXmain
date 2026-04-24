@@ -1376,6 +1376,24 @@ window.onload = async () => {
  }
  document.getElementById('admin-name').textContent = currentUser.name || 'Admin';
  document.getElementById('avatar-initials').textContent = (currentUser.name || 'A')[0].toUpperCase();
+ // ── API health check — shows exact reason if pages are blank ──
+ (async () => {
+   try {
+     const r = await fetch(API + '/users?limit=1', { headers: { 'Authorization': 'Bearer ' + token } });
+     if (r.status === 401 || r.status === 403) {
+       toast('⚠️ Session expired or not admin — redirecting to login', 'error');
+       setTimeout(() => { localStorage.removeItem('admin_token'); window.location.href = '/admin/login'; }, 2500);
+       return;
+     }
+     if (!r.ok) {
+       let msg = r.status;
+       try { const j = await r.json(); msg = j.message || msg; } catch(_) {}
+       toast('⚠️ API error ' + msg + ' — pages may be blank', 'error');
+     }
+   } catch(e) {
+     toast('❌ Cannot reach server — is the backend running?', 'error');
+   }
+ })();
  loadDashboard();
 };
 
@@ -1412,7 +1430,8 @@ async function api(method, path, body) {
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 async function loadDashboard() {
  const d = await api('GET', '/analytics/admin/dashboard');
- if (!d?.success) return;
+ if (!d) { toast('❌ Dashboard: Network error — API unreachable', 'error'); return; }
+ if (!d.success) { toast('❌ Dashboard error: ' + (d.message || 'Unknown'), 'error'); return; }
  const s = d.stats;
  document.getElementById('s-orders').textContent = s.totalOrders;
  document.getElementById('s-delivered').textContent = s.deliveredCount;
@@ -1438,9 +1457,11 @@ async function loadUsers() {
  if (search) q += `&search=${search}`;
  if (blocked) q += `&isBlocked=${blocked}`;
  if (kyc) q += `&kycStatus=${kyc}`;
- const d = await api('GET', '/users' + q);
- if (!d?.success) return;
  const tbody = document.getElementById('users-tbody');
+ tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">Loading...</td></tr>';
+ const d = await api('GET', '/users' + q);
+ if (!d) { tbody.innerHTML = '<tr><td colspan="6" class="empty" style="color:#ef4444">❌ Network error — could not reach API. Check server is running.</td></tr>'; return; }
+ if (!d.success) { tbody.innerHTML = `<tr><td colspan="6" class="empty" style="color:#ef4444">❌ Error: ${d.message || 'Unknown error from server'}</td></tr>`; return; }
  tbody.innerHTML = d.users.map(u => `
  <tr>
  <td><b>${u.name}</b><br/><small style="color:var(--text-muted)">${u.email}</small></td>
@@ -1803,9 +1824,11 @@ async function loadOrders() {
  if (from) q += `&from=${from}`;
  if (to) q += `&to=${to}`;
  if (search) q += `&search=${encodeURIComponent(search)}`;
- const d = await api('GET', '/orders' + q);
- if (!d?.success) return;
  const tbody = document.getElementById('orders-tbody');
+ tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">Loading...</td></tr>';
+ const d = await api('GET', '/orders' + q);
+ if (!d) { tbody.innerHTML = '<tr><td colspan="9" class="empty" style="color:#ef4444">❌ Network error — could not reach API. Check server is running.</td></tr>'; return; }
+ if (!d.success) { tbody.innerHTML = `<tr><td colspan="9" class="empty" style="color:#ef4444">❌ Error: ${d.message || 'Unknown error from server'}</td></tr>`; return; }
  tbody.innerHTML = d.orders.map(o => {
  const sello = o.selloship || {};
  const canShip = ['draft','processing'].includes(o.status);
