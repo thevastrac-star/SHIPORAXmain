@@ -5,6 +5,21 @@ const OrderSchema = new mongoose.Schema({
   user:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   source:  { type: String, enum: ['manual','shopify','woocommerce','bulk_upload'], default: 'manual' },
 
+  // Shopify integration fields
+  shopifyOrderId:          { type: String },   // Shopify numeric order ID
+  shopifyOrderName:        { type: String },   // e.g. #1001
+  shopifyShop:             { type: String },   // mystore.myshopify.com
+  shopifyFulfillmentId:    { type: String },
+  shopifyFulfillmentStatus:{ type: String },
+  shopifyLineItems: [{
+    lineItemId: String,
+    title:      String,
+    sku:        String,
+    quantity:   Number,
+    price:      Number
+  }],
+  externalOrderId: { type: String },
+
   pickupWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
 
   recipient: {

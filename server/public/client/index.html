@@ -221,6 +221,34 @@ body{
 
 #content{padding:24px 28px;flex:1;animation:fadeIn .3s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+/* ── DARK MODE ─────────────────────────────────────────────────── */
+html.dark{
+  --brand:#3B82F6;--brand2:#60A5FA;--brand-light:rgba(59,130,246,.12);--brand-mid:rgba(59,130,246,.25);
+  --accent:#38BDF8;--accent-light:rgba(56,189,248,.1);
+  --success:#34D399;--success-light:rgba(52,211,153,.12);
+  --danger:#F87171;--danger-light:rgba(248,113,113,.12);
+  --warning:#FCD34D;--warning-light:rgba(252,211,77,.12);
+  --info:#A78BFA;--info-light:rgba(167,139,250,.12);
+  --amber:#F59E0B;
+  --bg:#0F172A;--bg2:#1E293B;
+  --card:#1E293B;--border:#334155;--border2:#475569;
+  --topbar:#1E293B;
+  --text:#F1F5F9;--text2:#CBD5E1;--muted:#94A3B8;--dim:#64748B;
+  --sh:0 1px 3px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.2);
+  --sh2:0 4px 16px rgba(0,0,0,.4),0 12px 40px rgba(0,0,0,.3);
+}
+html.dark body{background:var(--bg)}
+html.dark input,html.dark select,html.dark textarea{background:var(--bg);color:var(--text);border-color:var(--border)}
+html.dark input::placeholder,html.dark textarea::placeholder{color:var(--dim)}
+html.dark .modal{background:var(--card)}
+/* Theme toggle */
+.theme-toggle{width:34px;height:34px;border-radius:9px;border:1.5px solid var(--border);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:var(--transition);color:var(--muted);flex-shrink:0;padding:0}
+.theme-toggle:hover{border-color:var(--brand2);color:var(--brand2);background:var(--brand-light)}
+.theme-toggle svg{width:15px;height:15px;fill:currentColor}
+html.dark .theme-toggle .icon-moon{display:none}
+html.dark .theme-toggle .icon-sun{display:block !important}
+.theme-toggle .icon-sun{display:none}
+
 .page{display:none}.page.active{display:block;animation:fadeIn .28s ease}
 
 /* 
@@ -1074,6 +1102,10 @@ td b{color:var(--text);font-weight:600}
  <h2 id="page-title">Dashboard</h2>
  <div class="topbar-right">
  <div class="wallet-chip" onclick="navigate('wallet')">₹<span id="wallet-bal">0.00</span></div>
+ <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode">
+  <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z"/></svg>
+  <svg class="icon-sun" viewBox="0 0 24 24"><path d="M12 17a5 5 0 100-10 5 5 0 000 10zm0-13v2m0 14v2m-7-9H3m18 0h-2m-2.05-4.95-1.42 1.42M6.34 17.66l-1.42 1.42M17.66 17.66l-1.42-1.42M6.34 6.34 4.93 4.93"/></svg>
+ </button>
  <button class="topbar-btn" title="Notifications">
  <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
  </button>
@@ -1605,22 +1637,31 @@ td b{color:var(--text);font-weight:600}
  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px">
  <div class="card">
  <div class="card-hdr">
- <div style="display:flex;align-items:center;gap:12px">
- <div style="width:44px;height:44px;background:#96bf48;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--text);font-weight:800;font-size:1.2rem">S</div>
- <div><div style="font-weight:700;color:var(--text)">Shopify</div><div id="shopify-status" class="status s-draft" style="font-size:.7rem;margin-top:3px">Not Connected</div></div>
+  <div style="display:flex;align-items:center;gap:12px">
+   <div style="width:44px;height:44px;background:#96bf48;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.2rem">S</div>
+   <div>
+    <div style="font-weight:700;color:var(--text)">Shopify</div>
+    <div id="shopify-status" class="status s-draft" style="font-size:.7rem;margin-top:3px">Not Connected</div>
+   </div>
+  </div>
  </div>
+ <div style="font-size:.82rem;color:var(--muted);margin-bottom:12px">Connect your Shopify store using secure OAuth. Orders will sync automatically.</div>
+ <div id="shopify-connect-section">
+  <div class="form-group"><label>Store URL</label><input id="sf-url" placeholder="yourstore.myshopify.com" style="font-family:var(--mono,monospace)"/></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+   <button class="btn btn-success btn-sm" onclick="initiateShopifyOAuth()">
+    <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:currentColor;margin-right:5px;vertical-align:-2px"><path d="M18.36 9l.6 3H5.04l.6-3h12.72M20 7H4l-1.5 7.5V17h19v-2.5L20 7zm-2 9H6v-1h12v1z"/></svg>
+    Connect with Shopify
+   </button>
+   <button class="btn btn-outline btn-sm" onclick="syncShopifyOrders()" id="shopify-sync-btn" style="display:none">↻ Sync Orders</button>
+   <button class="btn btn-danger btn-sm" onclick="disconnectShopifyStore()" id="shopify-disconnect-btn" style="display:none">Disconnect</button>
+  </div>
  </div>
- <div id="shopify-form">
- <div class="form-group"><label>Store URL</label><input id="sf-url" placeholder="yourstore.myshopify.com"/></div>
- <div class="form-group"><label>API Key</label><input id="sf-key" placeholder="API Key"/></div>
- <div class="form-group"><label>API Secret</label><input type="password" id="sf-secret" placeholder="API Secret"/></div>
- <div class="form-group"><label>Access Token</label><input id="sf-token" placeholder="shpat_..."/></div>
+ <div id="shopify-store-info" style="display:none;margin-top:12px;padding:12px;background:var(--bg2);border-radius:8px;font-size:.82rem">
+  <div style="font-weight:600;color:var(--text);margin-bottom:4px">Connected: <span id="shopify-shop-name" style="color:var(--success)"></span></div>
+  <div style="color:var(--muted)">Last sync: <span id="shopify-last-sync">—</span> &nbsp;|&nbsp; Orders synced: <span id="shopify-total-synced">0</span></div>
  </div>
- <div style="display:flex;gap:8px;flex-wrap:wrap">
- <button class="btn btn-success btn-sm" onclick="saveIntegration('shopify')"> Save & Connect</button>
- <button class="btn btn-danger btn-sm" onclick="disconnectIntegration('shopify')"> Disconnect</button>
- </div>
- </div>
+</div>
  <div class="card">
  <div class="card-hdr">
  <div style="display:flex;align-items:center;gap:12px">
@@ -3276,30 +3317,100 @@ async function replyTicket() {
 }
 
 // ─── INTEGRATIONS ──────────────────────────────────────────────────────────────
+// ── SHOPIFY OAUTH ──────────────────────────────────────────────────────────────
+async function initiateShopifyOAuth() {
+ const shop = (document.getElementById('sf-url')?.value || '').trim().toLowerCase()
+   .replace(/^https?:\/\//, '').replace(/\/$/, '');
+ if (!shop) { toast('Enter your Shopify store URL first', 'error'); return; }
+ if (!shop.endsWith('.myshopify.com')) {
+  toast('URL must end with .myshopify.com', 'error'); return;
+ }
+ toast('Redirecting to Shopify...', 'info');
+ const d = await api('GET', `/shopify/auth?shop=${encodeURIComponent(shop)}`);
+ if (d?.success && d.authUrl) {
+  window.location.href = d.authUrl;
+ } else {
+  toast(d?.message || 'Could not start OAuth flow', 'error');
+ }
+}
+async function syncShopifyOrders() {
+ const shop = document.getElementById('shopify-shop-name')?.textContent;
+ if (!shop) return;
+ const btn = document.getElementById('shopify-sync-btn');
+ if (btn) { btn.disabled = true; btn.textContent = 'Syncing...'; }
+ const d = await api('POST', `/shopify/stores/${encodeURIComponent(shop)}/sync`);
+ if (d?.success) {
+  toast(`✅ Synced ${d.synced} new orders (${d.skipped} already existed)`, 'success');
+  loadIntegrations(); loadIntegrationOrders();
+ } else toast(d?.message || 'Sync failed', 'error');
+ if (btn) { btn.disabled = false; btn.textContent = '↻ Sync Orders'; }
+}
+async function disconnectShopifyStore() {
+ const shop = document.getElementById('shopify-shop-name')?.textContent;
+ if (!shop || !confirm(`Disconnect ${shop}? This will stop order sync.`)) return;
+ const d = await api('DELETE', `/shopify/stores/${encodeURIComponent(shop)}`);
+ if (d?.success) { toast('Store disconnected', 'success'); loadIntegrations(); }
+ else toast(d?.message || 'Error', 'error');
+}
+
 async function loadIntegrations() {
- const d=await api('GET','/users/me/profile');
- if (!d?.success) return;
- const intg=d.user.integrations||{}; const sf=intg.shopify||{}; const woo=intg.woocommerce||{};
- document.getElementById('shopify-status').textContent=sf.connected?'Connected':'Not Connected';
- document.getElementById('shopify-status').className='status '+(sf.connected?'s-delivered':'s-draft');
- document.getElementById('woo-status').textContent=woo.connected?'Connected':'Not Connected';
- document.getElementById('woo-status').className='status '+(woo.connected?'s-delivered':'s-draft');
- if (sf.storeUrl) document.getElementById('sf-url').value=sf.storeUrl;
- if (woo.storeUrl) document.getElementById('woo-url').value=woo.storeUrl;
+ // Check for shopify_connected param in URL (redirect from OAuth)
+ const urlParams = new URLSearchParams(window.location.search);
+ if (urlParams.get('shopify_connected')) {
+  toast('✅ Shopify store connected successfully!', 'success');
+  window.history.replaceState({}, '', '/client');
+ }
+ // Load Shopify stores from new OAuth endpoint
+ const sd = await api('GET', '/shopify/stores');
+ if (sd?.success) {
+  const activeStore = (sd.stores || []).find(s => s.isActive);
+  const statusEl = document.getElementById('shopify-status');
+  const infoEl   = document.getElementById('shopify-store-info');
+  const syncBtn  = document.getElementById('shopify-sync-btn');
+  const discBtn  = document.getElementById('shopify-disconnect-btn');
+  if (activeStore) {
+   if (statusEl) { statusEl.textContent = 'Connected'; statusEl.className = 'status s-delivered'; }
+   if (infoEl) infoEl.style.display = 'block';
+   if (syncBtn) syncBtn.style.display = '';
+   if (discBtn) discBtn.style.display = '';
+   const shopName = document.getElementById('shopify-shop-name');
+   if (shopName) shopName.textContent = activeStore.shop;
+   const lastSync = document.getElementById('shopify-last-sync');
+   if (lastSync) lastSync.textContent = activeStore.lastOrderSync ? fmtDate(activeStore.lastOrderSync) : 'Never';
+   const totalSynced = document.getElementById('shopify-total-synced');
+   if (totalSynced) totalSynced.textContent = activeStore.totalSynced || 0;
+   const sfUrl = document.getElementById('sf-url');
+   if (sfUrl) sfUrl.value = activeStore.shop;
+  } else {
+   if (statusEl) { statusEl.textContent = 'Not Connected'; statusEl.className = 'status s-draft'; }
+   if (infoEl) infoEl.style.display = 'none';
+   if (syncBtn) syncBtn.style.display = 'none';
+   if (discBtn) discBtn.style.display = 'none';
+  }
+ }
+ // WooCommerce still uses old method
+ const d = await api('GET', '/users/me/profile');
+ if (d?.success) {
+  const woo = d.user.integrations?.woocommerce || {};
+  const wooSt = document.getElementById('woo-status');
+  if (wooSt) { wooSt.textContent = woo.connected ? 'Connected' : 'Not Connected'; wooSt.className = 'status '+(woo.connected ? 's-delivered' : 's-draft'); }
+  if (woo.storeUrl) { const el = document.getElementById('woo-url'); if (el) el.value = woo.storeUrl; }
+ }
  loadIntegrationOrders();
 }
 async function saveIntegration(platform) {
- let config={};
- if (platform==='shopify') config={storeUrl:document.getElementById('sf-url').value,apiKey:document.getElementById('sf-key').value,apiSecret:document.getElementById('sf-secret').value,accessToken:document.getElementById('sf-token').value};
- else config={storeUrl:document.getElementById('woo-url').value,consumerKey:document.getElementById('woo-key').value,consumerSecret:document.getElementById('woo-secret').value};
- const d=await api('PATCH','/users/me/integrations',{platform,config});
- if (d?.success) { toast(platform+' connected!','success'); loadIntegrations(); }
- else toast(d?.message||'Error','error');
+ if (platform === 'shopify') { initiateShopifyOAuth(); return; }
+ let config = {};
+ if (platform === 'woocommerce') config = { storeUrl: document.getElementById('woo-url')?.value, consumerKey: document.getElementById('woo-key')?.value, consumerSecret: document.getElementById('woo-secret')?.value };
+ const d = await api('PATCH', '/users/me/integrations', { platform, config });
+ if (d?.success) { toast(platform + ' connected!', 'success'); loadIntegrations(); }
+ else toast(d?.message || 'Error', 'error');
 }
 async function disconnectIntegration(platform) {
- if (!confirm('Disconnect '+platform+'?')) return;
- const d=await api('DELETE',`/users/me/integrations/${platform}`);
- if (d?.success) { toast('Disconnected','success'); loadIntegrations(); }
+ if (platform === 'shopify') { disconnectShopifyStore(); return; }
+ if (!confirm('Disconnect ' + platform + '?')) return;
+ const d = await api('DELETE', `/users/me/integrations/${platform}`);
+ if (d?.success) { toast('Disconnected', 'success'); loadIntegrations(); }
 }
 async function loadIntegrationOrders() {
  const d=await api('GET','/orders?source=shopify&limit=50&status=draft,processing');
@@ -3679,7 +3790,19 @@ function printLabelPreview() {
  const html = document.getElementById('label-preview-inner')?.innerHTML;
  if (!html) return;
  const w=window.open('','_blank');
- w.document.write(`<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;margin:0;padding:8mm}@media print{body{margin:0}}</style></head><body>${html}</body></html>`);
+ w.document.write(`<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;margin:0;padding:8mm}@media print{body{margin:0}}</style></head><body>${html}
+<script>
+// ── DARK MODE ──────────────────────────────────────────────────────────────
+function applyTheme(t) {
+  document.documentElement.classList.toggle('dark', t === 'dark');
+  localStorage.setItem('shiporax_theme', t);
+}
+function toggleTheme() {
+  applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark');
+}
+(function(){ applyTheme(localStorage.getItem('shiporax_theme') || 'light'); })();
+</script>
+</body></html>`);
  w.document.close(); setTimeout(()=>w.print(),500);
 }
 
@@ -3929,6 +4052,18 @@ function copyApiKey() {
  if (el) { el.select(); document.execCommand('copy'); toast('Copied!', 'success'); }
 }
 
+</script>
+
+<script>
+// ── DARK MODE ──────────────────────────────────────────────────────────────
+function applyTheme(t) {
+  document.documentElement.classList.toggle('dark', t === 'dark');
+  localStorage.setItem('shiporax_theme', t);
+}
+function toggleTheme() {
+  applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark');
+}
+(function(){ applyTheme(localStorage.getItem('shiporax_theme') || 'light'); })();
 </script>
 </body>
 </html>

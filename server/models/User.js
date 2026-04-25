@@ -61,28 +61,6 @@ const UserSchema = new mongoose.Schema({
 
   orderPrefix: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
 
-  labelSettings: {
-    showLogo:          { type: Boolean, default: false },
-    customLogoUrl:     { type: String },
-    showSupportEmail:  { type: Boolean, default: false },
-    supportEmail:      { type: String },
-    supportPhone:      { type: String },
-    hideCustomerPhone: { type: Boolean, default: false },
-    hidePickupAddress: { type: Boolean, default: false },
-    hidePickupPhone:   { type: Boolean, default: false },
-    hideRtoAddress:    { type: Boolean, default: false },
-    hideRtoPhone:      { type: Boolean, default: false },
-    hideGst:           { type: Boolean, default: false },
-    showItemTable:     { type: Boolean, default: false },
-    labelNote:         { type: String },
-    labelFooter:       { type: String },
-    brandColor:        { type: String, default: '#0D1B3E' },
-    labelSize:         { type: String, default: 'a4' }
-  },
-
-  // [FIX-API] External API key (SHA-256 hashed) for X-API-Key authentication
-  apiKey: { type: String, unique: true, sparse: true },
-
   tempLoginToken:  { type: String },
   tempLoginExpiry: { type: Date },
 

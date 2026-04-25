@@ -34,7 +34,8 @@ app.use(helmet({ crossOriginResourcePolicy: false, contentSecurityPolicy: false 
 app.use(morgan('dev'));
 
 // Raw body needed for webhook HMAC verification (must come BEFORE express.json)
-app.use('/api/selloship/webhook', express.raw({ type: '*/*' }));
+app.use('/api/selloship/webhook',        express.raw({ type: '*/*' }));
+app.use('/api/shopify/webhook',          express.raw({ type: '*/*' }));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -93,6 +94,7 @@ app.use('/api/settings',      require('./routes/settings'));
 app.use('/api/analytics',     require('./routes/analytics'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/selloship',     require('./routes/selloship'));
+app.use('/api/shopify',       require('./routes/shopify'));
 
 // ─── HEALTH ──────────────────────────────────────────────────────────────────
 app.get('/health', (q,r) => r.json({ ok: true, mode: MODE, api: API_URL, time: new Date() }));

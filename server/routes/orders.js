@@ -23,7 +23,7 @@ const { createNotification }               = require('../utils/notifications');
 const { fetchPincodeData }                 = require('../utils/pincode');
 const { toCSV }                            = require('../utils/csv');
 const {
-  getSelloToken, orderToPayloadParams, createWaybill, fetchLabelUrl, extractLabelUrl
+  getSelloToken, orderToPayloadParams, createWaybill, fetchLabelUrl
 } = require('../utils/selloship');
 const shippingQueue = require('../utils/shippingQueue');
 const axios    = require('axios');
@@ -167,8 +167,52 @@ async function enqueueShipment(order, courierId, userId) {
       await createNotification(userId, 'shipped', 'Order Shipped',
         'Order ' + updatedOrder.orderId + ' shipped. AWB: ' + shipped.awbNumber,
         updatedOrder._id, user && user.whatsappNotifications);
+
+      // ── Auto-push fulfillment to Shopify if order came from Shopify ──────
+      if (updatedOrder.shopifyOrderId && updatedOrder.shopifyShop) {
+        try {
+          const ShopifyStore = require('../models/ShopifyStore');
+          const shopifyRoute = require('./shopify');
+          // Fire-and-forget fulfillment push via internal HTTP or direct call
+          const store = await ShopifyStore.findOne({ shop: updatedOrder.shopifyShop, isActive: true });
+          if (store) {
+            const APP_URL = process.env.APP_URL || process.env.API_URL || '';
+            const axios   = require('axios');
+            // Use stored token directly — no HTTP round-trip needed
+            const trackingUrl = `${APP_URL}/track/${shipped.awbNumber}`;
+            const foRes = await axios.get(
+              `https://${store.shop}/admin/api/2024-01/orders/${updatedOrder.shopifyOrderId}/fulfillment_orders.json`,
+              { headers: { 'X-Shopify-Access-Token': store.accessToken }, timeout: 10000 }
+            );
+            const openFO = (foRes.data.fulfillment_orders || []).find(fo => fo.status === 'open');
+            if (openFO) {
+              const fRes = await axios.post(
+                `https://${store.shop}/admin/api/2024-01/fulfillments.json`,
+                { fulfillment: {
+                    line_items_by_fulfillment_order: [{
+                      fulfillment_order_id: openFO.id,
+                      fulfillment_order_line_items: openFO.line_items.map(li => ({ id: li.id, quantity: li.remaining_quantity }))
+                    }],
+                    tracking_info: { company: shipped.courierName, number: shipped.awbNumber, url: trackingUrl },
+                    notify_customer: true
+                }},
+                { headers: { 'X-Shopify-Access-Token': store.accessToken, 'Content-Type': 'application/json' }, timeout: 15000 }
+              );
+              await Order.findByIdAndUpdate(updatedOrder._id, {
+                shopifyFulfillmentId: String(fRes.data.fulfillment?.id || ''),
+                shopifyFulfillmentStatus: fRes.data.fulfillment?.status || 'success'
+              });
+              console.log(`[Shopify] Auto-fulfillment pushed for order ${updatedOrder.orderId}`);
+            }
+          }
+        } catch (sfErr) {
+          console.warn('[Shopify] Auto-fulfillment failed (non-blocking):', sfErr.message);
+        }
+      }
+      // ── End Shopify auto-fulfillment ─────────────────────────────────────
+
       return { orderId: updatedOrder.orderId, awbNumber: shipped.awbNumber,
-        labelUrl: labelUrl || '', courierName: shipped.courierName };
+        labelUrl: shipped.labelUrl, courierName: shipped.courierName };
     }
   });
   return jobId;
@@ -326,35 +370,15 @@ router.post('/bulk-labels-amazon-urls', protect, async (req, res) => {
     if (!orderIds || !orderIds.length) return res.status(400).json({ success: false, message: 'No order IDs' });
     const filter = { _id: { $in: orderIds } };
     if (req.user.role !== 'admin') filter.user = req.user._id;
-    const orders = await Order.find(filter).lean();
-
-    // For any Amazon order missing a saved labelUrl, try to fetch it live and save it
-    let tok = null;
-    const updatedOrders = await Promise.all(orders.map(async (o) => {
-      const isAmazon = /amazon/i.test((o.selloship && o.selloship.courierName) || '') || /^\d{12}$/.test(o.awbNumber || '');
-      let labelUrl = o.selloship && o.selloship.labelUrl;
-      if (!labelUrl && o.awbNumber) {
-        try {
-          if (!tok) tok = await getSelloToken();
-          labelUrl = await fetchLabelUrl(tok, o.awbNumber);
-          if (labelUrl) {
-            // Persist the fetched label URL so it works next time too
-            await Order.findByIdAndUpdate(o._id, {
-              $set: { 'selloship.labelUrl': labelUrl }
-            });
-          }
-        } catch (_) {}
-      }
-      return {
-        orderId:     o.orderId,
-        awbNumber:   o.awbNumber,
-        labelUrl:    labelUrl || '',
-        isAmazon,
-        courierName: o.selloship && o.selloship.courierName
-      };
+    const orders = await Order.find(filter).select('orderId awbNumber selloship').lean();
+    const results = orders.map(o => ({
+      orderId:    o.orderId,
+      awbNumber:  o.awbNumber,
+      labelUrl:   o.selloship && o.selloship.labelUrl,
+      isAmazon:   /amazon/i.test((o.selloship && o.selloship.courierName) || '') || /^\d{12}$/.test(o.awbNumber || ''),
+      courierName: o.selloship && o.selloship.courierName
     }));
-
-    res.json({ success: true, results: updatedOrders });
+    res.json({ success: true, results });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -462,16 +486,7 @@ router.post('/:id/refetch-label', protect, async (req, res) => {
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
     if (!order.awbNumber) return res.status(400).json({ success: false, message: 'Order not shipped yet' });
     const tok = await getSelloToken();
-    // First attempt
-    let labelUrl = await fetchLabelUrl(tok, order.awbNumber);
-    // If Amazon order and still no label, wait 2s and retry once (Amazon label generation is async)
-    if (!labelUrl) {
-      const isAmazon = /amazon/i.test((order.selloship && order.selloship.courierName) || '') || /^\d{12}$/.test(order.awbNumber || '');
-      if (isAmazon) {
-        await new Promise(r => setTimeout(r, 2000));
-        labelUrl = await fetchLabelUrl(tok, order.awbNumber);
-      }
-    }
+    const labelUrl = await fetchLabelUrl(tok, order.awbNumber);
     if (!labelUrl) return res.status(404).json({ success: false, message: 'Label not available from Selloship yet. Try again in a moment.' });
     if (!order.selloship) order.selloship = {};
     order.selloship.labelUrl = labelUrl;

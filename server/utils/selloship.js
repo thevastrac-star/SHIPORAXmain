@@ -323,11 +323,12 @@ async function createWaybill(token, params) {
     }
     const raw = res.data;
     // Selloship may return label URL under different field names depending on courier
-    const labelUrl = extractLabelUrl(raw);
+    const labelUrl = raw.shippingLabel || raw.label_url || raw.labelUrl ||
+      raw.LabelUrl || raw.ShippingLabel || raw.label || raw.pdf || raw.pdfUrl || '';
     return {
-      waybill:       raw.waybill || raw.Waybill || raw.waybillNumber || '',
+      waybill:       raw.waybill,
       shippingLabel: labelUrl,
-      courierName:   raw.courierName || raw.courier_name || raw.CourierName || '',
+      courierName:   raw.courierName || raw.courier_name || '',
       routingCode:   raw.routingCode || raw.routing_code || ''
     };
   });
@@ -347,11 +348,12 @@ async function createReverseWaybill(token, params) {
       throw new Error(`RVP failed: ${msg}${reason ? ' (' + reason + ')' : ''}`);
     }
     const raw = res.data;
-    const labelUrl = extractLabelUrl(raw);
+    const labelUrl = raw.shippingLabel || raw.label_url || raw.labelUrl ||
+      raw.LabelUrl || raw.ShippingLabel || raw.label || raw.pdf || raw.pdfUrl || '';
     return {
-      waybill:       raw.waybill || raw.Waybill || raw.waybillNumber || '',
+      waybill:       raw.waybill,
       shippingLabel: labelUrl,
-      courierName:   raw.courierName || raw.courier_name || raw.CourierName || '',
+      courierName:   raw.courierName || raw.courier_name || '',
       routingCode:   raw.routingCode || raw.routing_code || ''
     };
   });
@@ -418,86 +420,30 @@ function verifyWebhookSignature(rawBody, signatureHeader) {
   catch (_) { return false; }
 }
 
-// ─── EXTRACT LABEL URL from any Selloship response object ───────────────────
-// Covers forward waybill, RVP, waybillDetails, and Amazon-specific field names
-function extractLabelUrl(raw) {
-  if (!raw || typeof raw !== 'object') return '';
-  // Direct fields (standard + Amazon-specific)
-  const direct =
-    raw.shippingLabel  || raw.shipping_label  ||
-    raw.label_url      || raw.labelUrl         || raw.LabelUrl      ||
-    raw.ShippingLabel  || raw.label            || raw.pdf            || raw.pdfUrl        ||
-    raw.printLabel     || raw.PrintLabel       || raw.amazonLabel    || raw.amazon_label  ||
-    raw.labelLink      || raw.LabelLink        || raw.trackingLabel  || raw.labelPdfUrl   ||
-    raw.shipmentLabel  || raw.ShipmentLabel    || '';
-  if (direct) return direct;
-
-  // Nested inside Shipment block (Amazon sometimes wraps it here)
-  const nested = raw.Shipment || raw.shipment || raw.data || raw.result;
-  if (nested && typeof nested === 'object') {
-    const n =
-      nested.shippingLabel || nested.label_url   || nested.labelUrl     || nested.LabelUrl  ||
-      nested.ShippingLabel || nested.label        || nested.pdf          || nested.pdfUrl    ||
-      nested.printLabel    || nested.amazonLabel  || nested.labelLink    || nested.labelPdfUrl || '';
-    if (n) return n;
-  }
-
-  // waybillDetails array (track endpoint also returns label for Amazon)
-  const details = raw.waybillDetails || raw.WaybillDetails;
-  if (Array.isArray(details) && details.length) {
-    const d0 = details[0];
-    const dl =
-      d0.shippingLabel || d0.label_url || d0.labelUrl || d0.LabelUrl ||
-      d0.ShippingLabel || d0.label     || d0.pdf      || d0.pdfUrl   ||
-      d0.printLabel    || d0.amazonLabel || d0.labelLink || '';
-    if (dl) return dl;
-  }
-
-  return '';
-}
-
 // ─── FETCH LABEL URL (for orders where shippingLabel was empty in waybill response) ──
 async function fetchLabelUrl(token, awb) {
   if (!awb) return null;
-
-  const tryGet = async (url) => {
-    try {
-      const res = await axios.get(url, { headers: authHeaders(token), timeout: 15000 });
-      return extractLabelUrl(res.data) || null;
-    } catch (_) { return null; }
-  };
-
-  const tryPost = async (url, body) => {
-    try {
-      const res = await axios.post(url, body, { headers: authHeaders(token), timeout: 15000 });
-      return extractLabelUrl(res.data) || null;
-    } catch (_) { return null; }
-  };
-
-  // 1. waybillDetails (track) — Amazon returns label here
-  const trackLabel = await tryPost(`${BASE}/waybillDetails`, { waybills: String(awb) })
-    || await tryGet(`${BASE}/waybillDetails?waybill=${awb}`)
-    || await tryGet(`${BASE}/waybillDetails?waybills=${awb}`);
-  if (trackLabel) return trackLabel;
-
-  // 2. Dedicated label endpoints
-  const endpoints = [
-    `${BASE}/label?waybill=${awb}`,
-    `${BASE}/getLabel?waybill=${awb}`,
-    `${BASE}/waybillLabel?waybill=${awb}`,
-    `${BASE}/printLabel?waybill=${awb}`,
-    `${BASE}/amazonLabel?waybill=${awb}`,
-    `${BASE}/label/${awb}`,
-  ];
-  for (const url of endpoints) {
-    const label = await tryGet(url);
-    if (label) return label;
-  }
-  return null;
+  return safeCall(async () => {
+    // Try common Selloship label endpoints
+    const endpoints = [
+      `${BASE}/label?waybill=${awb}`,
+      `${BASE}/getLabel?waybill=${awb}`,
+      `${BASE}/waybillLabel?waybill=${awb}`,
+    ];
+    for (const url of endpoints) {
+      try {
+        const res = await axios.get(url, { headers: authHeaders(token), timeout: 15000 });
+        const d = res.data;
+        const label = d.shippingLabel || d.label_url || d.labelUrl || d.LabelUrl ||
+          d.ShippingLabel || d.label || d.pdf || d.pdfUrl;
+        if (label) return label;
+      } catch (_) { /* try next */ }
+    }
+    return null;
+  });
 }
 
 module.exports = {
-  extractLabelUrl,
   BASE,
   getSelloToken,
   getCredentials,
