@@ -140,8 +140,8 @@ html.dark{
   --danger:#F87171;--danger-light:rgba(248,113,113,.12);
   --warning:#FCD34D;--warning-light:rgba(252,211,77,.12);
   --info:#A78BFA;--info-light:rgba(167,139,250,.12);
-  --bg:#0F172A;--bg2:#1E293B;
-  --card:#1E293B;--border:#334155;--border2:#475569;
+  --bg:#0A0F1E;--bg2:#131929;
+  --card:#1a2436;--border:#2d3f55;--border2:#3d5270;
   --topbar:#1E293B;
   --text:#F1F5F9;--text2:#CBD5E1;--muted:#94A3B8;--dim:#64748B;
   --text-muted:#94A3B8;--primary:#3B82F6;
@@ -183,6 +183,7 @@ html.dark .theme-toggle .icon-sun{display:block}
 .toast-error{color:var(--danger);border:1.5px solid #FECACA;border-left:4px solid var(--danger)}
 .toast-info{color:var(--info);border:1.5px solid #DDD6FE;border-left:4px solid var(--info)}
 
+@keyframes spin{to{transform:rotate(360deg)}}
 .empty{text-align:center;padding:48px;color:var(--muted);font-size:.9rem}
 .chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -1505,20 +1506,32 @@ async function api(method, path, body) {
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 async function loadDashboard() {
  const d = await api('GET', '/analytics/admin/dashboard');
- if (!d?.success) return;
- const s = d.stats;
- document.getElementById('s-orders').textContent = s.totalOrders;
- document.getElementById('s-delivered').textContent = s.deliveredCount;
- document.getElementById('s-rto').textContent = s.rtoCount;
- document.getElementById('s-ndr').textContent = s.ndrCount;
- document.getElementById('s-users').textContent = s.totalUsers;
- document.getElementById('s-cod').textContent = '₹' + (s.codPending||0).toLocaleString();
- document.getElementById('s-recharge').textContent = '₹' + (s.totalRecharge||0).toLocaleString();
- document.getElementById('s-tickets').textContent = s.openTickets;
- document.getElementById('qa-kyc').textContent = s.pendingKYC;
- document.getElementById('qa-tickets').textContent = s.openTickets;
+ if (!d || !d.success) {
+   // Show zeros instead of blank — panel still looks functional
+   ['s-orders','s-delivered','s-rto','s-ndr','s-users','qa-kyc','qa-tickets','s-tickets'].forEach(id => {
+     const el = document.getElementById(id); if (el) el.textContent = '0';
+   });
+   ['s-cod','s-recharge'].forEach(id => {
+     const el = document.getElementById(id); if (el) el.textContent = '₹0';
+   });
+   const tbody = document.getElementById('recent-recharges');
+   if (tbody) tbody.innerHTML = '<tr><td colspan="3" class="empty" style="padding:16px">Could not load dashboard data. <button class="btn btn-outline btn-sm" onclick="loadDashboard()">Retry</button></td></tr>';
+   return;
+ }
+ const s = d.stats || {};
+ const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+ setText('s-orders', s.totalOrders || 0);
+ setText('s-delivered', s.deliveredCount || 0);
+ setText('s-rto', s.rtoCount || 0);
+ setText('s-ndr', s.ndrCount || 0);
+ setText('s-users', s.totalUsers || 0);
+ setText('s-cod', '₹' + (s.codPending||0).toLocaleString('en-IN'));
+ setText('s-recharge', '₹' + (s.totalRecharge||0).toLocaleString('en-IN'));
+ setText('s-tickets', s.openTickets || 0);
+ setText('qa-kyc', s.pendingKYC || 0);
+ setText('qa-tickets', s.openTickets || 0);
  const tbody = document.getElementById('recent-recharges');
- tbody.innerHTML = (d.recentRecharges||[]).map(r => `<tr><td>${r.user?.name||'—'}</td><td>₹${r.amount}</td><td>${fmtDate(r.createdAt)}</td></tr>`).join('');
+ if (tbody) tbody.innerHTML = (d.recentRecharges||[]).map(r => `<tr><td>${r.user?.name||'—'}</td><td>₹${(r.amount||0).toLocaleString('en-IN')}</td><td>${fmtDate(r.createdAt)}</td></tr>`).join('') || '<tr><td colspan="3" class="empty" style="padding:16px">No recent recharges</td></tr>';
 }
 
 // ─── USERS ───────────────────────────────────────────────────────────────────
@@ -1528,29 +1541,42 @@ async function loadUsers() {
  const blocked = document.getElementById('user-blocked').value;
  const kyc = document.getElementById('user-kyc').value;
  let q = `?page=${userPage}&limit=15`;
- if (search) q += `&search=${search}`;
+ if (search) q += `&search=${encodeURIComponent(search)}`;
  if (blocked) q += `&isBlocked=${blocked}`;
  if (kyc) q += `&kycStatus=${kyc}`;
- const d = await api('GET', '/users' + q);
- if (!d?.success) return;
  const tbody = document.getElementById('users-tbody');
+ tbody.innerHTML = '<tr><td colspan="7" class="empty" style="padding:32px"><div style="display:inline-block;width:22px;height:22px;border:3px solid var(--border2);border-top-color:var(--brand2);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle"></div> Loading users...</td></tr>';
+ const d = await api('GET', '/users' + q);
+ if (!d) {
+   tbody.innerHTML = '<tr><td colspan="7" class="empty" style="color:var(--danger)">⚠ Network error — could not reach server. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadUsers()">Retry</button></td></tr>';
+   return;
+ }
+ if (!d.success) {
+   tbody.innerHTML = `<tr><td colspan="7" class="empty" style="color:var(--danger)">⚠ ${d.message||'Failed to load users'} <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadUsers()">Retry</button></td></tr>`;
+   return;
+ }
+ if (!d.users || d.users.length === 0) {
+   tbody.innerHTML = '<tr><td colspan="7" class="empty">No users found matching your filters.</td></tr>';
+   document.getElementById('users-pagination').innerHTML = '';
+   return;
+ }
  tbody.innerHTML = d.users.map(u => `
  <tr>
- <td><b>${u.name}</b><br/><small style="color:var(--text-muted)">${u.email}</small></td>
- <td>${u.email}</td>
- <td>₹${(u.walletBalance||0).toLocaleString()}</td>
- <td><span class="status s-${u.kyc?.status||'not_submitted'}">${u.kyc?.status||'N/A'}</span></td>
+ <td><b>${u.name||'—'}</b><br/><small style="color:var(--muted);font-size:.78rem">${u.email}</small></td>
+ <td style="font-size:.82rem">${u.email}</td>
+ <td>₹${(u.walletBalance||0).toLocaleString('en-IN')}</td>
+ <td><span class="status s-${u.kyc?.status||'pending'}">${u.kyc?.status||'N/A'}</span></td>
  <td>${u.isBlocked?'<span class="status s-rejected">Blocked</span>':u.isFlagged?'<span class="status s-ndr">Flagged</span>':'<span class="status s-approved">Active</span>'}</td>
- <td>—</td>
- <td>
- <button class="btn btn-outline btn-sm" onclick="openWalletForUser('${u._id}')">💰</button>
- <button class="btn btn-outline btn-sm" onclick="openLimitsModal('${u._id}','${u.limits?.maxOrdersPerDay||100}','${u.limits?.codLimit||50000}')">🔒</button>
- <button class="btn btn-outline btn-sm" onclick="openSetPasswordModal('${u._id}','${u.name}')">🔑 Set Pass</button>
+ <td>${u.ordersCount||'—'}</td>
+ <td style="white-space:nowrap">
+ <button class="btn btn-outline btn-sm" onclick="openWalletForUser('${u._id}')" title="Wallet">💰</button>
+ <button class="btn btn-outline btn-sm" onclick="openLimitsModal('${u._id}','${u.limits?.maxOrdersPerDay||100}','${u.limits?.codLimit||50000}')" title="Limits">🔒</button>
+ <button class="btn btn-outline btn-sm" onclick="openSetPasswordModal('${u._id}','${u.name}')" title="Set Password">🔑</button>
  <button class="btn btn-sm ${u.isBlocked?'btn-success':'btn-danger'}" onclick="toggleBlock('${u._id}','${u.isBlocked}')">${u.isBlocked?'Unblock':'Block'}</button>
  <button class="btn btn-sm ${u.isFlagged?'btn-success':'btn-warning'}" onclick="toggleFlag('${u._id}','${u.isFlagged}')">${u.isFlagged?'Unflag':'Flag'}</button>
  </td>
- </tr>`).join('') || '<tr><td colspan="7" class="empty">No users</td></tr>';
- renderPagination('users-pagination', d.page, Math.ceil(d.total/15), p => { userPage = p; loadUsers(); });
+ </tr>`).join('');
+ renderPagination('users-pagination', d.page, Math.ceil((d.total||0)/15), p => { userPage = p; loadUsers(); });
 }
 
 async function toggleBlock(uid, current) {
@@ -1600,17 +1626,32 @@ async function saveClientPassword() {
 // ─── KYC ─────────────────────────────────────────────────────────────────────
 async function loadKYC() {
  const status = document.getElementById('kyc-filter').value || 'pending';
- const d = await api('GET', '/kyc/admin/list' + (status ? `?status=${status}` : ''));
- if (!d?.success) return;
  const tbody = document.getElementById('kyc-tbody');
- tbody.innerHTML = d.users.map(u => `
+ tbody.innerHTML = '<tr><td colspan="7" class="empty"><div style="display:inline-block;width:20px;height:20px;border:3px solid var(--border2);border-top-color:var(--brand2);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle"></div> Loading KYC submissions...</td></tr>';
+ const d = await api('GET', '/kyc/admin/list' + (status ? `?status=${status}` : ''));
+ if (!d) {
+   tbody.innerHTML = '<tr><td colspan="7" class="empty" style="color:var(--danger)">⚠ Network error. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadKYC()">Retry</button></td></tr>';
+   return;
+ }
+ if (!d.success) {
+   tbody.innerHTML = `<tr><td colspan="7" class="empty" style="color:var(--danger)">⚠ ${d.message||'Failed to load KYC data'} <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadKYC()">Retry</button></td></tr>`;
+   return;
+ }
+ const users = d.users || [];
+ if (!users.length) {
+   tbody.innerHTML = '<tr><td colspan="7" class="empty">No KYC submissions found.</td></tr>';
+   return;
+ }
+ tbody.innerHTML = users.map(u => `
  <tr>
- <td>${u.name}</td><td>${u.email}</td>
- <td>${u.kyc?.panNumber||'—'}</td><td>${u.kyc?.aadhaarNumber||'—'}</td>
- <td><span class="status s-${u.kyc?.status}">${u.kyc?.status}</span></td>
- <td>${fmtDate(u.kyc?.submittedAt)}</td>
+ <td><b>${u.name||'—'}</b></td>
+ <td style="font-size:.82rem">${u.email}</td>
+ <td style="font-family:monospace;font-size:.82rem">${u.kyc?.panNumber||'—'}</td>
+ <td style="font-family:monospace;font-size:.82rem">${u.kyc?.aadhaarNumber||'—'}</td>
+ <td><span class="status s-${u.kyc?.status||'pending'}">${u.kyc?.status||'pending'}</span></td>
+ <td style="font-size:.8rem">${fmtDate(u.kyc?.submittedAt)}</td>
  <td><button class="btn btn-primary btn-sm" onclick="openKYCModal('${u._id}')">Review</button></td>
- </tr>`).join('') || '<tr><td colspan="7" class="empty">No KYC submissions</td></tr>';
+ </tr>`).join('');
 }
 async function openKYCModal(uid) {
  document.getElementById('kycm-id').value = uid;
@@ -1786,31 +1827,45 @@ async function loadRecharges() {
  if (from) q += `from=${from}&`;
  if (to) q += `to=${to}&`;
  if (status) q += `status=${status}&`;
- const d = await api('GET', '/wallet/admin/recharges' + q);
- if (!d?.success) return;
- document.getElementById('recharge-summary').innerHTML = `
- <div class="stat-card" style="border-color:var(--success)"><div class="label">Total Recharges</div><div class="value">₹${(d.totalAmount||0).toLocaleString()}</div></div>
- <div class="stat-card" style="border-color:var(--primary)"><div class="label">Count</div><div class="value">${d.total}</div></div>`;
  const tbody = document.getElementById('recharges-tbody');
- tbody.innerHTML = d.recharges.map(r => `<tr>
-      <td>${r.user?.name||'—'}<br/><small style="color:var(--text-muted)">${r.user?.email||''}</small></td>
-      <td><b>₹${r.amount}</b></td>
-      <td><span class="status s-${r.status}">${r.status}</span></td>
-      <td>${r.paymentGateway||'manual'}</td>
-      <td>${fmtDate(r.createdAt)}</td>
-      <td>${r.status==='pending'
-        ? `<button class="btn btn-success btn-sm" onclick="approveRecharge('${r._id}')">✓ Approve</button>
-           <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="rejectRecharge('${r._id}')">✗ Reject</button>`
-        : `<span style="font-size:.75rem;color:var(--text-muted)">${r.status}</span>`
-      }</td>
-    </tr>`).join('') || '<tr><td colspan="6" class="empty">No recharges found</td></tr>';
+ tbody.innerHTML = '<tr><td colspan="6" class="empty"><div style="display:inline-block;width:20px;height:20px;border:3px solid var(--border2);border-top-color:var(--brand2);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle"></div> Loading recharges...</td></tr>';
+ const d = await api('GET', '/wallet/admin/recharges' + q);
+ if (!d) {
+   tbody.innerHTML = '<tr><td colspan="6" class="empty" style="color:var(--danger)">⚠ Network error — could not reach server. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadRecharges()">Retry</button></td></tr>';
+   return;
+ }
+ if (!d.success) {
+   tbody.innerHTML = `<tr><td colspan="6" class="empty" style="color:var(--danger)">⚠ ${d.message||'Failed to load recharges'} <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadRecharges()">Retry</button></td></tr>`;
+   return;
+ }
+ document.getElementById('recharge-summary').innerHTML = `
+ <div class="stat-card" style="--accent-color:var(--success)"><div class="label">Total Approved</div><div class="value">₹${(d.totalAmount||0).toLocaleString('en-IN')}</div></div>
+ <div class="stat-card" style="--accent-color:var(--brand)"><div class="label">Total Requests</div><div class="value">${d.total||0}</div></div>
+ <div class="stat-card" style="--accent-color:var(--warning)"><div class="label">Pending</div><div class="value">${(d.recharges||[]).filter(r=>r.status==='pending').length}</div></div>`;
+ const recharges = d.recharges || [];
+ if (!recharges.length) {
+   tbody.innerHTML = '<tr><td colspan="6" class="empty">No recharge requests found for the selected filters.</td></tr>';
+   return;
+ }
+ tbody.innerHTML = recharges.map(r => `<tr>
+ <td><b>${r.user?.name||'—'}</b><br/><small style="color:var(--muted);font-size:.78rem">${r.user?.email||''}</small></td>
+ <td><b>₹${(r.amount||0).toLocaleString('en-IN')}</b></td>
+ <td><span class="status s-${r.status}">${r.status}</span></td>
+ <td style="font-size:.82rem">${r.paymentGateway||'manual'}</td>
+ <td style="font-size:.82rem">${fmtDate(r.createdAt)}</td>
+ <td>${r.status==='pending'
+   ? `<button class="btn btn-success btn-sm" onclick="approveRecharge('${r._id}')">✓ Approve</button>
+      <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="rejectRecharge('${r._id}')">✗ Reject</button>`
+   : `<span class="status s-${r.status}" style="font-size:.72rem">${r.status}</span>`
+ }</td>
+ </tr>`).join('');
  // Load current QR
  const qd = await api('GET', '/wallet/recharge-qr');
  if (qd?.qrImageUrl) {
- const prev = document.getElementById('admin-qr-preview');
- if (prev) prev.innerHTML = `<img src="${qd.qrImageUrl}" style="width:100%;height:100%;object-fit:cover"/>`;
- const inp = document.getElementById('admin-qr-url');
- if (inp) inp.value = qd.qrImageUrl;
+   const prev = document.getElementById('admin-qr-preview');
+   if (prev) prev.innerHTML = `<img src="${qd.qrImageUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:10px"/>`;
+   const inp = document.getElementById('admin-qr-url');
+   if (inp) inp.value = qd.qrImageUrl;
  }
  const msgEl = document.getElementById('admin-qr-msg');
  if (msgEl && qd?.message) msgEl.value = qd.message;
@@ -1852,14 +1907,36 @@ async function rejectRecharge(id) {
 // ─── COD ─────────────────────────────────────────────────────────────────────
 async function loadCOD() {
  const status = document.getElementById('cod-filter').value;
- const d = await api('GET', '/cod' + (status ? `?status=${status}` : ''));
- if (!d?.success) return;
- document.getElementById('cod-summary').innerHTML = `
- <div class="stat-card" style="border-color:var(--primary)"><div class="label">Expected</div><div class="value">₹${(d.summary?.totalExpected||0).toLocaleString()}</div></div>
- <div class="stat-card" style="border-color:var(--success)"><div class="label">Received</div><div class="value">₹${(d.summary?.totalReceived||0).toLocaleString()}</div></div>
- <div class="stat-card" style="border-color:var(--danger)"><div class="label">Pending</div><div class="value">₹${((d.summary?.totalExpected||0)-(d.summary?.totalReceived||0)).toLocaleString()}</div></div>`;
  const tbody = document.getElementById('cod-tbody');
- tbody.innerHTML = d.records.map(r => `<tr><td>${r.order?.orderId||'—'}</td><td>${r.user?.name||'—'}</td><td>${r.awbNumber||'—'}</td><td>₹${r.expectedAmount}</td><td>₹${r.receivedAmount}</td><td><span class="status s-${r.status}">${r.status}</span></td><td><button class="btn btn-outline btn-sm" onclick="openCODModal('${r._id}',${r.receivedAmount},'${r.status}')">Update</button></td></tr>`).join('') || '<tr><td colspan="7" class="empty">No records</td></tr>';
+ tbody.innerHTML = '<tr><td colspan="7" class="empty"><div style="display:inline-block;width:20px;height:20px;border:3px solid var(--border2);border-top-color:var(--brand2);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle"></div> Loading COD records...</td></tr>';
+ const d = await api('GET', '/cod' + (status ? `?status=${status}` : ''));
+ if (!d) {
+   tbody.innerHTML = '<tr><td colspan="7" class="empty" style="color:var(--danger)">⚠ Network error. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadCOD()">Retry</button></td></tr>';
+   return;
+ }
+ if (!d.success) {
+   tbody.innerHTML = `<tr><td colspan="7" class="empty" style="color:var(--danger)">⚠ ${d.message||'Failed to load COD data'} <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadCOD()">Retry</button></td></tr>`;
+   return;
+ }
+ const s = d.summary || {};
+ document.getElementById('cod-summary').innerHTML = `
+ <div class="stat-card" style="--accent-color:var(--brand)"><div class="label">Expected</div><div class="value">₹${(s.totalExpected||0).toLocaleString('en-IN')}</div></div>
+ <div class="stat-card" style="--accent-color:var(--success)"><div class="label">Received</div><div class="value">₹${(s.totalReceived||0).toLocaleString('en-IN')}</div></div>
+ <div class="stat-card" style="--accent-color:var(--danger)"><div class="label">Pending</div><div class="value">₹${((s.totalExpected||0)-(s.totalReceived||0)).toLocaleString('en-IN')}</div></div>`;
+ const records = d.records || [];
+ if (!records.length) {
+   tbody.innerHTML = '<tr><td colspan="7" class="empty">No COD records found.</td></tr>';
+   return;
+ }
+ tbody.innerHTML = records.map(r => `<tr>
+ <td><b>${r.order?.orderId||'—'}</b></td>
+ <td>${r.user?.name||'—'}</td>
+ <td style="font-family:monospace;font-size:.82rem">${r.awbNumber||'—'}</td>
+ <td>₹${(r.expectedAmount||0).toLocaleString('en-IN')}</td>
+ <td>₹${(r.receivedAmount||0).toLocaleString('en-IN')}</td>
+ <td><span class="status s-${r.status}">${r.status}</span></td>
+ <td><button class="btn btn-outline btn-sm" onclick="openCODModal('${r._id}',${r.receivedAmount},'${r.status}')">Update</button></td>
+ </tr>`).join('');
 }
 function openCODModal(id, received, status) {
  document.getElementById('codm-id').value = id;
@@ -1897,34 +1974,46 @@ async function loadOrders() {
  if (from) q += `&from=${from}`;
  if (to) q += `&to=${to}`;
  if (search) q += `&search=${encodeURIComponent(search)}`;
- const d = await api('GET', '/orders' + q);
- if (!d?.success) return;
  const tbody = document.getElementById('orders-tbody');
- tbody.innerHTML = d.orders.map(o => {
+ tbody.innerHTML = '<tr><td colspan="9" class="empty"><div style="display:inline-block;width:20px;height:20px;border:3px solid var(--border2);border-top-color:var(--brand2);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle"></div> Loading orders...</td></tr>';
+ const d = await api('GET', '/orders' + q);
+ if (!d) {
+   tbody.innerHTML = '<tr><td colspan="9" class="empty" style="color:var(--danger)">⚠ Network error. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadOrders()">Retry</button></td></tr>';
+   return;
+ }
+ if (!d.success) {
+   tbody.innerHTML = `<tr><td colspan="9" class="empty" style="color:var(--danger)">⚠ ${d.message||'Failed to load orders'} <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadOrders()">Retry</button></td></tr>`;
+   return;
+ }
+ const orders = d.orders || [];
+ if (!orders.length) {
+   tbody.innerHTML = '<tr><td colspan="9" class="empty">No orders found matching your filters.</td></tr>';
+   renderPagination('orders-pagination', 1, 1, () => {});
+   return;
+ }
+ tbody.innerHTML = orders.map(o => {
  const sello = o.selloship || {};
  const canShip = ['draft','processing'].includes(o.status);
  const awbCell = o.awbNumber
- ? `<b>${o.awbNumber}</b>${sello.courierName ? `<br/><small style="color:var(--text-muted)">${sello.courierName}</small>` : ''}`
- : '—';
- const labelBtn = sello.labelUrl
- ? `<a href="${sello.labelUrl}" target="_blank" class="btn btn-outline btn-sm">🏷</a> `
- : '';
+   ? `<b style="font-family:monospace;font-size:.82rem">${o.awbNumber}</b>${sello.courierName ? `<br/><small style="color:var(--muted)">${sello.courierName}</small>` : ''}`
+   : '<span style="color:var(--muted)">—</span>';
+ const labelBtn = sello.labelUrl ? `<a href="${sello.labelUrl}" target="_blank" class="btn btn-outline btn-sm" title="Label">🏷</a> ` : '';
  return `<tr>
- <td><b>${o.orderId}</b></td>
- <td>${o.user?.name||'—'}<br/><small>${o.user?.email||''}</small></td>
- <td>${o.recipient?.name||'—'}<br/><small>${o.recipient?.phone||''}</small></td>
- <td>${o.recipient?.pincode||'—'}</td>
- <td>${o.paymentMode==='cod'?'₹'+o.codAmount:'Prepaid'}</td>
+ <td><b style="font-family:monospace;font-size:.82rem">${o.orderId}</b></td>
+ <td><b>${o.user?.name||'—'}</b><br/><small style="color:var(--muted);font-size:.75rem">${o.user?.email||''}</small></td>
+ <td>${o.recipient?.name||'—'}<br/><small style="color:var(--muted);font-size:.75rem">${o.recipient?.phone||''}</small></td>
+ <td style="font-family:monospace;font-size:.82rem">${o.recipient?.pincode||'—'}</td>
+ <td>${o.paymentMode==='cod'?'<b>₹'+o.codAmount+'</b>':'<span class="status s-prepaid">Prepaid</span>'}</td>
  <td><span class="status s-${o.status}">${o.status}</span></td>
  <td>${awbCell}</td>
- <td>${fmtDate(o.createdAt)}</td>
+ <td style="font-size:.8rem">${fmtDate(o.createdAt)}</td>
  <td style="white-space:nowrap">
  ${labelBtn}
  ${canShip ? `<button class="btn btn-primary btn-sm" onclick="adminShipOrder('${o._id}')">🚀 Ship</button> ` : ''}
- <button class="btn btn-outline btn-sm" onclick="openOrderStatusModal('${o._id}')">✏ Status</button>
+ <button class="btn btn-outline btn-sm" onclick="openOrderStatusModal('${o._id}')">✏</button>
  </td>
  </tr>`;
- }).join('') || '<tr><td colspan="9" class="empty">No orders found</td></tr>';
+ }).join('');
  renderPagination('orders-pagination', orderPage, d.pages || 1, p => { orderPage = p; loadOrders(); });
 }
 
@@ -1993,20 +2082,34 @@ function adminViewOrder(orderId) {
 
 async function loadNDR() {
  const status = document.getElementById('ndr-filter').value;
- const d = await api('GET', '/ndr' + (status ? `?status=${status}` : ''));
- if (!d?.success) return;
  const tbody = document.getElementById('ndr-tbody');
- tbody.innerHTML = d.ndrs.map(n => `
+ tbody.innerHTML = '<tr><td colspan="7" class="empty"><div style="display:inline-block;width:20px;height:20px;border:3px solid var(--border2);border-top-color:var(--brand2);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle"></div> Loading NDR records...</td></tr>';
+ const d = await api('GET', '/ndr' + (status ? `?status=${status}` : ''));
+ if (!d) {
+   tbody.innerHTML = '<tr><td colspan="7" class="empty" style="color:var(--danger)">⚠ Network error. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadNDR()">Retry</button></td></tr>';
+   return;
+ }
+ if (!d.success) {
+   tbody.innerHTML = `<tr><td colspan="7" class="empty" style="color:var(--danger)">⚠ ${d.message||'Failed to load NDR data'} <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadNDR()">Retry</button></td></tr>`;
+   return;
+ }
+ const ndrs = d.ndrs || [];
+ if (!ndrs.length) {
+   tbody.innerHTML = '<tr><td colspan="7" class="empty">No NDR records found.</td></tr>';
+   return;
+ }
+ tbody.innerHTML = ndrs.map(n => `
  <tr>
- <td>${n.order?.orderId||'—'}</td>
+ <td><b style="font-family:monospace;font-size:.82rem">${n.order?.orderId||'—'}</b></td>
  <td>${n.user?.name||'—'}</td>
- <td>${n.awbNumber||'—'}</td>
+ <td style="font-family:monospace;font-size:.82rem">${n.awbNumber||'—'}</td>
  <td>${n.reason||'—'}</td>
- <td>${n.attempts}</td>
- <td><span class="status s-${n.status?.replace('_','-')}">${n.status}</span></td>
- <td><button class="btn btn-primary btn-sm" onclick="openNDRModal('${n._id}','${n.status}')">Update</button></td>
- </tr>`).join('') || '<tr><td colspan="7" class="empty">No NDR cases</td></tr>';
+ <td><span class="status s-${n.status}">${n.status}</span></td>
+ <td style="font-size:.8rem">${fmtDate(n.createdAt)}</td>
+ <td><button class="btn btn-outline btn-sm" onclick="openNDRModal('${n._id}','${n.status}')">Update</button></td>
+ </tr>`).join('');
 }
+
 function openNDRModal(id, status) {
  document.getElementById('ndrm-id').value = id;
  document.getElementById('ndrm-status').value = status;
@@ -2025,24 +2128,37 @@ async function updateNDR() {
 
 // ─── COURIERS ────────────────────────────────────────────────────────────────
 async function loadCouriers() {
- const d = await api('GET', '/couriers');
- if (!d?.success) return;
  const tbody = document.getElementById('couriers-tbody');
- tbody.innerHTML = d.couriers.map(c => `
- <tr>
- <td>${c.logoUrl?`<img src="${c.logoUrl}" height="24" style="margin-right:8px"/>`:''}${c.name}</td>
- <td>${c.code}</td>
- <td>${c.supportsCOD?'✓':'✗'}</td>
- <td><span class="status s-${c.isActive?'approved':'rejected'}">${c.isActive?'Active':'Disabled'}</span></td>
- <td><button class="btn btn-outline btn-sm" onclick="editCourier('${c._id}')">⚙ Config</button></td>
- <td>
- <button class="btn btn-outline btn-sm" onclick="editCourier('${c._id}')">Edit</button>
- <button class="btn btn-sm ${c.isActive?'btn-danger':'btn-success'}" onclick="toggleCourier('${c._id}')">${c.isActive?'Disable':'Enable'}</button>
- </td>
- </tr>`).join('') || '<tr><td colspan="6" class="empty">No couriers</td></tr>';
+ tbody.innerHTML = '<tr><td colspan="6" class="empty"><div style="display:inline-block;width:20px;height:20px;border:3px solid var(--border2);border-top-color:var(--brand2);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle"></div> Loading couriers...</td></tr>';
+ const d = await api('GET', '/couriers');
+ if (!d) {
+   tbody.innerHTML = '<tr><td colspan="6" class="empty" style="color:var(--danger)">⚠ Network error. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadCouriers()">Retry</button></td></tr>';
+   return;
+ }
+ if (!d.success) {
+   tbody.innerHTML = `<tr><td colspan="6" class="empty" style="color:var(--danger)">⚠ ${d.message||'Failed to load couriers'} <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadCouriers()">Retry</button></td></tr>`;
+   return;
+ }
+ const couriers = d.couriers || [];
+ if (!couriers.length) {
+   tbody.innerHTML = '<tr><td colspan="6" class="empty">No couriers configured yet.</td></tr>';
+ } else {
+   tbody.innerHTML = couriers.map(c => `
+   <tr>
+   <td>${c.logoUrl?`<img src="${c.logoUrl}" height="24" style="margin-right:8px;vertical-align:middle"/>`:''}${c.name}</td>
+   <td><code style="font-size:.8rem">${c.code}</code></td>
+   <td>${c.supportsCOD?'<span style="color:var(--success)">✓</span>':'<span style="color:var(--muted)">✗</span>'}</td>
+   <td><span class="status s-${c.isActive?'approved':'rejected'}">${c.isActive?'Active':'Disabled'}</span></td>
+   <td><button class="btn btn-outline btn-sm" onclick="editCourier('${c._id}')">⚙ Config</button></td>
+   <td>
+   <button class="btn btn-outline btn-sm" onclick="editCourier('${c._id}')">Edit</button>
+   <button class="btn btn-sm ${c.isActive?'btn-danger':'btn-success'}" onclick="toggleCourier('${c._id}')">${c.isActive?'Disable':'Enable'}</button>
+   </td>
+   </tr>`).join('');
+ }
  // Populate courier selects in rate modal
  const sel = document.getElementById('rm-courier');
- sel.innerHTML = '<option value="">Select...</option>' + d.couriers.map(c=>`<option value="${c._id}">${c.name}</option>`).join('');
+ if (sel) sel.innerHTML = '<option value="">Select...</option>' + couriers.map(c=>`<option value="${c._id}">${c.name}</option>`).join('');
 }
 async function toggleCourier(id) {
  const d = await api('PATCH', `/couriers/${id}/toggle`);
@@ -2421,20 +2537,33 @@ async function deleteRate(id) {
 
 async function loadTickets() {
  const status = document.getElementById('ticket-filter').value;
- const d = await api('GET', '/tickets' + (status ? `?status=${status}` : ''));
- if (!d?.success) return;
  const tbody = document.getElementById('tickets-tbody');
- tbody.innerHTML = d.tickets.map(t => `
+ tbody.innerHTML = '<tr><td colspan="8" class="empty"><div style="display:inline-block;width:20px;height:20px;border:3px solid var(--border2);border-top-color:var(--brand2);border-radius:50%;animation:spin .7s linear infinite;margin-right:8px;vertical-align:middle"></div> Loading tickets...</td></tr>';
+ const d = await api('GET', '/tickets' + (status ? `?status=${status}` : ''));
+ if (!d) {
+   tbody.innerHTML = '<tr><td colspan="8" class="empty" style="color:var(--danger)">⚠ Network error. <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadTickets()">Retry</button></td></tr>';
+   return;
+ }
+ if (!d.success) {
+   tbody.innerHTML = `<tr><td colspan="8" class="empty" style="color:var(--danger)">⚠ ${d.message||'Failed to load tickets'} <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="loadTickets()">Retry</button></td></tr>`;
+   return;
+ }
+ const tickets = d.tickets || [];
+ if (!tickets.length) {
+   tbody.innerHTML = '<tr><td colspan="8" class="empty">No support tickets found.</td></tr>';
+   return;
+ }
+ tbody.innerHTML = tickets.map(t => `
  <tr>
- <td><b>${t.ticketId}</b></td>
+ <td><b style="font-family:monospace;font-size:.82rem">${t.ticketId}</b></td>
  <td>${t.user?.name||'—'}</td>
- <td>${t.subject}</td>
- <td>${t.category}</td>
- <td>${t.priority}</td>
+ <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.subject}</td>
+ <td><span style="font-size:.78rem">${t.category||'—'}</span></td>
+ <td><span class="status s-${t.priority==='high'?'ndr':t.priority==='urgent'?'rejected':'pending'}" style="font-size:.7rem">${t.priority||'normal'}</span></td>
  <td><span class="status s-${t.status}">${t.status}</span></td>
- <td>${fmtDate(t.updatedAt)}</td>
+ <td style="font-size:.8rem">${fmtDate(t.updatedAt)}</td>
  <td><button class="btn btn-primary btn-sm" onclick="openTicketModal('${t._id}','${t.ticketId}')">Reply</button></td>
- </tr>`).join('') || '<tr><td colspan="8" class="empty">No tickets</td></tr>';
+ </tr>`).join('');
 }
 async function openTicketModal(id, ticketId) {
  document.getElementById('tm-ticket-id').value = id;
