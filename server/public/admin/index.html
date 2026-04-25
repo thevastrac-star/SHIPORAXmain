@@ -3231,8 +3231,6 @@ async function deleteCrRate(id) {
  if (d?.success) { toast('Rate deleted','info'); loadCrRates(crSelectedUser._id); }
  else toast(d?.message || 'Error','error');
 }
-</script>
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SHOPIFY ADMIN
@@ -3346,6 +3344,8 @@ function showStoreSyncErrors(shop) {
   ).join('\n');
   alert(`Sync errors for ${shop}:\n\n${msg}`);
 }
+</script>
+
 
 
 <script>

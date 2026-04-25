@@ -3790,19 +3790,7 @@ function printLabelPreview() {
  const html = document.getElementById('label-preview-inner')?.innerHTML;
  if (!html) return;
  const w=window.open('','_blank');
- w.document.write(`<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;margin:0;padding:8mm}@media print{body{margin:0}}</style></head><body>${html}
-<script>
-// ── DARK MODE ──────────────────────────────────────────────────────────────
-function applyTheme(t) {
-  document.documentElement.classList.toggle('dark', t === 'dark');
-  localStorage.setItem('shiporax_theme', t);
-}
-function toggleTheme() {
-  applyTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark');
-}
-(function(){ applyTheme(localStorage.getItem('shiporax_theme') || 'light'); })();
-</script>
-</body></html>`);
+ w.document.write(`<!DOCTYPE html><html><head><style>body{font-family:Arial,sans-serif;margin:0;padding:8mm}@media print{body{margin:0}}</style></head><body>${html}</body></html>`);
  w.document.close(); setTimeout(()=>w.print(),500);
 }
 
