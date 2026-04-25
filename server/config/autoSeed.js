@@ -10,19 +10,17 @@ async function autoSeed() {
     const adminEmail    = process.env.ADMIN_EMAIL    || 'admin@kourierwale.com';
     const adminPassword = process.env.ADMIN_PASSWORD;
 
-    // FIX #11: crash if ADMIN_PASSWORD not set — never use default in production
     if (!adminPassword) {
-      console.error('❌ ADMIN_PASSWORD env var is not set! Server cannot seed admin safely. Set it and restart.');
-      process.exit(1);
-    }
-
-    const adminExists = await User.findOne({ email: adminEmail });
-    if (!adminExists) {
-      await User.create({ name: 'Super Admin', email: adminEmail, password: adminPassword,
-        role: 'admin', kyc: { status: 'approved' } });
-      console.log(`✅ Admin created → ${adminEmail}`);
+      console.warn('⚠️  ADMIN_PASSWORD env var not set — skipping admin seed. Set it in Render → Environment Variables and redeploy.');
     } else {
-      console.log(`✔  Admin already exists → ${adminEmail}`);
+      const adminExists = await User.findOne({ email: adminEmail });
+      if (!adminExists) {
+        await User.create({ name: 'Super Admin', email: adminEmail, password: adminPassword,
+          role: 'admin', kyc: { status: 'approved' } });
+        console.log(`✅ Admin created → ${adminEmail}`);
+      } else {
+        console.log(`✔  Admin already exists → ${adminEmail}`);
+      }
     }
 
     // ── Demo client (dev-only) ────────────────────────────────────────────────
@@ -36,7 +34,6 @@ async function autoSeed() {
     }
 
     // ── Couriers: only Delhivery FR and Amazon Shipping ──────────────────────
-    // Disable any legacy couriers that aren't in our approved list
     await Courier.updateMany(
       { code: { $nin: ['DLVRY', 'AMZN'] } },
       { $set: { isActive: false } }
@@ -63,7 +60,6 @@ async function autoSeed() {
         def.courier,
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
-      // Upsert the selloship mapping for this courier
       const existingMap = await CourierSelloshipMapping.findOne({ courier: c._id });
       if (!existingMap) {
         await CourierSelloshipMapping.create({ courier: c._id, ...def.mapping });
@@ -73,7 +69,6 @@ async function autoSeed() {
         console.log(`✔  Courier + mapping verified: ${c.name}`);
       }
 
-      // Seed default rates if none exist
       const rateExists = await ShippingRate.findOne({ courier: c._id, user: null });
       if (!rateExists) {
         await ShippingRate.insertMany([
