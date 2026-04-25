@@ -19,7 +19,6 @@
  --card:#fff;--border:#E2E8F0;--border2:#CBD5E1;
  --topbar:#fff;
  --text:#0F172A;--text2:#334155;--muted:#64748B;--dim:#94A3B8;
- --text-muted:#64748B;--primary:#1E40AF;
  --r:10px;--r2:14px;--r3:18px;
  --sh:0 1px 3px rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.04);
  --sh2:0 4px 16px rgba(0,0,0,.08),0 12px 40px rgba(0,0,0,.06);
@@ -144,7 +143,6 @@ html.dark{
   --card:#1E293B;--border:#334155;--border2:#475569;
   --topbar:#1E293B;
   --text:#F1F5F9;--text2:#CBD5E1;--muted:#94A3B8;--dim:#64748B;
-  --text-muted:#94A3B8;--primary:#3B82F6;
   --sh:0 1px 3px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.2);
   --sh2:0 4px 16px rgba(0,0,0,.4),0 12px 40px rgba(0,0,0,.3);
 }
@@ -1947,48 +1945,6 @@ async function adminGenerateManifest() {
  toast(`Manifest #${d.manifestNumber} generated`, 'success');
  window.open(d.manifestUrl, '_blank');
  } else toast(d?.message || 'Error', 'error');
-}
-
-// ─── ORDER STATUS MODAL ───────────────────────────────────────────────────────
-function openOrderStatusModal(orderId) {
-  document.getElementById('osm-id').value = orderId;
-  document.getElementById('osm-awb').value = '';
-  document.getElementById('osm-status').value = 'processing';
-  document.getElementById('osm-url').value = '';
-  document.getElementById('osm-charge').value = '0';
-  // Populate courier dropdown
-  const sel = document.getElementById('osm-courier');
-  if (sel && sel.options.length <= 1) {
-    api('GET', '/couriers').then(d => {
-      if (d?.couriers) {
-        sel.innerHTML = '<option value="">Select...</option>' +
-          d.couriers.filter(c => c.isActive).map(c => `<option value="${c._id}">${c.name}</option>`).join('');
-      }
-    });
-  }
-  openModal('order-status-modal');
-}
-
-async function updateOrderStatus() {
-  const id = document.getElementById('osm-id').value;
-  const payload = {
-    status: document.getElementById('osm-status').value,
-    awbNumber: document.getElementById('osm-awb').value.trim(),
-    ndrReason: document.getElementById('osm-status').value === 'ndr' ? 'Admin manual update' : undefined
-  };
-  const d = await api('PATCH', `/orders/${id}/status`, payload);
-  if (d?.success) {
-    toast('Order status updated', 'success');
-    closeModal('order-status-modal');
-    loadOrders();
-  } else {
-    toast(d?.message || 'Error updating status', 'error');
-  }
-}
-
-function adminViewOrder(orderId) {
-  // Navigate to orders page and show info in toast (full detail modal can be added later)
-  toast('Order ID: ' + orderId, 'info');
 }
 
 async function loadNDR() {
